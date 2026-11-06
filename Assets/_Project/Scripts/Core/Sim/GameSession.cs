@@ -40,8 +40,16 @@ namespace FloorF.Core
         /// <summary>
         /// Early day end: once every scheduled spawn of the day has appeared and no guest is active any more, the day
         /// ends after this many seconds (no bonus for the time left). A guest appearing in between cancels the wait.
+        /// Data: <c>rules.earlyEndDelaySeconds</c> (negative/NaN = 0).
         /// </summary>
-        public const float EarlyEndDelaySeconds = 2f;
+        public float EarlyEndDelaySeconds => rules.earlyEndDelaySeconds > 0f ? rules.earlyEndDelaySeconds : 0f;
+
+        /// <summary>
+        /// Speech spam guard: the same archetype does not repeat the same line trigger within this many seconds of day
+        /// time (e.g. two identical guests spawning together show one bubble). <see cref="GuestLineTriggers.Special"/>
+        /// is never throttled. Presentation tuning, not game content.
+        /// </summary>
+        public const float SameLineCooldownSeconds = 5f;
 
         // ---- day flow
         DayId day = DayId.First;
@@ -69,6 +77,9 @@ namespace FloorF.Core
         readonly List<int> offerRemaining = new List<int>();
 
         readonly List<GuestRuntime> scratch = new List<GuestRuntime>();
+
+        // ---- speech throttle: "archetype|trigger" -> day time it was last said
+        readonly Dictionary<string, float> lastLineAt = new Dictionary<string, float>();
 
         public GameSession(GameData data, IEventBus bus, Random random)
         {
@@ -138,6 +149,7 @@ namespace FloorF.Core
             nextSpawn = 0;
             elapsed = 0f;
             emptyFor = 0f;
+            lastLineAt.Clear();
             luckAtStart = Score.Luck;
             dayDelivered = dayLeft = dayLucky = dayUnlucky = 0;
             Score.BeginDay();
@@ -383,6 +395,12 @@ namespace FloorF.Core
             if (line == null) return;
             var text = line.Get(UseKorean);
             if (string.IsNullOrEmpty(text)) return;
+            if (trigger != GuestLineTriggers.Special)
+            {
+                var key = g.Def.id + "|" + trigger;
+                if (lastLineAt.TryGetValue(key, out var at) && elapsed - at < SameLineCooldownSeconds - 1e-4f) return;
+                lastLineAt[key] = elapsed;
+            }
             bus.Publish(new GuestSpoke(g.Id, trigger, text));
         }
 
@@ -714,9 +732,11 @@ namespace FloorF.Core
                     dayDelivered++;
                     Score.AddLuck(rules.deliveryLuckBonus, LuckSource.Delivery);
                     Score.AddTips(tip, earned: true);
-                    Speak(g, GuestLineTriggers.Delivered);
+                    // 4th-floor ending: the mystery guest gets off at the real 4th floor while a sticker hides it
+                    bool fourth = g.Def.HasTrait(GuestTraits.Mystery) && floor == StoryRules.RealFourthFloor && Building.IsRelabelled(floor);
+                    Speak(g, fourth ? GuestLineTriggers.Special : GuestLineTriggers.Delivered);
                     Guests.Remove(g);
-                    if (g.Def.HasTrait(GuestTraits.Mystery) && floor == StoryRules.RealFourthFloor) fourthFloorEnding = true;
+                    if (fourth) fourthFloorEnding = true;
                 }
                 if (fourthFloorEnding) EndDay(EndingKind.FourthFloor);
             }

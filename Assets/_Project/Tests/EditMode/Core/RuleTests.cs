@@ -233,11 +233,27 @@ namespace FloorF.Tests.EditMode.Core
             Assert.IsFalse(sim.S.AcceptsInput);
         }
 
-        [Test]
-        public void MysteryGuest_AtPhysicalFourth_FourthFloorEnding()
+        static void MysteryLines(SimFixture.Defs d)
         {
-            var sim = Running(d => d.Hotel.floors[3].label = "F");
-            Assert.AreEqual(new FloorLabel("F"), sim.S.Building.GetLabel(F(4)));
+            d.Guests.guests.First(x => x.id == "mystery").lines = new[]
+            {
+                new GuestLineDef { trigger = GuestLineTriggers.Delivered, text = "m:delivered" },
+                new GuestLineDef { trigger = GuestLineTriggers.Special, text = "m:special" },
+            };
+        }
+
+        /// <summary>4th-floor ending (option A): only while a sticker hides the real 4th floor.</summary>
+        [Test]
+        public void MysteryGuest_AtPhysicalFourth_WithSticker_FourthFloorEnding()
+        {
+            var sim = Running(d => { d.Hotel.rules.startTips = 50; MysteryLines(d); });
+            sim.EndDayToShop();
+            Assert.AreEqual(StickerApplyResult.Applied, sim.S.TryBuyAndApply(new StickerId("four_to_f"), F(4)));
+            Assert.IsTrue(sim.S.FinishShopping());
+            Assert.IsTrue(sim.S.BeginDay());
+            Assert.IsTrue(sim.S.Building.IsRelabelled(F(4)));
+            sim.Log.Clear();
+
             var g = sim.Spawn("mystery", 1, 4);
             Assert.IsTrue(Info(sim, g).HideNumbers);
             sim.Open();
@@ -247,8 +263,43 @@ namespace FloorF.Tests.EditMode.Core
             sim.Run(0.2f);
 
             Assert.AreEqual(g, sim.Events<GuestDelivered>().Single().Guest);
+            var spoke = sim.Events<GuestSpoke>().Single();
+            Assert.AreEqual(g, spoke.Guest);
+            Assert.AreEqual(GuestLineTriggers.Special, spoke.LineTrigger, "special line instead of the delivered one");
+            Assert.AreEqual("m:special", spoke.Text);
             Assert.AreEqual(EndingKind.FourthFloor, sim.Events<EndingReached>().Single().Ending);
+            Assert.AreEqual(EndingKind.FourthFloor, sim.S.Ending);
             Assert.AreEqual(DayPhase.Ending, sim.S.Phase);
+            sim.AssertOrder(typeof(GuestDelivered), typeof(GuestSpoke), typeof(DayEnded), typeof(DayPhaseChanged), typeof(EndingReached));
+        }
+
+        [Test]
+        public void MysteryGuest_AtPhysicalFourth_NoSticker_NormalDelivery()
+        {
+            // an original "F" label is not a sticker: still just a delivery
+            var sim = Running(d => { d.Hotel.floors[3].label = "F"; MysteryLines(d); });
+            Assert.IsFalse(sim.S.Building.IsRelabelled(F(4)));
+            var g = sim.Spawn("mystery", 1, 4);
+            sim.Open();
+            sim.Close();
+            sim.GoTo(4);
+            sim.Open();
+
+            Assert.AreEqual(g, sim.Events<GuestDelivered>().Single().Guest);
+            var spoke = sim.Events<GuestSpoke>().Single();
+            Assert.AreEqual(GuestLineTriggers.Delivered, spoke.LineTrigger);
+            Assert.AreEqual(0, sim.Events<EndingReached>().Count);
+            Assert.AreEqual(DayPhase.Running, sim.S.Phase, "the game goes on");
+
+            // the run ends normally: last day -> Summary -> Prosperous/Modest
+            sim.EndDayToShop();
+            Assert.IsTrue(sim.S.FinishShopping());
+            Assert.IsTrue(sim.S.BeginDay());
+            sim.S.EndDayNow();
+            Assert.AreEqual(DayPhase.Summary, sim.S.Phase);
+            Assert.IsTrue(sim.S.ContinueFromSummary());
+            Assert.AreEqual(DayPhase.Ending, sim.S.Phase);
+            Assert.AreEqual(EndingKind.Modest, sim.S.Ending, "luck about 51 is below prosperousEndingLuck 70");
         }
 
         [Test]

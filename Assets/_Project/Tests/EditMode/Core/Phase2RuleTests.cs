@@ -67,6 +67,7 @@ namespace FloorF.Tests.EditMode.Core
             sim.Spawn("granny", 1, 3);
             Assert.AreEqual("granny:spawn", Lines(sim, GuestLineTriggers.Spawn).Last().Text);
 
+            sim.Run(GameSession.SameLineCooldownSeconds); // same archetype + same line is throttled
             settings.UseKorean = true;
             Assert.AreEqual(1, changes.Count);
             Assert.IsTrue(changes[0].UseKorean);
@@ -79,6 +80,7 @@ namespace FloorF.Tests.EditMode.Core
             sim.Spawn("granny", 2, 3);
             Assert.AreEqual("ko:granny:spawn", Lines(sim, GuestLineTriggers.Spawn).Last().Text);
 
+            sim.Run(GameSession.SameLineCooldownSeconds);
             sim.S.UseKorean = false; // legacy setter goes through the settings
             Assert.AreEqual(2, changes.Count);
             Assert.IsFalse(changes[1].UseKorean);
@@ -210,11 +212,16 @@ namespace FloorF.Tests.EditMode.Core
         [Test]
         public void Day_EndsEarly_WhenAllGuestsDone()
         {
-            var sim = Running(d => d.Days.days[0].spawns = new[]
+            var sim = Running(d =>
             {
-                new SpawnDef { time = 0.5f, guest = "plain", floor = 1, destination = "d2" },
-                new SpawnDef { time = 20f, guest = "plain", floor = 1, destination = "d2" },
+                d.Hotel.rules.earlyEndDelaySeconds = 3f;
+                d.Days.days[0].spawns = new[]
+                {
+                    new SpawnDef { time = 0.5f, guest = "plain", floor = 1, destination = "d2" },
+                    new SpawnDef { time = 20f, guest = "plain", floor = 1, destination = "d2" },
+                };
             });
+            Assert.AreEqual(3f, sim.S.EarlyEndDelaySeconds, "rules.earlyEndDelaySeconds");
             sim.Run(1f);
             sim.Open();
             sim.Close();
@@ -235,16 +242,23 @@ namespace FloorF.Tests.EditMode.Core
             int luck = sim.S.Score.Luck;
             float elapsed = sim.S.ElapsedSeconds;
 
-            sim.Run(GameSession.EarlyEndDelaySeconds - 0.1f);
+            sim.Run(sim.S.EarlyEndDelaySeconds - 0.1f);
             Assert.AreEqual(DayPhase.Running, sim.S.Phase, "short pause first");
             sim.Run(0.2f);
             Assert.AreEqual(DayPhase.Summary, sim.S.Phase);
             var ended = sim.Events<DayEnded>().Single();
             Assert.AreEqual(2, ended.Summary.Delivered);
             Assert.AreEqual(luck, sim.S.Score.Luck, "no bonus for the time left");
-            Assert.AreEqual(elapsed + GameSession.EarlyEndDelaySeconds, sim.S.ElapsedSeconds, 0.11f);
+            Assert.AreEqual(elapsed + sim.S.EarlyEndDelaySeconds, sim.S.ElapsedSeconds, 0.11f);
             Assert.Greater(sim.S.RemainingSeconds, 900f);
             sim.AssertOrder(typeof(DayEnded), typeof(DayPhaseChanged));
+        }
+
+        [Test]
+        public void Day_EarlyEndDelay_DefaultsToTwoSeconds()
+        {
+            Assert.AreEqual(2f, new RulesDef().earlyEndDelaySeconds);
+            Assert.AreEqual(2f, Running().S.EarlyEndDelaySeconds);
         }
 
         [Test]
@@ -253,6 +267,70 @@ namespace FloorF.Tests.EditMode.Core
             var sim = Running(d => d.Days.days[0].durationSeconds = 30f);
             sim.Run(10f);
             Assert.AreEqual(DayPhase.Running, sim.S.Phase, "a day without data spawns only ends on the clock");
+        }
+
+        // ------------------------------------------------------------------ fix pass: speech throttle, autopilot day reset
+
+        [Test]
+        public void SameArchetypeSameLine_Throttled()
+        {
+            var sim = Running(d => { AddLines(d, "granny"); AddLines(d, "plain"); });
+            var a = sim.Spawn("granny", 1, 3);
+            sim.Spawn("granny", 1, 5);
+            var p = sim.Spawn("plain", 1, 6);
+            var spawnLines = Lines(sim, GuestLineTriggers.Spawn);
+            Assert.AreEqual(2, spawnLines.Count, "second granny stays quiet; plain is another archetype");
+            Assert.AreEqual(a, spawnLines[0].Guest);
+            Assert.AreEqual(p, spawnLines[1].Guest);
+
+            // another trigger of the same archetype has its own cooldown
+            sim.Open();
+            var board = Lines(sim, GuestLineTriggers.Board);
+            Assert.AreEqual(2, board.Count, "one board line per archetype");
+            Assert.AreEqual(a, board[0].Guest);
+
+            sim.Run(GameSession.SameLineCooldownSeconds - 0.5f);
+            sim.Spawn("granny", 2, 3);
+            Assert.AreEqual(2, Lines(sim, GuestLineTriggers.Spawn).Count, "still inside the cooldown");
+            sim.Run(1f);
+            var late = sim.Spawn("granny", 2, 3);
+            Assert.AreEqual(3, Lines(sim, GuestLineTriggers.Spawn).Count);
+            Assert.AreEqual(late, Lines(sim, GuestLineTriggers.Spawn).Last().Guest, "after the cooldown it speaks again");
+        }
+
+        [Test]
+        public void AutoPilot_ResetsStateBetweenDays()
+        {
+            var sim = Running(AddGambler);
+            var pilot = new AutoPilot(sim.S.Elevator, sim.S, sim.S.Guests, sim.S.Building);
+            var gambler = sim.Spawn("gambler", 1, 9); // refuses a headcount of 1
+            for (int i = 0; i < 60; i++) { pilot.Step(); sim.Run(0.05f); }
+            Assert.AreEqual(1, sim.Events<DoorsClosed>().Count, "bot opened for him and closed again");
+            Assert.AreEqual(GuestState.Waiting, Info(sim, gambler).State);
+            Assert.AreEqual(DoorState.Closed, sim.S.Elevator.Doors);
+
+            // next day without a single bot step in between: a lobby rush must still get the doors open
+            sim.EndDayToShop();
+            Assert.IsTrue(sim.S.FinishShopping());
+            Assert.IsTrue(sim.S.BeginDay());
+            Assert.AreEqual(F(1), sim.S.Elevator.CurrentFloor);
+            sim.Log.Clear();
+            var g = sim.Spawn("plain", 1, 3);
+            for (int i = 0; i < 100 && sim.Events<GuestBoarded>().Count == 0; i++) { pilot.Step(); sim.Run(0.05f); }
+            Assert.AreEqual(g, sim.Events<GuestBoarded>().Single().Guest, "closed-at-lobby memory from day 1 was forgotten");
+
+            // same for a restart (same day number, the clock goes back)
+            var pilot2 = new AutoPilot(sim.S.Elevator, sim.S, sim.S.Guests, sim.S.Building);
+            sim.S.RestartGame();
+            Assert.IsTrue(sim.S.BeginDay());
+            sim.Spawn("gambler", 1, 9);
+            for (int i = 0; i < 60; i++) { pilot2.Step(); sim.Run(0.05f); }
+            sim.S.RestartGame();
+            Assert.IsTrue(sim.S.BeginDay());
+            sim.Log.Clear();
+            sim.Spawn("plain", 1, 3);
+            for (int i = 0; i < 100 && sim.Events<GuestBoarded>().Count == 0; i++) { pilot2.Step(); sim.Run(0.05f); }
+            Assert.AreEqual(1, sim.Events<GuestBoarded>().Count, "restart forgets it too");
         }
     }
 }
