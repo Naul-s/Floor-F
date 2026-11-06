@@ -49,13 +49,24 @@ namespace FloorF.Gameplay
     }
 
     /// <summary>
-    /// Gameplay module root - EXAMPLE to extend (gameplay-dev owns it). Today it only loads + registers the data
-    /// and the world layout so every other module can already read them.
+    /// Gameplay module root. Awake: load data, build the Core <see cref="GameSession"/> (rules engine) and register
+    /// every Gameplay-owned service. First LateUpdate (after every module's Start and Update): StartNewGame
+    /// (GameStarted + DayPhaseChanged). Every Update after that: Tick(Time.deltaTime).
     /// </summary>
     sealed class GameplayRoot : MonoBehaviour
     {
+        /// <summary>Tests may fix the random seed (destination picks). Null = time-based.</summary>
+        internal static int? SeedOverride;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => SeedOverride = null;
+
         GameData data;
         HotelLayout layout;
+        GameSession session;
+        ActorLocator locator;
+
+        internal GameSession Session => session;
 
         void Awake()
         {
@@ -69,15 +80,55 @@ namespace FloorF.Gameplay
                 return;
             }
             layout = HotelLayout.From(data.Hotel);
+            int seed = SeedOverride ?? System.Environment.TickCount;
+            session = new GameSession(data, GameServices.Events, new System.Random(seed));
+            locator = new ActorLocator(session, layout);
+
             GameServices.Register(data);
             GameServices.Register<IWorldLayout>(layout);
-            Debug.Log($"[Gameplay] installed: {data.FloorCount} floors, {data.Guests.Count} guests, {data.DayCount} days, {data.Stickers.Count} stickers");
+            GameServices.Register<IBuildingQuery>(session.Building);
+            GameServices.Register<IElevatorQuery>(session.Elevator);
+            GameServices.Register<IElevatorControl>(session);
+            GameServices.Register<IGuestQuery>(session.Guests);
+            GameServices.Register<IScoreQuery>(session.Score);
+            GameServices.Register<IDayQuery>(session);
+            GameServices.Register<IGameFlow>(session);
+            GameServices.Register<IShopService>(session);
+            GameServices.Register<IActorLocator>(locator);
+
+            gameObject.AddComponent<KeyboardInput>().Bind(session);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            gameObject.AddComponent<DebugOverlay>().Bind(session);
+#endif
+            Debug.Log($"[Gameplay] installed: {data.FloorCount} floors, {data.Guests.Count} guests, {data.DayCount} days, {data.Stickers.Count} stickers (seed {seed})");
+        }
+
+        void Update()
+        {
+            if (session != null && session.HasStarted) session.Tick(Time.deltaTime);
+        }
+
+        // First game event only after every module's Start and first Update (ARCHITECTURE "runtime assembly").
+        void LateUpdate()
+        {
+            if (session != null && !session.HasStarted) session.StartNewGame();
         }
 
         void OnDestroy()
         {
+            if (data == null) return;
             GameServices.Unregister(data);
             GameServices.Unregister<IWorldLayout>(layout);
+            if (session == null) return;
+            GameServices.Unregister<IBuildingQuery>(session.Building);
+            GameServices.Unregister<IElevatorQuery>(session.Elevator);
+            GameServices.Unregister<IElevatorControl>(session);
+            GameServices.Unregister<IGuestQuery>(session.Guests);
+            GameServices.Unregister<IScoreQuery>(session.Score);
+            GameServices.Unregister<IDayQuery>(session);
+            GameServices.Unregister<IGameFlow>(session);
+            GameServices.Unregister<IShopService>(session);
+            GameServices.Unregister<IActorLocator>(locator);
         }
     }
 }
