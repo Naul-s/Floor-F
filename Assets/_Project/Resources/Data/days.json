@@ -1,0 +1,101 @@
+{
+  "days": [
+    {
+      "day": 1,
+      "title": "Day 1 - First Shift",
+      "titleKo": "1일차 - 첫 출근",
+      "intro": "Guests judge every floor where the doors open, and how many are inside when they close.",
+      "introKo": "손님은 문이 열린 층의 번호와, 문이 닫힐 때의 인원수로 운을 판단합니다.",
+      "durationSeconds": 75,
+      "tutorial": true,
+      "shopStickers": ["four_to_f"],
+      "spawns": [
+        { "time": 1, "guest": "korean_grandma", "floor": 1, "destination": "restaurant" },
+        { "time": 15, "guest": "western_tourist", "floor": 1, "destination": "rooftop" },
+        { "time": 35, "guest": "korean_grandma", "floor": 5, "destination": "lobby" }
+      ]
+    },
+    {
+      "day": 2,
+      "title": "Day 2 - Business Hours",
+      "titleKo": "2일차 - 영업 시간",
+      "intro": "A businessman in a hurry. Eight is his favourite number.",
+      "introKo": "바쁜 사업가 손님. 8을 무척 좋아합니다.",
+      "durationSeconds": 90,
+      "tutorial": false,
+      "shopStickers": ["four_to_f", "any_to_8"],
+      "spawns": [
+        { "time": 2, "guest": "chinese_businessman", "floor": 1, "destination": "casino" },
+        { "time": 10, "guest": "korean_grandma", "floor": 3, "destination": "sauna" },
+        { "time": 20, "guest": "western_tourist", "floor": 1, "destination": "bar" },
+        { "time": 35, "guest": "chinese_businessman", "floor": 8, "destination": "restaurant" },
+        { "time": 50, "guest": "western_tourist", "floor": 9, "destination": "lobby" },
+        { "time": 65, "guest": "korean_grandma", "floor": 2, "destination": "rooms" }
+      ]
+    },
+    {
+      "day": 3,
+      "title": "Day 3 - Honeymoon",
+      "titleKo": "3일차 - 신혼여행",
+      "intro": "Newlyweds always ride together. Count heads when the doors close.",
+      "introKo": "신혼부부는 항상 함께 탑니다. 문이 닫힐 때 인원수를 세어 보세요.",
+      "durationSeconds": 100,
+      "tutorial": false,
+      "shopStickers": ["four_to_f", "any_to_8"],
+      "spawns": [
+        { "time": 2, "guest": "japanese_couple", "floor": 1, "destination": "sauna" },
+        { "time": 8, "guest": "western_tourist", "floor": 1, "destination": "rooftop" },
+        { "time": 18, "guest": "chinese_businessman", "floor": 6, "destination": "casino" },
+        { "time": 28, "guest": "korean_grandma", "floor": 1, "destination": "rooms" },
+        { "time": 40, "guest": "japanese_couple", "floor": 7, "destination": "restaurant" },
+        { "time": 55, "guest": "western_tourist", "floor": 3, "destination": "bar" },
+        { "time": 70, "guest": "chinese_businessman", "floor": 1, "destination": "bar" },
+        { "time": 85, "guest": "korean_grandma", "floor": 9, "destination": "lobby" }
+      ]
+    },
+    {
+      "day": 4,
+      "title": "Day 4 - Full House",
+      "titleKo": "4일차 - 만실",
+      "intro": "Everyone is checking in at once.",
+      "introKo": "모두가 한꺼번에 몰려옵니다.",
+      "durationSeconds": 110,
+      "tutorial": false,
+      "shopStickers": ["four_to_f", "any_to_8"],
+      "spawns": [
+        { "time": 2, "guest": "chinese_businessman", "floor": 1, "destination": "casino" },
+        { "time": 4, "guest": "japanese_couple", "floor": 1, "destination": "rooms" },
+        { "time": 6, "guest": "western_tourist", "floor": 1, "destination": "rooftop" },
+        { "time": 15, "guest": "korean_grandma", "floor": 2, "destination": "sauna" },
+        { "time": 25, "guest": "western_tourist", "floor": 6, "destination": "gym" },
+        { "time": 35, "guest": "japanese_couple", "floor": 5, "destination": "lobby" },
+        { "time": 48, "guest": "chinese_businessman", "floor": 7, "destination": "restaurant" },
+        { "time": 60, "guest": "korean_grandma", "floor": 1, "destination": "restaurant" },
+        { "time": 75, "guest": "western_tourist", "floor": 8, "destination": "lobby" },
+        { "time": 90, "guest": "chinese_businessman", "floor": 2, "destination": "casino" }
+      ]
+    },
+    {
+      "day": 5,
+      "title": "Day 5 - The Fourth Floor",
+      "titleKo": "5일차 - 4층",
+      "intro": "Last night. Someone is asking for a floor that should not exist.",
+      "introKo": "마지막 밤. 누군가 있어선 안 될 층을 찾고 있습니다.",
+      "durationSeconds": 120,
+      "tutorial": false,
+      "shopStickers": [],
+      "spawns": [
+        { "time": 2, "guest": "korean_grandma", "floor": 1, "destination": "sauna" },
+        { "time": 5, "guest": "chinese_businessman", "floor": 1, "destination": "casino" },
+        { "time": 12, "guest": "japanese_couple", "floor": 6, "destination": "restaurant" },
+        { "time": 20, "guest": "western_tourist", "floor": 1, "destination": "bar" },
+        { "time": 32, "guest": "chinese_businessman", "floor": 9, "destination": "lobby" },
+        { "time": 45, "guest": "korean_grandma", "floor": 7, "destination": "rooms" },
+        { "time": 60, "guest": "mystery_guest", "floor": 1, "destinationFloor": 4 },
+        { "time": 72, "guest": "japanese_couple", "floor": 1, "destination": "rooftop" },
+        { "time": 88, "guest": "western_tourist", "floor": 5, "destination": "gym" },
+        { "time": 100, "guest": "chinese_businessman", "floor": 3, "destination": "casino" }
+      ]
+    }
+  ]
+}

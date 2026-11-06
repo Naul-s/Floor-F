@@ -1,0 +1,54 @@
+{
+  "floorCount": 9,
+  "capacity": 8,
+  "floors": [
+    { "number": 1, "label": "", "destination": "lobby" },
+    { "number": 2, "label": "", "destination": "restaurant" },
+    { "number": 3, "label": "", "destination": "gym" },
+    { "number": 4, "label": "", "destination": "karaoke" },
+    { "number": 5, "label": "", "destination": "sauna" },
+    { "number": 6, "label": "", "destination": "rooms" },
+    { "number": 7, "label": "", "destination": "bar" },
+    { "number": 8, "label": "", "destination": "casino" },
+    { "number": 9, "label": "", "destination": "rooftop" }
+  ],
+  "destinations": [
+    { "id": "lobby", "name": "Lobby", "nameKo": "로비", "icon": "lobby" },
+    { "id": "restaurant", "name": "Restaurant", "nameKo": "식당", "icon": "restaurant" },
+    { "id": "gym", "name": "Gym", "nameKo": "헬스장", "icon": "gym" },
+    { "id": "karaoke", "name": "Karaoke", "nameKo": "노래방", "icon": "karaoke" },
+    { "id": "sauna", "name": "Sauna", "nameKo": "사우나", "icon": "sauna" },
+    { "id": "rooms", "name": "Guest Rooms", "nameKo": "객실", "icon": "rooms" },
+    { "id": "bar", "name": "Bar", "nameKo": "바", "icon": "bar" },
+    { "id": "casino", "name": "Casino", "nameKo": "카지노", "icon": "casino" },
+    { "id": "rooftop", "name": "Rooftop", "nameKo": "옥상", "icon": "rooftop" }
+  ],
+  "rules": {
+    "startLuck": 50,
+    "maxLuck": 100,
+    "startTips": 0,
+    "luckyFloorTipMultiplier": 2.0,
+    "luckyFloorLuckBonus": 2,
+    "unluckyFloorLuckPenalty": 10,
+    "luckyOccupancyTipMultiplier": 1.5,
+    "luckyOccupancyLuckBonus": 3,
+    "unluckyOccupancyLuckPenalty": 5,
+    "patienceOutLuckPenalty": 5,
+    "deliveryLuckBonus": 1,
+    "honestGuestLuckPenalty": 5,
+    "prosperousEndingLuck": 70,
+    "elevatorSecondsPerFloor": 0.6,
+    "doorSeconds": 0.35,
+    "boardSeconds": 0.4
+  },
+  "layout": {
+    "floorHeight": 3.0,
+    "floorWidth": 16.0,
+    "depth": 4.0,
+    "shaftX": 0.0,
+    "carWidth": 2.4,
+    "waitingStartOffsetX": 2.0,
+    "waitingSlotSpacing": 0.9,
+    "exitOffsetX": 8.0
+  }
+}

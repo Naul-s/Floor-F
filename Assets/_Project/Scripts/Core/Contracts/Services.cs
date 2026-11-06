@@ -1,0 +1,193 @@
+using System.Collections.Generic;
+
+namespace FloorF.Core
+{
+    // =====================================================================================================
+    // Service interfaces. Registered in GameServices by their OWNER, read by everyone else.
+    //   Owner Gameplay : IBuildingQuery, IElevatorQuery, IElevatorControl, IGuestQuery, IScoreQuery, IDayQuery,
+    //                    IGameFlow, IShopService, IActorLocator, IWorldLayout (HotelLayout), GameData
+    //   Rendering / UI / Audio : register nothing by default; if one needs to expose something, it goes here first
+    //                    (CONTRACT REQUEST), never as a direct reference between presentation modules.
+    // Queries are cheap and allocation-free - poll them every frame if you like. Commands return false/an enum on
+    // rejection instead of throwing.
+    // =====================================================================================================
+
+    /// <summary>The building: floors, their CURRENT labels and destinations.</summary>
+    public interface IBuildingQuery
+    {
+        int FloorCount { get; }
+        /// <summary>Current displayed label (after stickers).</summary>
+        FloorLabel GetLabel(FloorIndex floor);
+        /// <summary>Label from hotel.json before any sticker.</summary>
+        FloorLabel GetOriginalLabel(FloorIndex floor);
+        bool IsRelabelled(FloorIndex floor);
+        DestinationId GetDestination(FloorIndex floor);
+        bool TryFindFloor(DestinationId destination, out FloorIndex floor);
+        /// <summary>First floor (lowest) currently showing <paramref name="label"/>; labels may repeat ("8" twice).</summary>
+        bool TryFindFloorByLabel(FloorLabel label, out FloorIndex floor);
+    }
+
+    public interface IElevatorQuery
+    {
+        /// <summary>Floor the car is at, or the last floor it passed while moving.</summary>
+        FloorIndex CurrentFloor { get; }
+        bool HasTarget { get; }
+        FloorIndex TargetFloor { get; }
+        /// <summary>Continuous car height in FLOOR units (0 = ground, 2.5 = halfway between physical 3 and 4). For smooth visuals.</summary>
+        float Position { get; }
+        ElevatorMotion Motion { get; }
+        DoorState Doors { get; }
+        int Occupancy { get; }
+        int Capacity { get; }
+        bool IsFull { get; }
+        /// <summary>Guests inside, in boarding order.</summary>
+        IReadOnlyList<GuestId> Riders { get; }
+    }
+
+    /// <summary>Player commands (UI panel buttons, keyboard). False = rejected (e.g. doors open, already there).</summary>
+    public interface IElevatorControl
+    {
+        bool AcceptsInput { get; }
+        bool RequestFloor(FloorIndex floor);
+        bool OpenDoors();
+        bool CloseDoors();
+    }
+
+    /// <summary>Snapshot of one guest for bubbles, visuals and audio.</summary>
+    public readonly struct GuestInfo
+    {
+        public readonly GuestId Id;
+        public readonly GuestArchetypeId Archetype;
+        public readonly PartyId Party;
+        public readonly GuestState State;
+        public readonly GuestMood Mood;
+        /// <summary>Waiting floor, or the car's floor while riding.</summary>
+        public readonly FloorIndex Floor;
+        public readonly DestinationId Destination;
+        public readonly FloorIndex DestinationFloor;
+        /// <summary>1 = full patience, 0 = about to leave. Frozen while riding unless a rule says otherwise.</summary>
+        public readonly float Patience01;
+        public readonly LuckProfile Luck;
+        /// <summary>Mystery guest: show "?" instead of the numbers.</summary>
+        public readonly bool HideNumbers;
+
+        public GuestInfo(GuestId id, GuestArchetypeId archetype, PartyId party, GuestState state, GuestMood mood, FloorIndex floor,
+            DestinationId destination, FloorIndex destinationFloor, float patience01, LuckProfile luck, bool hideNumbers)
+        {
+            Id = id; Archetype = archetype; Party = party; State = state; Mood = mood; Floor = floor;
+            Destination = destination; DestinationFloor = destinationFloor; Patience01 = patience01;
+            Luck = luck ?? LuckProfile.None; HideNumbers = hideNumbers;
+        }
+    }
+
+    public interface IGuestQuery
+    {
+        /// <summary>Guests that are Waiting/Boarding/Riding/Exiting (not Delivered/Left).</summary>
+        IReadOnlyList<GuestId> ActiveGuests { get; }
+        bool TryGet(GuestId guest, out GuestInfo info);
+        /// <summary>Guests currently waiting on <paramref name="floor"/>, in line order.</summary>
+        int GetWaiting(FloorIndex floor, List<GuestId> results);
+    }
+
+    public interface IScoreQuery
+    {
+        int Luck { get; }
+        int MaxLuck { get; }
+        /// <summary>Total tips the player holds (shop currency).</summary>
+        int Tips { get; }
+        int TipsEarnedToday { get; }
+    }
+
+    public interface IDayQuery
+    {
+        DayId CurrentDay { get; }
+        int DayCount { get; }
+        DayPhase Phase { get; }
+        bool IsTutorial { get; }
+        float DurationSeconds { get; }
+        float ElapsedSeconds { get; }
+        float RemainingSeconds { get; }
+        EndingKind Ending { get; }
+        /// <summary>Summary of the last finished day (valid in Summary/Shop/Ending).</summary>
+        DaySummary LastSummary { get; }
+    }
+
+    /// <summary>Flow buttons: "Start", "Continue", "Done shopping", "Play again".</summary>
+    public interface IGameFlow
+    {
+        /// <summary>Intro -> Running.</summary>
+        bool BeginDay();
+        /// <summary>Summary -> Shop (or straight to the next day's Intro if the shop has nothing).</summary>
+        bool ContinueFromSummary();
+        /// <summary>Shop -> next day's Intro.</summary>
+        bool FinishShopping();
+        /// <summary>Anywhere -> new game, Day 1 Intro.</summary>
+        void RestartGame();
+    }
+
+    public readonly struct ShopOffer
+    {
+        public readonly StickerDef Sticker;
+        public readonly StickerId Id;
+        public readonly int Price;
+        /// <summary>How many more can be bought today. -1 = unlimited.</summary>
+        public readonly int Remaining;
+        public ShopOffer(StickerDef sticker, int price, int remaining)
+        {
+            Sticker = sticker; Id = sticker != null ? sticker.Id : default; Price = price; Remaining = remaining;
+        }
+    }
+
+    public interface IShopService
+    {
+        bool IsOpen { get; }
+        IReadOnlyList<ShopOffer> Offers { get; }
+        /// <summary>Dry run of <see cref="TryBuyAndApply"/> (for greying out buttons / highlighting valid floors).</summary>
+        StickerApplyResult CanBuyAndApply(StickerId sticker, FloorIndex floor);
+        StickerApplyResult TryBuyAndApply(StickerId sticker, FloorIndex floor);
+    }
+
+    /// <summary>
+    /// Engine-free 3D point (Core cannot use UnityEngine.Vector3). Unity units. Convert with
+    /// FloorF.Gameplay.CoreUnityExtensions.ToVector3().
+    /// </summary>
+    public readonly struct WorldPoint
+    {
+        public readonly float X, Y, Z;
+        public WorldPoint(float x, float y, float z) { X = x; Y = y; Z = z; }
+        public static readonly WorldPoint Zero = new WorldPoint(0, 0, 0);
+        public WorldPoint Offset(float dx, float dy, float dz) => new WorldPoint(X + dx, Y + dy, Z + dz);
+        public override string ToString() => "(" + X + ", " + Y + ", " + Z + ")";
+    }
+
+    /// <summary>
+    /// Static geometry of the building in world units - the shared ruler for Gameplay (where guests stand),
+    /// Rendering (where to build the greybox) and UI (where to put bubbles). Implemented by <see cref="HotelLayout"/>.
+    /// </summary>
+    public interface IWorldLayout
+    {
+        int FloorCount { get; }
+        float FloorHeight { get; }
+        float FloorWidth { get; }
+        float Depth { get; }
+        /// <summary>X of the shaft centre line.</summary>
+        float ShaftX { get; }
+        /// <summary>Floor slab top surface at the shaft door (where the car stops).</summary>
+        WorldPoint GetFloorAnchor(FloorIndex floor);
+        /// <summary>Car origin (floor of the car) for a continuous <see cref="IElevatorQuery.Position"/>.</summary>
+        WorldPoint GetCarPosition(float floorPosition);
+        /// <summary>Where the guest in waiting line slot <paramref name="slot"/> stands (0 = nearest the shaft).</summary>
+        WorldPoint GetWaitingSlot(FloorIndex floor, int slot);
+        /// <summary>Spot inside the car for rider <paramref name="riderIndex"/> (0..capacity-1), relative to the car origin.</summary>
+        WorldPoint GetCarSlotOffset(int riderIndex);
+        /// <summary>Where guests walk to when they leave by the stairs / reach a destination (off-screen side of the floor).</summary>
+        WorldPoint GetExitPoint(FloorIndex floor);
+    }
+
+    /// <summary>Live positions of moving things (owned by Gameplay, which moves them). For visuals that follow actors.</summary>
+    public interface IActorLocator
+    {
+        bool TryGetGuestPosition(GuestId guest, out WorldPoint position);
+        WorldPoint CarPosition { get; }
+    }
+}
