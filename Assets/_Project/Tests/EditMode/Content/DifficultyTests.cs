@@ -141,6 +141,27 @@ namespace FloorF.Tests.EditMode.Content
             }
         }
 
+        /// <summary>
+        /// 4th-floor ending, choice A: the mystery guest only ends the game at the real 4th floor while a sticker hides it.
+        /// Without stickers the luck player finishes normally; with 4 -> F on floor 4 it reaches FourthFloor on the last day.
+        /// </summary>
+        [Test]
+        public void FourthFloorEnding_OnlyWhenFloor4IsHidden()
+        {
+            foreach (var seed in Seeds)
+            {
+                var plain = Run(seed, ShopPolicy.None, strategy: AutoPilotStrategy.LuckAware);
+                TestContext.WriteLine("seed " + seed + " no stickers: " + plain);
+                Assert.AreNotEqual(EndingKind.FourthFloor, plain.Ending, "seed " + seed + ": honest 4th floor still gave the 4th-floor ending");
+                Assert.AreEqual(data.DayCount, plain.EndingDay, "seed " + seed + ": " + plain);
+
+                var hidden = Run(seed, ShopPolicy.BuyEverythingOnFour, strategy: AutoPilotStrategy.LuckAware);
+                TestContext.WriteLine("seed " + seed + " floor 4 hidden: " + hidden);
+                Assert.AreEqual(EndingKind.FourthFloor, hidden.Ending, "seed " + seed + ": hidden 4th floor + mystery guest should end there");
+                Assert.AreEqual(data.DayCount, hidden.EndingDay, "seed " + seed + ": " + hidden);
+            }
+        }
+
         [Test]
         public void LuckBlindBot_SurvivesDay1()
         {

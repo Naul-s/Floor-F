@@ -24,7 +24,7 @@
         { "trigger": "delivered", "text": "Thank you, young one.", "textKo": "고마워요, 젊은이." },
         { "trigger": "impatient", "text": "My knees, dear... is it coming?", "textKo": "아이고 무릎이야... 언제 와?" },
         { "trigger": "left", "text": "I'll take the stairs. Slowly.", "textKo": "계단으로 갈란다. 천천히." },
-        { "trigger": "relabelled", "text": "New numbers on the buttons? As long as we're safe, dear.", "textKo": "버튼 숫자가 바뀌었네? 무사하기만 하면 됐지." }
+        { "trigger": "relabelled", "text": "New numbers? My mother always said: hide the 4 and death can't find you.", "textKo": "숫자를 바꿨네? 우리 엄마가 그랬지, 4를 가리면 죽음도 못 찾아온다고." }
       ]
     },
     {
@@ -177,13 +177,14 @@
       "color": "#2B2B2B",
       "accessory": "hood",
       "lines": [
-        { "trigger": "spawn", "text": "...Fourth floor.", "textKo": "...4층이요." },
+        { "trigger": "spawn", "text": "...Fourth floor. The one you hide.", "textKo": "...4층이요. 당신이 숨기는 그 층." },
         { "trigger": "board", "text": "Don't mind me. I've waited a long time.", "textKo": "신경 쓰지 마세요. 오래 기다렸으니까." },
-        { "trigger": "lucky_floor", "text": "Four. Finally.", "textKo": "4. 드디어." },
+        { "trigger": "lucky_floor", "text": "Four... out in the open. Too easy.", "textKo": "4... 이렇게 다 드러나 있으면, 너무 쉽죠." },
         { "trigger": "unlucky_floor", "text": "Not this one.", "textKo": "여기가 아니에요." },
         { "trigger": "lucky_occupancy", "text": "Four of us now. How fitting.", "textKo": "이제 넷이네요. 잘 어울려요." },
         { "trigger": "unlucky_occupancy", "text": "...", "textKo": "..." },
-        { "trigger": "delivered", "text": "I knew it was here all along.", "textKo": "역시 있었군요." },
+        { "trigger": "delivered", "text": "...No. Not this one. The real fourth floor is the hidden one.", "textKo": "...아니요. 여기가 아니에요. 진짜 4층은 숨겨진 층이에요." },
+        { "trigger": "special", "text": "You hid the four to keep death out. But hidden floors are where we live. Thank you.", "textKo": "죽음을 막으려고 4를 가렸죠. 그런데 가려진 층이 바로 우리가 사는 곳이에요. 고마워요." },
         { "trigger": "impatient", "text": "I can wait. I always have.", "textKo": "기다릴 수 있어요. 늘 그랬듯이." },
         { "trigger": "left", "text": "...Another night, then.", "textKo": "...그럼 다른 밤에." },
         { "trigger": "relabelled", "text": "You can cover a number. It's still there.", "textKo": "숫자는 가려도, 그대로 거기 있어요." }
