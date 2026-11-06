@@ -45,5 +45,23 @@ namespace FloorF.EditorTools
 #pragma warning restore CS0618
             Debug.Log("[ProjectSetupTool] queued TMP Essential Resources import");
         }
+
+        const string GalmuriTtf = "Assets/_Project/ThirdParty/Galmuri/Resources/Fonts/Galmuri11.ttf";
+
+        /// <summary>
+        /// Re-imports the Galmuri TTF so Unity writes a full, current TrueTypeFontImporter .meta (the hand-made stub was
+        /// version 1). Include Font Data must stay ON: UI builds a dynamic TMP font asset from it at runtime (WebGL too).
+        /// </summary>
+        [MenuItem("Floor F/Setup/Reimport Fonts")]
+        public static void ReimportFonts()
+        {
+            var importer = AssetImporter.GetAtPath(GalmuriTtf) as TrueTypeFontImporter;
+            if (importer == null) throw new System.IO.FileNotFoundException("ProjectSetupTool: missing font importer for " + GalmuriTtf);
+            importer.includeFontData = true;
+            importer.fontTextureCase = FontTextureCase.Dynamic;
+            EditorUtility.SetDirty(importer);
+            importer.SaveAndReimport();
+            Debug.Log("[ProjectSetupTool] reimported " + GalmuriTtf + " (includeFontData=true)");
+        }
     }
 }
