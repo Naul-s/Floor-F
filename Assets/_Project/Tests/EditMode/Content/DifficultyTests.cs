@@ -9,8 +9,8 @@ namespace FloorF.Tests.EditMode.Content
 {
     /// <summary>
     /// Difficulty on the REAL Resources/Data/*.json (content-designer): ignoring luck must not be enough to prosper,
-    /// but the tutorial must forgive mistakes. Drives the real <see cref="GameSession"/> with the luck-blind
-    /// <see cref="AutoPilot"/> (public API only). Intent + before/after numbers: Docs/Content/balance.md ("난이도").
+    /// playing for luck must be, and the tutorial must forgive mistakes. Drives the real <see cref="GameSession"/> with
+    /// <see cref="AutoPilot"/> (LuckBlind / LuckAware, public API only). Intent + before/after numbers: Docs/Content/balance.md ("난이도").
     /// </summary>
     public class DifficultyTests
     {
@@ -19,6 +19,9 @@ namespace FloorF.Tests.EditMode.Content
 
         /// <summary>The luck-blind run should land well below the Prosperous line, not just under it.</summary>
         const int AverageMargin = 10;
+
+        /// <summary>Playing for luck must beat ignoring it by a clear gap (on average).</summary>
+        const int SkillGap = 20;
 
         GameData data;
 
@@ -45,7 +48,7 @@ namespace FloorF.Tests.EditMode.Content
         /// Plays with the luck-blind AutoPilot until an ending (or <paramref name="lastDay"/> ends).
         /// A fresh pilot each day (a human starts each day fresh too); reaction delay 0-0.5 s from the seed.
         /// </summary>
-        RunResult Run(int seed, ShopPolicy shop, int lastDay = int.MaxValue)
+        RunResult Run(int seed, ShopPolicy shop, int lastDay = int.MaxValue, AutoPilotStrategy strategy = AutoPilotStrategy.LuckBlind)
         {
             var bus = new EventBus();
             var s = new GameSession(data, bus, new Random(seed));
@@ -66,7 +69,7 @@ namespace FloorF.Tests.EditMode.Content
                 {
                     case DayPhase.Intro:
                         if (s.CurrentDay.Number > lastDay) return new RunResult(ending, s.CurrentDay.Number - 1, s.Score.Luck, luckAfterDay.ToArray());
-                        pilot = new AutoPilot(s.Elevator, s, s.Guests, s.Building);
+                        pilot = new AutoPilot(s.Elevator, s, s.Guests, s.Building, strategy) { Data = data };
                         s.BeginDay();
                         break;
                     case DayPhase.Summary:
@@ -106,6 +109,24 @@ namespace FloorF.Tests.EditMode.Content
             double avg = results.Average(x => x.r.FinalLuck);
             TestContext.WriteLine("average final luck " + avg.ToString("F1") + " (prosperous " + prosperous + ")");
             Assert.LessOrEqual(avg, prosperous - AverageMargin, "luck-blind play lands too close to Prosperous");
+        }
+
+        /// <summary>The other half of the difficulty target: the greedy luck player reaches the Prosperous line.</summary>
+        [Test]
+        public void LuckAwareBot_Prospers_AndBeatsLuckBlind([Values] ShopPolicy shop)
+        {
+            int prosperous = data.Rules.prosperousEndingLuck;
+            var aware = Seeds.Select(seed => (seed, r: Run(seed, shop, strategy: AutoPilotStrategy.LuckAware))).ToArray();
+            foreach (var (seed, r) in aware)
+            {
+                TestContext.WriteLine("LuckAware seed " + seed + " shop " + shop + ": " + r);
+                Assert.AreNotEqual(EndingKind.Haunted, r.Ending, "seed " + seed + ": " + r);
+                Assert.GreaterOrEqual(r.FinalLuck, prosperous, "seed " + seed + ": playing for luck should reach Prosperous - " + r);
+            }
+            double awareAvg = aware.Average(x => x.r.FinalLuck);
+            double blindAvg = Seeds.Average(seed => Run(seed, shop).FinalLuck);
+            TestContext.WriteLine("average final luck: LuckAware " + awareAvg.ToString("F1") + ", LuckBlind " + blindAvg.ToString("F1"));
+            Assert.GreaterOrEqual(awareAvg - blindAvg, SkillGap, "luck play barely beats ignoring luck");
         }
 
         /// <summary>Over-tuning guard: careless but diligent play is punished, not killed before the last day.</summary>

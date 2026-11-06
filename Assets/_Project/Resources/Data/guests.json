@@ -24,7 +24,7 @@
         { "trigger": "delivered", "text": "Thank you, young one.", "textKo": "고마워요, 젊은이." },
         { "trigger": "impatient", "text": "My knees, dear... is it coming?", "textKo": "아이고 무릎이야... 언제 와?" },
         { "trigger": "left", "text": "I'll take the stairs. Slowly.", "textKo": "계단으로 갈란다. 천천히." },
-        { "trigger": "relabelled", "text": "F instead of 4? Now that's polite.", "textKo": "4 대신 F? 그래야 예의지." }
+        { "trigger": "relabelled", "text": "New numbers on the buttons? As long as we're safe, dear.", "textKo": "버튼 숫자가 바뀌었네? 무사하기만 하면 됐지." }
       ]
     },
     {
@@ -51,7 +51,7 @@
         { "trigger": "delivered", "text": "Good service. A lucky tip for you.", "textKo": "서비스 좋군. 행운의 팁이오." },
         { "trigger": "impatient", "text": "Time is money!", "textKo": "시간이 돈이오!" },
         { "trigger": "left", "text": "Too slow! I take my business elsewhere.", "textKo": "너무 느리오! 딴 데로 가겠소." },
-        { "trigger": "relabelled", "text": "An 8? Now this floor is worth something.", "textKo": "8이라니! 이제야 값어치가 있군." }
+        { "trigger": "relabelled", "text": "New numbers? A good number is good business.", "textKo": "번호를 바꿨소? 좋은 숫자가 곧 좋은 장사요." }
       ]
     },
     {
@@ -105,7 +105,7 @@
         { "trigger": "delivered", "text": "Arigatou! A perfect honeymoon.", "textKo": "아리가토! 완벽한 신혼여행이에요." },
         { "trigger": "impatient", "text": "Darling, are we waiting forever?", "textKo": "여보, 언제까지 기다려?" },
         { "trigger": "left", "text": "Let's take the stairs... together.", "textKo": "계단으로 가자... 같이." },
-        { "trigger": "relabelled", "text": "That floor changed its number? Phew.", "textKo": "층 번호가 바뀌었네? 다행이다." }
+        { "trigger": "relabelled", "text": "That floor changed its number? How strange.", "textKo": "층 번호가 바뀌었네? 신기하다." }
       ]
     },
     {
