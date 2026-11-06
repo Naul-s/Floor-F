@@ -254,3 +254,16 @@ namespace FloorF.Core
         public EndingReached(EndingKind ending, DayId day, int finalLuck, int totalTips) { Ending = ending; Day = day; FinalLuck = finalLuck; TotalTips = totalTips; }
     }
 }
+
+namespace FloorF.Core
+{
+    /// <summary>An IGameSettings value changed (language toggle, volume, hints). Read the new values from IGameSettings.</summary>
+    public readonly struct SettingsChanged
+    {
+        public readonly bool UseKorean;
+        public readonly float MasterVolume;
+        public readonly bool ShowTutorialHints;
+        public SettingsChanged(bool useKorean, float masterVolume, bool showTutorialHints)
+        { UseKorean = useKorean; MasterVolume = masterVolume; ShowTutorialHints = showTutorialHints; }
+    }
+}
