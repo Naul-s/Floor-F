@@ -16,7 +16,7 @@ namespace FloorF.UI
         readonly UIContext ctx;
         readonly RectTransform dim, card;
         readonly TextMeshProUGUI title, body, extra;
-        readonly UIBuild.ButtonParts action;
+        readonly UIBuild.ButtonParts action, toTitle;
         DayPhase shown = (DayPhase)(-1);
 
         public FlowScreensView(UIContext ctx, RectTransform canvas)
@@ -44,9 +44,19 @@ namespace FloorF.UI
             body = UIBuild.Text("Body", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
             extra = UIBuild.Text("Extra", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
             extra.lineSpacing = 4f;
-            action = UIBuild.Button("Action", card, "", 24f, UIStyle.Action, OnAction);
+            var row = UIBuild.Rect("Buttons", card);
+            row.gameObject.AddComponent<LayoutElement>().preferredHeight = 58f;
+            var h = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            h.spacing = 16f;
+            h.childControlWidth = h.childControlHeight = true;
+            h.childForceExpandWidth = h.childForceExpandHeight = true;
+            action = UIBuild.Button("Action", row, "", 24f, UIStyle.Action, OnAction);
             action.Label.color = UIStyle.Ink;
-            action.Rect.gameObject.AddComponent<LayoutElement>().preferredHeight = 58f;
+            action.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 2f;
+            toTitle = UIBuild.Button("ToTitle", row, "", 24f, UIStyle.Btn, OnTitle);
+            toTitle.Label.color = UIStyle.Ink;
+            toTitle.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            toTitle.Rect.gameObject.SetActive(false);
 
             dim.gameObject.SetActive(false);
         }
@@ -67,7 +77,12 @@ namespace FloorF.UI
             }
         }
 
+        void OnTitle() => ctx.Menu?.ReturnToTitle();
+
         public void Click() => action.Button.onClick.Invoke();
+        public void ClickTitle() => toTitle.Button.onClick.Invoke();
+        public bool TitleButtonVisible => dim.gameObject.activeSelf && toTitle.Rect.gameObject.activeSelf;
+        public string ActionText => action.Label.text;
 
         public void Tick()
         {
@@ -86,6 +101,8 @@ namespace FloorF.UI
             if (!modal) return;
             bool ko = ctx.Korean;
             title.color = UIStyle.Lucky;
+            toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
+            toTitle.Label.text = ctx.S(UIStrings.ToTitle);
             switch (phase)
             {
                 case DayPhase.Intro: FillIntro(ko); break;
@@ -143,8 +160,14 @@ namespace FloorF.UI
                 ? "<color=" + UIFormat.HiddenHex + ">“" + LastSpecialLine + "”</color>\n\n" + text
                 : text;
             extra.gameObject.SetActive(true);
-            int luck = ctx.Score != null ? ctx.Score.Luck : 0, tips = ctx.Score != null ? ctx.Score.Tips : 0;
-            extra.text = "<align=center>" + string.Format(ctx.S(UIStrings.FinalStats), N(luck), N(tips)) + "</align>";
+            int luck = ctx.Score != null ? ctx.Score.Luck : 0, max = ctx.Score != null ? ctx.Score.MaxLuck : 100;
+            int tips = ctx.Score != null ? ctx.Score.Tips : 0;
+            float luck01 = max > 0 ? (float)luck / max : 0f;
+            string luckHex = luck01 < 0.25f ? UIFormat.UnluckyHex : luck01 >= 0.6f ? UIFormat.LuckyHex : "#F4EEDC";
+            extra.text =
+                Row(ctx.S(UIStrings.EndDayReached), N(ctx.Day.CurrentDay.Number) + " / " + N(ctx.Day.DayCount)) + "\n" +
+                Row(ctx.S(UIStrings.EndFinalLuck), "<color=" + luckHex + ">" + N(luck) + "</color> / " + N(max)) + "\n" +
+                Row(ctx.S(UIStrings.EndTips), "<color=#5BE37D>$" + N(tips) + "</color>");
             action.Label.text = ctx.S(UIStrings.PlayAgain);
         }
 

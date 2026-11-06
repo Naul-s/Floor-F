@@ -95,5 +95,45 @@ namespace FloorF.UI
             "You covered the 4. It was still there. The stranger stepped out onto the floor you hid, smiled... and the lights went out.",
             "4를 가렸지만, 4층은 여전히 거기 있었다. 낯선 손님은 당신이 감춘 그 층에 내려 웃었다... 그리고 불이 꺼졌다.");
         public static readonly Loc FinalStats = new Loc("Final luck {0}   •   Tips ${1}", "최종 운 {0}   •   팁 ${1}");
+        public static readonly Loc EndDayReached = new Loc("Days run", "버틴 날");
+        public static readonly Loc EndFinalLuck = new Loc("Final luck", "최종 운");
+        public static readonly Loc EndTips = new Loc("Tips", "팁");
+        public static readonly Loc ToTitle = new Loc("TITLE", "타이틀");
+
+        // ---- title
+        public const string GameName = "FLOOR F";
+        public static readonly Loc Subtitle = new Loc("A hotel with no 4th floor. Every number counts.", "4층이 없는 호텔. 모든 숫자가 운을 가른다.");
+        public static readonly Loc TitleHint = new Loc("You run the elevator. Keep the guests lucky.", "당신은 엘리베이터 담당. 손님들의 운을 지켜라.");
+        public static readonly Loc Credits = new Loc("Font: Galmuri11 by Minseo Lee (SIL Open Font License 1.1)   •   2026 Unity Game Jam",
+            "폰트: 갈무리11 - 이민서 (SIL Open Font License 1.1)   •   2026 Unity Game Jam");
+
+        // ---- pause
+        public static readonly Loc Paused = new Loc("PAUSED", "일시정지");
+        public static readonly Loc Resume = new Loc("RESUME  [Esc]", "계속하기  [Esc]");
+        public static readonly Loc Volume = new Loc("VOLUME", "볼륨");
+        public static readonly Loc HintsOn = new Loc("TUTORIAL HINTS: ON", "튜토리얼 힌트: 켜짐");
+        public static readonly Loc HintsOff = new Loc("TUTORIAL HINTS: OFF", "튜토리얼 힌트: 꺼짐");
+        public static readonly Loc QuitToTitle = new Loc("QUIT TO TITLE", "타이틀로");
+
+        // ---- day-1 tutorial prompts (shown while IGameSettings.ShowTutorialHints && IDayQuery.IsTutorial)
+        public static readonly Loc TutStep = new Loc("TUTORIAL {0}/{1}", "튜토리얼 {0}/{1}");
+        public static readonly Loc TutBoardHere = new Loc("Guests are waiting on floor {0}. OPEN the doors to let them in.",
+            "{0}층에 손님이 기다려요. 문을 열어(열기) 태우세요.");
+        public static readonly Loc TutBoardGo = new Loc("Guests are waiting on floor {0}. Press floor {0} to go there.",
+            "{0}층에 손님이 기다려요. {0}층 버튼을 눌러 가세요.");
+        public static readonly Loc TutClose = new Loc("Now CLOSE the doors: everyone inside judges the HEAD COUNT!",
+            "이제 문을 닫으세요(닫기). 안에 있는 모두가 인원수로 운을 판정!");
+        public static readonly Loc TutFloor = new Loc("Press floor {0} ({1} badge) to take them there.",
+            "{0}층({1}) 버튼을 눌러 데려다주세요.");
+        public static readonly Loc TutOpenThere = new Loc("Arrived! OPEN the doors: everyone inside judges this FLOOR's number!",
+            "도착! 문을 여세요(열기). 안에 있는 모두가 이 층의 번호로 운을 판정!");
+        public static readonly Loc TutDone = new Loc("That's the job! Deliver every guest for tips. Luck 0 = haunted hotel.",
+            "이게 전부예요! 모든 손님을 데려다주고 팁을 받으세요. 운이 0이면 흉가!");
+        public static readonly Loc TutWhyLucky = new Loc("LUCKY! {0} is a lucky number for that guest: Luck goes UP (meter, top right).",
+            "행운! {0}은(는) 그 손님의 행운 숫자: 운이 올라가요 (오른쪽 위 게이지).");
+        public static readonly Loc TutWhyUnlucky = new Loc("UNLUCKY! {0} is a bad number for that guest: Luck goes DOWN (meter, top right).",
+            "불길! {0}은(는) 그 손님의 불길한 숫자: 운이 내려가요 (오른쪽 위 게이지).");
+        public static readonly Loc TutWhyLegend = new Loc("Numbers over each head: <color={0}>gold = lucky</color>, <color={1}><s>red</s> = unlucky</color>.",
+            "머리 위 숫자: <color={0}>금색 = 행운</color>, <color={1}><s>빨강</s> = 불길</color>.");
     }
 }

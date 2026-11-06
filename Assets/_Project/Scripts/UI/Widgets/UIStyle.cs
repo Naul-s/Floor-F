@@ -54,5 +54,17 @@ namespace FloorF.UI
 
         /// <summary>Black or white ink for text on <paramref name="bg"/>.</summary>
         public static Color InkOn(Color bg) => (0.299f * bg.r + 0.587f * bg.g + 0.114f * bg.b) > 0.55f ? Dark : Ink;
+
+        /// <summary>Pure black or white, whichever has the higher WCAG contrast on <paramref name="bg"/> (small labels).</summary>
+        public static Color ContrastInk(Color bg)
+        {
+            var l = bg.linear;
+            float lum = 0.2126f * l.r + 0.7152f * l.g + 0.0722f * l.b;
+            return lum > 0.179f ? Color.black : Color.white;
+        }
+
+        public static readonly Color Title = Hex("#FFD447");
+        public static readonly Color TitlePanel = new Color(0.04f, 0.045f, 0.07f, 0.78f);
+        public static readonly Color Highlight = Hex("#FFE14D");
     }
 }

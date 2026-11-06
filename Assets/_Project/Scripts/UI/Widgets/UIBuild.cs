@@ -125,6 +125,103 @@ namespace FloorF.UI
             t.fontSize = UIFonts.Grid;
         }
 
+        /// <summary>Hollow rectangle (four bars) stretched over its parent, <paramref name="outset"/> px outside it.</summary>
+        public static RectTransform Outline(string name, Transform parent, Color color, float width, float outset)
+        {
+            var rt = Stretch(Rect(name, parent), -outset);
+            for (int i = 0; i < 4; i++)
+            {
+                var bar = Box("Edge" + i, rt, color).rectTransform;
+                bool horizontal = i < 2;
+                float side = (i % 2 == 0) ? 0f : 1f;
+                bar.anchorMin = horizontal ? new Vector2(0f, side) : new Vector2(side, 0f);
+                bar.anchorMax = horizontal ? new Vector2(1f, side) : new Vector2(side, 1f);
+                bar.pivot = horizontal ? new Vector2(0.5f, side) : new Vector2(side, 0.5f);
+                bar.anchoredPosition = Vector2.zero;
+                bar.sizeDelta = horizontal ? new Vector2(0f, width) : new Vector2(width, 0f);
+            }
+            return rt;
+        }
+
+        /// <summary>Thin bar from <paramref name="a"/> to <paramref name="b"/> (canvas-local, bottom-left origin anchors).</summary>
+        public static void SetLine(RectTransform line, Vector2 a, Vector2 b, float width)
+        {
+            line.anchorMin = line.anchorMax = Vector2.zero;
+            line.pivot = new Vector2(0f, 0.5f);
+            var d = b - a;
+            line.anchoredPosition = a;
+            line.sizeDelta = new Vector2(d.magnitude, width);
+            line.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
+        }
+
+        /// <summary>Horizontal 0..1 slider (track, fill, square handle) built from Images.</summary>
+        public static Slider Slider(string name, Transform parent, Vector2 size, UnityAction<float> onChange)
+        {
+            var root = Rect(name, parent);
+            root.sizeDelta = size;
+            float inset = size.y * 0.3f;
+            var track = Box("Track", root, new Color(0f, 0f, 0f, 0.85f), raycast: true);
+            Stretch(track.rectTransform);
+            track.rectTransform.offsetMin = new Vector2(0f, inset);
+            track.rectTransform.offsetMax = new Vector2(0f, -inset);
+            var fillArea = Stretch(Rect("Fill Area", root));
+            fillArea.offsetMin = new Vector2(0f, inset);
+            fillArea.offsetMax = new Vector2(0f, -inset);
+            var fill = Box("Fill", fillArea, UIStyle.Lucky);
+            fill.rectTransform.anchorMin = Vector2.zero;
+            fill.rectTransform.anchorMax = new Vector2(0f, 1f);
+            fill.rectTransform.sizeDelta = Vector2.zero;
+            var handleArea = Stretch(Rect("Handle Area", root));
+            handleArea.offsetMin = new Vector2(inset, 0f);
+            handleArea.offsetMax = new Vector2(-inset, 0f);
+            var handle = Box("Handle", handleArea, UIStyle.Ink, raycast: true);
+            handle.rectTransform.sizeDelta = new Vector2(size.y * 0.6f, 0f);
+            var s = root.gameObject.AddComponent<Slider>();
+            s.fillRect = fill.rectTransform;
+            s.handleRect = handle.rectTransform;
+            s.targetGraphic = handle;
+            s.direction = UnityEngine.UI.Slider.Direction.LeftToRight;
+            s.minValue = 0f;
+            s.maxValue = 1f;
+            var nav = s.navigation;
+            nav.mode = Navigation.Mode.None;
+            s.navigation = nav;
+            if (onChange != null) s.onValueChanged.AddListener(onChange);
+            return s;
+        }
+
+        /// <summary>Canvas-local (bottom-left origin) rect of any RectTransform under <paramref name="canvas"/>.</summary>
+        /// <summary>
+        /// Keeps <paramref name="size"/> (a grid size) and shortens <paramref name="name"/> ("Restaurant" -> "Resta.")
+        /// until it fits the rect width on one line - names stay big instead of shrinking to 12px.
+        /// </summary>
+        public static void FitName(TextMeshProUGUI t, string name, float size)
+        {
+            if (t == null) return;
+            t.enableAutoSizing = false;
+            t.fontSize = UIFonts.Px(size);
+            name = string.IsNullOrEmpty(name) ? "?" : name.Trim();
+            float width = t.rectTransform.rect.width;
+            string s = name;
+            for (int max = name.Length; max >= 3; max--)
+            {
+                s = UIFormat.ShortName(name, max);
+                if (width <= 0f || t.GetPreferredValues(s, float.PositiveInfinity, float.PositiveInfinity).x <= width) break;
+            }
+            Set(t, s);
+        }
+
+        static readonly Vector3[] corners = new Vector3[4];
+
+        public static UnityEngine.Rect CanvasRect(RectTransform canvas, RectTransform target)
+        {
+            target.GetWorldCorners(corners);
+            var a = (Vector2)canvas.InverseTransformPoint(corners[0]);
+            var b = (Vector2)canvas.InverseTransformPoint(corners[2]);
+            var off = canvas.rect.min; // canvas pivot is the centre
+            return UnityEngine.Rect.MinMaxRect(Mathf.Min(a.x, b.x) - off.x, Mathf.Min(a.y, b.y) - off.y, Mathf.Max(a.x, b.x) - off.x, Mathf.Max(a.y, b.y) - off.y);
+        }
+
         /// <summary>Sets text only when it changed (no TMP rebuild per frame).</summary>
         public static void Set(TextMeshProUGUI t, string value)
         {

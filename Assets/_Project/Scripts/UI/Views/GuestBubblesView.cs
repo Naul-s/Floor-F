@@ -14,8 +14,8 @@ namespace FloorF.UI
     /// </summary>
     sealed class GuestBubblesView
     {
-        public const float ChipW = 52f, ChipH = 50f;
-        const float HeadHeight = 1.45f, Spacing = 3f;
+        public const float ChipW = 70f, ChipH = 62f, BadgeH = 26f, BadgeSize = 24f;
+        const float HeadHeight = 1.45f, Spacing = 3f, ColumnMargin = 4f;
         const int RiderColumns = 4;
 
         sealed class Chip
@@ -66,11 +66,13 @@ namespace FloorF.UI
             UIBuild.Place(c.Numbers.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -1f), new Vector2(ChipW - 4f, 26f));
             c.Numbers.textWrappingMode = TextWrappingModes.NoWrap;
             c.Badge = UIBuild.Box("Badge", c.Rect, Color.gray);
-            UIBuild.Place(c.Badge.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, 16f));
-            c.Dest = UIBuild.Text("Dest", c.Badge.transform, "", 12f, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(c.Badge.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, BadgeH));
+            c.Dest = UIBuild.Text("Dest", c.Badge.transform, "", BadgeSize, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
             UIBuild.Stretch(c.Dest.rectTransform);
+            c.Dest.rectTransform.offsetMin = new Vector2(1f, 0f);
+            c.Dest.rectTransform.offsetMax = new Vector2(-1f, 0f);
             c.Dest.textWrappingMode = TextWrappingModes.NoWrap;
-            c.Dest.overflowMode = TextOverflowModes.Ellipsis;
+            c.Dest.overflowMode = TextOverflowModes.Overflow;
             var track = UIBuild.Box("PatienceTrack", c.Rect, new Color(0f, 0f, 0f, 0.9f));
             UIBuild.Place(track.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(ChipW - 6f, 4f));
             c.PatienceImage = UIBuild.Box("Patience", track.transform, UIStyle.Good);
@@ -102,8 +104,8 @@ namespace FloorF.UI
                 c.ShownDestination = info.Destination;
                 c.LanguageKorean = ctx.Korean;
                 c.Badge.color = UIStyle.Destination(ctx.DestinationIndex(info.Destination));
-                c.Dest.text = UIFormat.ShortName(ctx.DestinationName(info.Destination), 8);
-                c.Dest.color = UIStyle.InkOn(c.Badge.color);
+                UIBuild.FitName(c.Dest, ctx.DestinationName(info.Destination), BadgeSize);
+                c.Dest.color = UIStyle.ContrastInk(c.Badge.color);
             }
             float p = Mathf.Clamp01(info.Patience01);
             c.Patience.anchorMax = new Vector2(p, 1f);
@@ -118,11 +120,13 @@ namespace FloorF.UI
             bool show = ctx.HasGame && ctx.Guests != null && ctx.Locator != null && ctx.Day.Phase == DayPhase.Running;
             if (show)
             {
+                // chips never cover the floor signs / shaft: waiting chips start right of it, the riders' grid ends left of it
+                bool haveColumn = ctx.CenterColumn(ColumnMargin, out float colMin, out float colMax);
                 int floors = ctx.Building.FloorCount;
                 for (int f = 0; f < floors; f++)
                 {
                     int n = ctx.Guests.GetWaiting(new FloorIndex(f), waiting);
-                    float minX = float.MinValue;
+                    float minX = haveColumn ? colMax + ChipW * 0.5f : float.MinValue;
                     for (int i = 0; i < n; i++)
                     {
                         if (!ctx.Guests.TryGet(waiting[i], out var info) || info.State != GuestState.Waiting) continue;
@@ -143,6 +147,7 @@ namespace FloorF.UI
                     var car = UIContext.ToVector3(ctx.Locator.CarPosition);
                     if (ctx.WorldToCanvas(car + new Vector3(-halfCar, 0.1f, 0f), out var anchor))
                     {
+                        if (haveColumn) anchor.x = Mathf.Min(anchor.x, colMin);
                         for (int i = 0; i < riders.Count; i++)
                         {
                             if (!ctx.Guests.TryGet(riders[i], out var info)) continue;
@@ -164,6 +169,19 @@ namespace FloorF.UI
                 c.Rect.gameObject.SetActive(false);
                 pool.Push(c);
             }
+        }
+
+        /// <summary>First visible chip crossing the canvas x-range, or null (test hook).</summary>
+        public string FirstOverlapX(float minX, float maxX)
+        {
+            foreach (var c in chips.Values)
+            {
+                if (!c.Rect.gameObject.activeSelf) continue;
+                float x = c.Rect.anchoredPosition.x;
+                if (x + ChipW * 0.5f > minX + 0.5f && x - ChipW * 0.5f < maxX - 0.5f)
+                    return "chip x " + (x - ChipW * 0.5f).ToString("0") + ".." + (x + ChipW * 0.5f).ToString("0") + " vs " + minX.ToString("0") + ".." + maxX.ToString("0");
+            }
+            return null;
         }
 
         public void Clear()
