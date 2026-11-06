@@ -45,6 +45,14 @@ namespace FloorF.Core
             set { if (showTutorialHints == value) return; showTutorialHints = value; Publish(); }
         }
 
+        /// <summary>Boot-time load (<see cref="SettingsPersistence.Load"/>): same validation as the setters, no event.</summary>
+        internal void SetSilently(bool korean, float volume, bool hints)
+        {
+            useKorean = korean;
+            if (!float.IsNaN(volume)) masterVolume = Math.Max(0f, Math.Min(1f, volume));
+            showTutorialHints = hints;
+        }
+
         void Publish() => bus.Publish(new SettingsChanged(useKorean, masterVolume, showTutorialHints));
     }
 }

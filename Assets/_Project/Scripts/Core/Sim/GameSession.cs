@@ -16,7 +16,7 @@ namespace FloorF.Core
     /// CloseDoors (or RequestFloor) stops new boarding; once the current walker and all exits finish -> Closing
     /// (doorSeconds) -> DoorsClosed, riders judged on occupancy -> depart if a floor was requested.
     /// </summary>
-    public sealed class GameSession : IElevatorControl, IDayQuery, IGameFlow, IShopService
+    public sealed partial class GameSession : IElevatorControl, IDayQuery, IGameFlow, IShopService, IMenuFlow
     {
         /// <summary>Longest simulated slice per internal step (keeps big frame deltas stable).</summary>
         public const float MaxStepSeconds = 0.05f;
@@ -103,7 +103,8 @@ namespace FloorF.Core
 
         public DayId CurrentDay => day;
         public int DayCount => data.DayCount;
-        public DayPhase Phase => phase;
+        /// <summary>Visible phase: <see cref="DayPhase.Title"/> while the title/demo runs (the demo's own day phases stay internal).</summary>
+        public DayPhase Phase => onTitle ? DayPhase.Title : phase;
         public bool IsTutorial => dayDef != null && dayDef.tutorial;
         public float DurationSeconds => dayDef != null ? dayDef.durationSeconds : 0f;
         public float ElapsedSeconds => elapsed;
@@ -119,6 +120,17 @@ namespace FloorF.Core
 
         public void RestartGame()
         {
+            var shown = Phase;
+            onTitle = false;
+            Unpause();
+            ResetRun();
+            bus.Publish(new GameStarted(data.DayCount, Score.Luck, Score.MaxLuck));
+            SetPhase(DayPhase.Intro, shown);
+        }
+
+        /// <summary>Fresh run state (day 1, start Luck/tips, original labels, empty building) without flow events.</summary>
+        void ResetRun()
+        {
             if (started)
             {
                 DropAllGuests();
@@ -133,11 +145,16 @@ namespace FloorF.Core
             ResetElevator();
             dayDef = data.GetDay(day);
             elapsed = 0f;
-            bus.Publish(new GameStarted(data.DayCount, Score.Luck, Score.MaxLuck));
-            SetPhase(DayPhase.Intro);
+            phase = DayPhase.Intro;
         }
 
         public bool BeginDay()
+        {
+            if (paused || onTitle) return false;
+            return BeginDayCore();
+        }
+
+        bool BeginDayCore()
         {
             if (phase != DayPhase.Intro) return false;
             dayDef = data.GetDay(day);
@@ -154,14 +171,14 @@ namespace FloorF.Core
             dayDelivered = dayLeft = dayLucky = dayUnlucky = 0;
             Score.BeginDay();
             SetPhase(DayPhase.Running);
-            bus.Publish(new DayStarted(day, data.DayCount, dayDef.durationSeconds, dayDef.tutorial));
+            PublishFlow(new DayStarted(day, data.DayCount, dayDef.durationSeconds, dayDef.tutorial));
             SpawnDue();
             return true;
         }
 
         public bool ContinueFromSummary()
         {
-            if (phase != DayPhase.Summary) return false;
+            if (phase != DayPhase.Summary || paused || onTitle) return false;
             if (data.IsLastDay(day))
             {
                 ReachEnding(Score.Luck >= rules.prosperousEndingLuck ? EndingKind.Prosperous : EndingKind.Modest);
@@ -174,7 +191,7 @@ namespace FloorF.Core
 
         public bool FinishShopping()
         {
-            if (phase != DayPhase.Shop) return false;
+            if (phase != DayPhase.Shop || paused || onTitle) return false;
             CloseShop();
             GoToNextDayIntro();
             return true;
@@ -189,11 +206,13 @@ namespace FloorF.Core
             SetPhase(DayPhase.Intro);
         }
 
-        void SetPhase(DayPhase next)
+        void SetPhase(DayPhase next) => SetPhase(next, Phase);
+
+        /// <summary>Sets the internal phase; publishes DayPhaseChanged(<paramref name="shownBefore"/> -> next) unless the title demo runs.</summary>
+        void SetPhase(DayPhase next, DayPhase shownBefore)
         {
-            var prev = phase;
             phase = next;
-            bus.Publish(new DayPhaseChanged(day, prev, next));
+            if (!onTitle) bus.Publish(new DayPhaseChanged(day, shownBefore, next));
         }
 
         void ResetElevator()
@@ -210,13 +229,15 @@ namespace FloorF.Core
         /// <summary>Advances the running day by <paramref name="deltaSeconds"/> (no-op outside Running).</summary>
         public void Tick(float deltaSeconds)
         {
-            if (deltaSeconds <= 0f || float.IsNaN(deltaSeconds)) return;
+            if (deltaSeconds <= 0f || float.IsNaN(deltaSeconds) || paused) return;
             float remaining = deltaSeconds;
             while (remaining > 0f && phase == DayPhase.Running)
             {
                 float step = Math.Min(remaining, MaxStepSeconds);
                 remaining -= step;
+                if (onTitle) StepDemoPilot();
                 Step(step);
+                if (onTitle && phase != DayPhase.Running) RestartDemo();
             }
         }
 
@@ -406,11 +427,19 @@ namespace FloorF.Core
 
         // =========================================================================================== elevator control
 
-        public bool AcceptsInput => phase == DayPhase.Running;
+        /// <summary>Player input: Running, not paused, not the title demo.</summary>
+        public bool AcceptsInput => phase == DayPhase.Running && !paused && !onTitle;
 
-        public bool RequestFloor(FloorIndex floor)
+        /// <summary>Simulation-side gate (the demo pilot drives through this).</summary>
+        bool SimAcceptsInput => phase == DayPhase.Running && !paused;
+
+        public bool RequestFloor(FloorIndex floor) => AcceptsInput && RequestFloorCore(floor);
+        public bool OpenDoors() => AcceptsInput && OpenDoorsCore();
+        public bool CloseDoors() => AcceptsInput && CloseDoorsCore();
+
+        bool RequestFloorCore(FloorIndex floor)
         {
-            if (!AcceptsInput || !Building.IsValid(floor)) return false;
+            if (!SimAcceptsInput || !Building.IsValid(floor)) return false;
             if (Elevator.Motion != ElevatorMotion.Idle)
             {
                 if (Elevator.TargetFloor == floor) return false;
@@ -431,9 +460,9 @@ namespace FloorF.Core
             return true;
         }
 
-        public bool OpenDoors()
+        bool OpenDoorsCore()
         {
-            if (!AcceptsInput || Elevator.Motion != ElevatorMotion.Idle) return false;
+            if (!SimAcceptsInput || Elevator.Motion != ElevatorMotion.Idle) return false;
             switch (Elevator.Doors)
             {
                 case DoorState.Closed:
@@ -452,9 +481,9 @@ namespace FloorF.Core
             }
         }
 
-        public bool CloseDoors()
+        bool CloseDoorsCore()
         {
-            if (!AcceptsInput) return false;
+            if (!SimAcceptsInput) return false;
             if (Elevator.Doors != DoorState.Open && Elevator.Doors != DoorState.Opening) return false;
             if (closeRequested) return false;
             closeRequested = true;
@@ -768,7 +797,7 @@ namespace FloorF.Core
             if (phase != DayPhase.Running) return;
             DropAllGuests();
             lastSummary = new DaySummary(dayDelivered, dayLeft, Score.TipsEarnedToday, luckAtStart, Score.Luck, dayLucky, dayUnlucky);
-            bus.Publish(new DayEnded(day, lastSummary));
+            PublishFlow(new DayEnded(day, lastSummary));
             if (endingNow != EndingKind.None) ReachEnding(endingNow);
             else SetPhase(DayPhase.Summary);
         }
@@ -778,7 +807,7 @@ namespace FloorF.Core
             ending = kind;
             CloseShop();
             SetPhase(DayPhase.Ending);
-            bus.Publish(new EndingReached(kind, day, Score.Luck, Score.Tips));
+            PublishFlow(new EndingReached(kind, day, Score.Luck, Score.Tips));
         }
 
         /// <summary>Ends the running day now (debug key / tests).</summary>
@@ -827,7 +856,7 @@ namespace FloorF.Core
         {
             def = null;
             offerIndex = -1;
-            if (phase != DayPhase.Shop) return StickerApplyResult.ShopClosed;
+            if (phase != DayPhase.Shop || paused || onTitle) return StickerApplyResult.ShopClosed;
             if (!data.TryGetSticker(sticker, out def)) return StickerApplyResult.UnknownSticker;
             offerIndex = IndexOfOffer(sticker);
             if (offerIndex < 0) return StickerApplyResult.NotInShop;

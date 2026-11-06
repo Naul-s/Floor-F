@@ -12,14 +12,41 @@ namespace FloorF.Gameplay
         Down = 2,
         /// <summary>Space: open if closed/closing, close if open/opening.</summary>
         ToggleDoors = 3,
-        /// <summary>Enter: advance the flow (Intro -> Running, Summary -> Shop/next, Shop -> next day, Ending -> restart).</summary>
+        /// <summary>Enter: advance the flow (Title -> new game, Intro -> Running, Summary -> Shop/next, Shop -> next day, Ending -> restart).</summary>
         Advance = 4,
+        /// <summary>Esc: pause / resume (IMenuFlow.SetPaused; refused on Title/Ending).</summary>
+        TogglePause = 5,
+    }
+
+    /// <summary>Physical keys the keyboard binding knows (engine-free, so the mapping is EditMode-testable).</summary>
+    public enum KeyPress
+    {
+        None = 0,
+        W, S, UpArrow, DownArrow, Space, Enter, NumpadEnter, Escape,
     }
 
     /// <summary>Maps an intent to service calls. Pure (no Unity) so it is EditMode-testable.</summary>
     public static class PlayerCommands
     {
+        /// <summary>Key -> intent (KeyboardInput). Enter is the flow key, Esc the pause key.</summary>
+        public static PlayerIntent IntentForKey(KeyPress key)
+        {
+            switch (key)
+            {
+                case KeyPress.W: case KeyPress.UpArrow: return PlayerIntent.Up;
+                case KeyPress.S: case KeyPress.DownArrow: return PlayerIntent.Down;
+                case KeyPress.Space: return PlayerIntent.ToggleDoors;
+                case KeyPress.Enter: case KeyPress.NumpadEnter: return PlayerIntent.Advance;
+                case KeyPress.Escape: return PlayerIntent.TogglePause;
+                default: return PlayerIntent.None;
+            }
+        }
+
+        /// <summary>Without a menu: Advance does nothing on Title, TogglePause is refused.</summary>
         public static bool Apply(PlayerIntent intent, IElevatorQuery elevator, IElevatorControl control, IBuildingQuery building, IDayQuery day, IGameFlow flow)
+            => Apply(intent, elevator, control, building, day, flow, null);
+
+        public static bool Apply(PlayerIntent intent, IElevatorQuery elevator, IElevatorControl control, IBuildingQuery building, IDayQuery day, IGameFlow flow, IMenuFlow menu)
         {
             switch (intent)
             {
@@ -40,12 +67,15 @@ namespace FloorF.Gameplay
                 case PlayerIntent.Advance:
                     switch (day.Phase)
                     {
+                        case DayPhase.Title: return menu != null && menu.StartGameFromTitle();
                         case DayPhase.Intro: return flow.BeginDay();
                         case DayPhase.Summary: return flow.ContinueFromSummary();
                         case DayPhase.Shop: return flow.FinishShopping();
                         case DayPhase.Ending: flow.RestartGame(); return true;
                         default: return false;
                     }
+                case PlayerIntent.TogglePause:
+                    return menu != null && menu.SetPaused(!menu.IsPaused);
                 default:
                     return false;
             }
