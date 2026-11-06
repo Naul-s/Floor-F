@@ -1,0 +1,1 @@
+{ "name": "FloorF.Audio", "rootNamespace": "FloorF.Audio", "references": ["FloorF.Core", "FloorF.Gameplay"], "includePlatforms": [], "excludePlatforms": [], "allowUnsafeCode": false, "overrideReferences": false, "precompiledReferences": [], "autoReferenced": true, "defineConstraints": [], "versionDefines": [], "noEngineReferences": false }

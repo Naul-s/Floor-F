@@ -1,4 +1,5 @@
 {
+  "enableLockFile": false,
   "dependencies": {
     "com.unity.collab-proxy": "2.13.6",
     "com.unity.ide.rider": "3.1.0",
