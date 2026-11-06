@@ -92,6 +92,10 @@ namespace FloorF.Core
         public float doorSeconds = 0.35f;
         /// <summary>Seconds for one guest to walk in/out.</summary>
         public float boardSeconds = 0.4f;
+
+        // day flow
+        /// <summary>Day ends this many seconds after all spawns are done and no guest is active.</summary>
+        public float earlyEndDelaySeconds = 2f;
     }
 
     /// <summary>World-unit geometry. Consumed through IWorldLayout (HotelLayout).</summary>
