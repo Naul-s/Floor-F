@@ -44,6 +44,12 @@ namespace FloorF.Core
         readonly List<GuestId> stale = new List<GuestId>();
         DoorState lastDoors = DoorState.Closed;
 
+        // new-day detection (the control is usually the GameSession, which is also the IDayQuery)
+        readonly IDayQuery dayQuery;
+        int lastDayNumber = -1;
+        float lastElapsed = -1f;
+        bool wasAccepting;
+
         public AutoPilot(IElevatorQuery elevator, IElevatorControl control, IGuestQuery guests, IBuildingQuery building)
             : this(elevator, control, guests, building, AutoPilotStrategy.LuckBlind) { }
 
@@ -54,6 +60,7 @@ namespace FloorF.Core
             this.guests = guests ?? throw new ArgumentNullException(nameof(guests));
             this.building = building ?? throw new ArgumentNullException(nameof(building));
             Strategy = strategy;
+            dayQuery = control as IDayQuery;
         }
 
         public AutoPilotStrategy Strategy { get; }
@@ -63,8 +70,38 @@ namespace FloorF.Core
 
         public void Step()
         {
+            DetectNewDay();
             if (Strategy == AutoPilotStrategy.LuckAware) StepLuckAware();
             else StepLuckBlind();
+        }
+
+        /// <summary>Forgets everything about the current day (closed-on floor, LuckAware memory).</summary>
+        public void Reset()
+        {
+            closedAtFloor = -1;
+            seenFloors.Clear();
+            seenHeadcounts.Clear();
+            lastDoors = DoorState.Closed;
+        }
+
+        /// <summary>
+        /// Per-day state must not leak into the next day (or a restart): reset when input was off since the last step,
+        /// or when the day number changed / the day clock went back (works even if Step was not called between days).
+        /// </summary>
+        void DetectNewDay()
+        {
+            bool accepting = control.AcceptsInput;
+            bool newDay = accepting && !wasAccepting;
+            if (dayQuery != null)
+            {
+                int dayNumber = dayQuery.CurrentDay.Number;
+                float elapsed = dayQuery.ElapsedSeconds;
+                if (dayNumber != lastDayNumber || elapsed < lastElapsed) newDay = true;
+                lastDayNumber = dayNumber;
+                lastElapsed = elapsed;
+            }
+            wasAccepting = accepting;
+            if (newDay || !accepting) Reset();
         }
 
         // ================================================================================================ LuckBlind
@@ -124,14 +161,7 @@ namespace FloorF.Core
 
         void StepLuckAware()
         {
-            if (!control.AcceptsInput)
-            {
-                seenFloors.Clear();
-                seenHeadcounts.Clear();
-                lastDoors = DoorState.Closed;
-                closedAtFloor = -1;
-                return;
-            }
+            if (!control.AcceptsInput) return; // DetectNewDay already forgot the day
             var doors = elevator.Doors;
             CollectRiders();
             // doors just finished closing: every rider reacted to this headcount
