@@ -36,9 +36,19 @@ namespace FloorF.Tests.PlayMode.Rendering
 
             Time.captureDeltaTime = 0.1f;
             for (int i = 0; i < 200 && guests.ActiveGuests.Count < 3; i++) yield return null;
-            Time.captureDeltaTime = 0f;
+            // juice on real guests: gold sparkles over the first, a startled jump for the second, red flash on floor 9
+            var first = guests.ActiveGuests[0];
+            var second = guests.ActiveGuests[guests.ActiveGuests.Count - 1];
+            Assert.IsTrue(guests.TryGet(first, out var a));
+            Assert.IsTrue(guests.TryGet(second, out var b));
+            GameServices.Events.Publish(new LuckJudged(first, LuckSource.Occupancy, 3, LuckVerdict.Lucky, a.Floor));
+            GameServices.Events.Publish(new LuckJudged(second, LuckSource.FloorLabel, 4, LuckVerdict.Unlucky, b.Floor));
             GameServices.Events.Publish(new LuckJudged(new GuestId(1), LuckSource.FloorLabel, 9, LuckVerdict.Unlucky, FloorIndex.FromPhysicalNumber(9)));
+            Time.captureDeltaTime = 0.05f;
+            for (int i = 0; i < 7; i++) yield return null; // sparks in the air, guest mid-leap, shake (0.32 s) over
+            Time.captureDeltaTime = 0f;
             yield return RenderingTestDriver.Freeze();
+            Assert.Greater(RenderingTestDriver.Rendering().Fx.ActiveCount, 0, "sparkles visible");
             Assert.AreEqual(guests.ActiveGuests.Count, RenderingTestDriver.Rendering().Guests.Count, "every active guest has a proxy");
 
             var path = FrameCapture.Capture("rendering_showcase");

@@ -6,30 +6,44 @@ using UnityEngine;
 namespace FloorF.Rendering
 {
     /// <summary>
-    /// Blocky guest proxies (body + head + accessory, colour from guests.json) that follow the gameplay positions.
+    /// Blocky guest proxies (<see cref="GuestFigure"/>: silhouette + accessory per guests.json, vivid colour) that follow
+    /// the gameplay positions and pose from IGuestQuery mood (breathing bob, impatient stomping, angry hopping, scared
+    /// trembling) plus a startled jump on unlucky judgements.
     /// Created on GuestSpawned (or when IGuestQuery lists a guest we have not seen), removed on GuestLeft /
     /// GuestDelivered (or when IGuestQuery stops listing it).
     /// Position source, best first: IActorLocator, IGuestQuery state (waiting slot / car slot), spawn slot.
     /// </summary>
     sealed class GuestViews
     {
-        const float BodyW = 0.46f, BodyH = 0.72f, BodyD = 0.36f, Head = 0.38f;
         const float FollowSpeed = 14f;
 
         sealed class Proxy
         {
             public GuestId Id;
-            public Transform Root;
+            public GuestFigure Figure;
             public FloorIndex SpawnFloor;
             public int SpawnSlot;
             public int SeenFrame;
             public bool Placed;
+            public float Seed;
+            public float JumpAge = float.MaxValue;
+            public GuestMood Mood;
+            public Transform Root => Figure.Root;
+        }
+
+        sealed class Extra
+        {
+            public GuestFigure Figure;
+            public GuestMood Mood;
+            public float Seed;
         }
 
         readonly Transform root;
         readonly RenderAssets assets;
         readonly IWorldLayout layout;
+        readonly float pixel;
         readonly Dictionary<GuestId, Proxy> proxies = new Dictionary<GuestId, Proxy>();
+        readonly List<Extra> extras = new List<Extra>();
         readonly List<GuestId> scratch = new List<GuestId>();
         readonly List<GuestId> waitingScratch = new List<GuestId>();
         int frame;
@@ -38,29 +52,40 @@ namespace FloorF.Rendering
         public bool Contains(GuestId id) => proxies.ContainsKey(id);
         public IEnumerable<GuestId> Ids => proxies.Keys;
         public Transform Get(GuestId id) => proxies.TryGetValue(id, out var p) ? p.Root : null;
+        public GuestFigure GetFigure(GuestId id) => proxies.TryGetValue(id, out var p) ? p.Figure : null;
+        public bool IsJumping(GuestId id) => proxies.TryGetValue(id, out var p) && p.JumpAge < GuestPose.JumpSeconds;
+        public GuestMood GetMood(GuestId id) => proxies.TryGetValue(id, out var p) ? p.Mood : GuestMood.Neutral;
 
-        public GuestViews(Transform parent, RenderAssets assets, IWorldLayout layout)
+        public GuestViews(Transform parent, RenderAssets assets, IWorldLayout layout, float pixelSize)
         {
             this.assets = assets;
             this.layout = layout;
+            pixel = pixelSize;
             root = new GameObject("Guests").transform;
             root.SetParent(parent, false);
         }
 
-        public void Spawn(GuestId id, GuestArchetypeId archetype, FloorIndex floor, int slot, GameData data)
+        static void Describe(GameData data, GuestArchetypeId archetype, out Color color, out string accessory)
         {
-            if (id.IsNone || proxies.ContainsKey(id)) return;
-            Color color = Color.white;
-            string accessory = "";
+            color = Color.white;
+            accessory = "";
             if (data != null && data.TryGetGuest(archetype, out var def))
             {
                 color = CoreUnityExtensions.ParseColor(def.color);
                 accessory = def.accessory ?? "";
             }
-            var go = new GameObject("Guest " + id.Value + " " + archetype.Value);
-            go.transform.SetParent(root, false);
-            BuildBody(go.transform, color, accessory);
-            var p = new Proxy { Id = id, Root = go.transform, SpawnFloor = floor, SpawnSlot = Mathf.Max(0, slot), SeenFrame = frame };
+        }
+
+        public void Spawn(GuestId id, GuestArchetypeId archetype, FloorIndex floor, int slot, GameData data)
+        {
+            if (id.IsNone || proxies.ContainsKey(id)) return;
+            Describe(data, archetype, out var color, out var accessory);
+            var fig = GuestFigure.Build(root, assets, "Guest " + id.Value + " " + archetype.Value, color, accessory);
+            var p = new Proxy
+            {
+                Id = id, Figure = fig, SpawnFloor = floor, SpawnSlot = Mathf.Max(0, slot), SeenFrame = frame,
+                Seed = Mathf.Repeat(id.Value * 0.618034f, 1f),
+            };
             proxies.Add(id, p);
             p.Root.localPosition = layout.GetWaitingSlot(floor, p.SpawnSlot).ToVector3();
         }
@@ -72,41 +97,51 @@ namespace FloorF.Rendering
             if (p.Root != null) Object.Destroy(p.Root.gameObject);
         }
 
-        void BuildBody(Transform t, Color color, string accessory)
+        /// <summary>Startled leap (unlucky number). Restarts if already jumping.</summary>
+        public void Jump(GuestId id)
         {
-            var body = assets.Lit(color);
-            var skin = assets.Lit(new Color(0.96f, 0.80f, 0.66f));
-            var dark = assets.Lit(new Color(0.12f, 0.11f, 0.12f));
-            assets.Box(t, "Legs", new Vector3(0f, 0.18f, 0f), new Vector3(BodyW * 0.8f, 0.36f, BodyD * 0.8f), dark);
-            assets.Box(t, "Body", new Vector3(0f, 0.36f + BodyH * 0.5f - 0.1f, 0f), new Vector3(BodyW, BodyH - 0.2f, BodyD), body);
-            float headY = 0.36f + BodyH - 0.2f + Head * 0.5f;
-            bool hooded = accessory == "hood";
-            assets.Box(t, "Head", new Vector3(0f, headY, 0f), new Vector3(Head, Head, Head), hooded ? body : skin);
-            switch (accessory)
-            {
-                case "perm_hair":
-                    assets.Box(t, "Hair", new Vector3(0f, headY + Head * 0.42f, 0.03f), new Vector3(Head * 1.25f, Head * 0.45f, Head * 1.2f), assets.Lit(new Color(0.88f, 0.86f, 0.92f)));
-                    break;
-                case "briefcase":
-                    assets.Box(t, "Case", new Vector3(BodyW * 0.5f + 0.1f, 0.35f, 0f), new Vector3(0.12f, 0.3f, 0.38f), assets.Lit(new Color(0.28f, 0.17f, 0.10f)));
-                    break;
-                case "camera":
-                    assets.Box(t, "Camera", new Vector3(0f, 0.36f + BodyH * 0.55f, -BodyD * 0.5f - 0.06f), new Vector3(0.24f, 0.16f, 0.12f), dark);
-                    assets.Box(t, "Hat", new Vector3(0f, headY + Head * 0.55f, 0f), new Vector3(Head * 1.5f, 0.06f, Head * 1.5f), assets.Lit(new Color(0.85f, 0.78f, 0.5f)));
-                    break;
-                case "matching_hats":
-                    assets.Box(t, "Brim", new Vector3(0f, headY + Head * 0.5f, 0f), new Vector3(Head * 1.4f, 0.05f, Head * 1.4f), assets.Lit(new Color(0.95f, 0.95f, 0.98f)));
-                    assets.Box(t, "Crown", new Vector3(0f, headY + Head * 0.5f + 0.1f, 0f), new Vector3(Head * 0.9f, 0.18f, Head * 0.9f), assets.Lit(new Color(0.95f, 0.95f, 0.98f)));
-                    break;
-                case "hood":
-                    assets.Box(t, "Hood", new Vector3(0f, headY + 0.03f, 0.03f), new Vector3(Head * 1.15f, Head * 1.15f, Head * 1.1f), body);
-                    assets.Box(t, "Face", new Vector3(0f, headY - 0.02f, -Head * 0.56f), new Vector3(Head * 0.7f, Head * 0.55f, 0.02f), assets.Lit(new Color(0.02f, 0.02f, 0.03f)), false);
-                    break;
-            }
+            if (proxies.TryGetValue(id, out var p)) p.JumpAge = 0f;
         }
 
-        /// <summary>Per frame: reconcile with IGuestQuery (if present) and move proxies toward their gameplay positions.</summary>
-        public void Tick(float dt, GameData data, IGuestQuery guestQuery, IActorLocator locator, IElevatorQuery elevator)
+        /// <summary>World position just above the guest's head (sparkles, popups).</summary>
+        public bool TryGetHead(GuestId id, out Vector3 world)
+        {
+            world = default;
+            if (!proxies.TryGetValue(id, out var p) || p.Root == null) return false;
+            world = p.Root.position + Vector3.up * (p.Figure.HeadTop + 0.1f);
+            return true;
+        }
+
+        /// <summary>
+        /// Presentation-only figures (not gameplay guests): one per definition, standing in the waiting slots of
+        /// <paramref name="floor"/> with a fixed mood. Used by the capture showcase / silhouette tests.
+        /// </summary>
+        public IReadOnlyList<GuestFigure> BuildLineup(FloorIndex floor, IReadOnlyList<GuestDef> defs, GuestMood mood)
+        {
+            var result = new List<GuestFigure>();
+            for (int i = 0; i < defs.Count; i++)
+            {
+                var def = defs[i];
+                var fig = GuestFigure.Build(root, assets, "Lineup " + floor.PhysicalNumber + " " + def.id,
+                    CoreUnityExtensions.ParseColor(def.color), def.accessory);
+                fig.Root.localPosition = layout.GetWaitingSlot(floor, i).ToVector3();
+                extras.Add(new Extra { Figure = fig, Mood = mood, Seed = i * 0.37f + floor.Value * 0.11f });
+                result.Add(fig);
+            }
+            return result;
+        }
+
+        public void ClearLineups()
+        {
+            foreach (var e in extras) if (e.Figure.Root != null) Object.Destroy(e.Figure.Root.gameObject);
+            extras.Clear();
+        }
+
+        /// <summary>
+        /// Per frame: reconcile with IGuestQuery (if present), move proxies toward their gameplay positions (real
+        /// <paramref name="dt"/>), pose them on the juice clock (<paramref name="juiceDt"/>/<paramref name="juiceTime"/> stop while paused).
+        /// </summary>
+        public void Tick(float dt, float juiceDt, float juiceTime, GameData data, IGuestQuery guestQuery, IActorLocator locator, IElevatorQuery elevator)
         {
             frame++;
             if (guestQuery != null)
@@ -135,6 +170,15 @@ namespace FloorF.Rendering
                 var target = TargetOf(p, guestQuery, locator, elevator);
                 if (!p.Placed) { p.Root.localPosition = target; p.Placed = true; }
                 else p.Root.localPosition = Vector3.Lerp(p.Root.localPosition, target, k);
+
+                if (guestQuery != null && guestQuery.TryGet(p.Id, out var gi)) p.Mood = gi.Mood;
+                if (p.JumpAge < GuestPose.JumpSeconds) p.JumpAge += juiceDt;
+                p.Figure.Apply(GuestPose.Evaluate(p.Mood, juiceTime, p.Seed, p.JumpAge, pixel));
+            }
+            for (int i = 0; i < extras.Count; i++)
+            {
+                var e = extras[i];
+                if (e.Figure.Root != null) e.Figure.Apply(GuestPose.Evaluate(e.Mood, juiceTime, e.Seed, float.MaxValue, pixel));
             }
         }
 
