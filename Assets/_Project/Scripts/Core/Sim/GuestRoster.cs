@@ -26,6 +26,8 @@ namespace FloorF.Core
         public readonly HashSet<int> SeenFloors = new HashSet<int>();
         public readonly HashSet<int> SeenOccupancies = new HashSet<int>();
         public bool ImpatientSpoken;
+        /// <summary>The "relabelled" line is said once per guest (no bubble spam on a stickered building).</summary>
+        public bool RelabelledSpoken;
         // walking in/out (for IActorLocator)
         public int TransferFromSlot;
         public int TransferToRiderIndex;

@@ -33,6 +33,8 @@ namespace FloorF.Tests.PlayMode.Gameplay
             Assert.IsTrue(GameServices.Has<IGameFlow>(), "IGameFlow");
             Assert.IsTrue(GameServices.Has<IShopService>(), "IShopService");
             Assert.IsTrue(GameServices.Has<IActorLocator>(), "IActorLocator");
+            Assert.IsTrue(GameServices.Has<IGameSettings>(), "IGameSettings");
+            Assert.IsFalse(GameServices.Get<IGameSettings>().UseKorean, "English by default");
 
             var day = GameServices.Get<IDayQuery>();
             var flow = GameServices.Get<IGameFlow>();
