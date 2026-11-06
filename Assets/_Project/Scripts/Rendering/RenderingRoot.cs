@@ -1,0 +1,236 @@
+using FloorF.Core;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+namespace FloorF.Rendering
+{
+    /// <summary>
+    /// Rendering module root (one per Main scene load, see RenderingBootstrap).
+    ///   Awake    - pixel pipeline: re-targets the scene's "Main Camera" to the 640x360 RT, creates the UI camera +
+    ///              Screen Space - Camera canvas (exists from Awake, so other modules can find the UI camera in Start).
+    ///   OnEnable - subscribes Core events.
+    ///   Start    - resolves IWorldLayout/GameData/IBuildingQuery, builds the greybox, frames the camera.
+    ///   LateUpdate - follows elevator/guests (services polled with TryGet: gameplay may add them later), lighting.
+    /// Everything degrades gracefully: no gameplay services = initial labels from GameData, car parked at floor 1.
+    /// </summary>
+    sealed class RenderingRoot : MonoBehaviour
+    {
+        readonly Subscriptions subs = new Subscriptions();
+
+        RenderAssets assets;
+        PixelPipeline pipeline;
+        FloorLighting lighting;
+        BuildingView building;
+        ElevatorView elevator;
+        GuestViews guests;
+        Transform world;
+
+        IWorldLayout layout;
+        GameData data;
+        IBuildingQuery buildingQuery;
+        IElevatorQuery elevatorQuery;
+        IGuestQuery guestQuery;
+        IActorLocator locator;
+        bool labelsSynced;
+
+        // event-driven fallbacks when IElevatorQuery is not registered
+        int eventCarFloor;
+        bool eventDoorsOpen;
+
+        internal PixelPipeline Pipeline => pipeline;
+        internal FloorLighting Lighting => lighting;
+        internal BuildingView Building => building;
+        internal ElevatorView Elevator => elevator;
+        internal GuestViews Guests => guests;
+        internal bool IsBuilt => building != null;
+
+        void Awake()
+        {
+            assets = new RenderAssets();
+            lighting = new FloorLighting();
+            pipeline = PixelPipeline.Create(transform, FindSceneCamera());
+            world = new GameObject(RenderingNames.World).transform;
+            world.SetParent(transform, false);
+        }
+
+        Camera FindSceneCamera()
+        {
+            var main = Camera.main;
+            if (main != null && main.gameObject.scene == gameObject.scene) return main;
+            foreach (var go in gameObject.scene.GetRootGameObjects())
+                if (go.name == "Main Camera" && go.TryGetComponent<Camera>(out var c)) return c;
+            return main;
+        }
+
+        void OnEnable()
+        {
+            var bus = GameServices.Events;
+            subs.Add(bus.Subscribe<FloorLabelChanged>(OnFloorLabelChanged));
+            subs.Add(bus.Subscribe<DoorsOpened>(OnDoorsOpened));
+            subs.Add(bus.Subscribe<DoorsClosed>(OnDoorsClosed));
+            subs.Add(bus.Subscribe<ElevatorArrived>(OnElevatorArrived));
+            subs.Add(bus.Subscribe<LuckJudged>(OnLuckJudged));
+            subs.Add(bus.Subscribe<GuestSpawned>(OnGuestSpawned));
+            subs.Add(bus.Subscribe<GuestLeft>(OnGuestLeft));
+            subs.Add(bus.Subscribe<GuestDelivered>(OnGuestDelivered));
+        }
+
+        void OnDisable() => subs.Clear();
+
+        void Start()
+        {
+            GameServices.TryGet(out layout);
+            GameServices.TryGet(out data);
+            if (layout == null)
+            {
+                Debug.LogWarning("[Rendering] no IWorldLayout registered - using default HotelLayout (9 floors)");
+                layout = data != null ? HotelLayout.From(data.Hotel) : new HotelLayout(new HotelLayoutDef(), 9, 8);
+            }
+            ResolveQueries();
+            SetupScene();
+            Build();
+        }
+
+        void ResolveQueries()
+        {
+            if (buildingQuery == null) GameServices.TryGet(out buildingQuery);
+            if (elevatorQuery == null) GameServices.TryGet(out elevatorQuery);
+            if (guestQuery == null) GameServices.TryGet(out guestQuery);
+            if (locator == null) GameServices.TryGet(out locator);
+        }
+
+        /// <summary>Night mood: dim moonlight from the scene's directional light, flat dark ambient.</summary>
+        void SetupScene()
+        {
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = RenderingStyle.Ambient;
+            var sh = new SphericalHarmonicsL2();
+            sh.AddAmbientLight(RenderingStyle.Ambient);
+            RenderSettings.ambientProbe = sh;
+            RenderSettings.fog = false;
+            foreach (var go in gameObject.scene.GetRootGameObjects())
+            {
+                if (!go.TryGetComponent<Light>(out var l) || l.type != LightType.Directional) continue;
+                l.color = RenderingStyle.MoonColor;
+                l.intensity = RenderingStyle.MoonIntensity;
+                l.shadows = LightShadows.Hard;
+                l.transform.rotation = Quaternion.Euler(38f, -28f, 0f);
+            }
+        }
+
+        void Build()
+        {
+            var rotation = Quaternion.Euler(RenderingStyle.CameraPitch, RenderingStyle.CameraYaw, 0f);
+            var frame = CameraFraming.Fit(BuildingView.FramingBounds(layout), rotation,
+                (float)RenderingStyle.PixelWidth / RenderingStyle.PixelHeight, RenderingStyle.CameraMargin,
+                RenderingStyle.CameraDistance, RenderingStyle.PixelHeight);
+            frame = CameraFraming.SnapToWholePixels(frame, RenderingStyle.PixelHeight);
+            pipeline.ApplyFrame(frame);
+
+            building = new BuildingView(world, assets, layout, lighting, frame.PixelsPerUnit);
+            building.Build(DestinationOf, CurrentLabel, IsRelabelled);
+            for (int i = 0; i < layout.FloorCount; i++) UpdateFlicker(new FloorIndex(i));
+            labelsSynced = buildingQuery != null;
+
+            float doorSeconds = data != null ? data.Rules.doorSeconds : 0.35f;
+            elevator = new ElevatorView(world, assets, layout, building, doorSeconds);
+            guests = new GuestViews(world, assets, layout);
+        }
+
+        DestinationId DestinationOf(FloorIndex f)
+        {
+            if (buildingQuery != null) return buildingQuery.GetDestination(f);
+            if (data != null && f.Value < data.FloorCount) return data.GetFloor(f).Destination;
+            return default;
+        }
+
+        FloorLabel CurrentLabel(FloorIndex f)
+        {
+            if (buildingQuery != null) return buildingQuery.GetLabel(f);
+            if (data != null && f.Value < data.FloorCount) return data.GetFloor(f).InitialLabel;
+            return FloorLabel.Original(f);
+        }
+
+        FloorLabel OriginalLabel(FloorIndex f)
+        {
+            if (buildingQuery != null) return buildingQuery.GetOriginalLabel(f);
+            if (data != null && f.Value < data.FloorCount) return data.GetFloor(f).InitialLabel;
+            return FloorLabel.Original(f);
+        }
+
+        bool IsRelabelled(FloorIndex f) => buildingQuery != null ? buildingQuery.IsRelabelled(f) : CurrentLabel(f) != OriginalLabel(f);
+
+        void UpdateFlicker(FloorIndex f) => lighting.SetFlicker(f, building.GetSignText(f) == RenderingStyle.FlickerLabel);
+
+        void LateUpdate()
+        {
+            if (!IsBuilt) return;
+            ResolveQueries();
+            if (!labelsSynced && buildingQuery != null)
+            {
+                // gameplay registered its building after we built: adopt its current labels once
+                labelsSynced = true;
+                for (int i = 0; i < building.FloorCount; i++)
+                {
+                    var f = new FloorIndex(i);
+                    building.SetLabel(f, CurrentLabel(f), IsRelabelled(f));
+                    UpdateFlicker(f);
+                }
+            }
+            float dt = Time.deltaTime;
+            elevator.Tick(dt, locator, elevatorQuery, eventCarFloor, eventDoorsOpen);
+            guests.Tick(dt, data, guestQuery, locator, elevatorQuery);
+            lighting.Tick(Time.time, dt);
+        }
+
+        // ------------------------------------------------------------------ events
+
+        void OnFloorLabelChanged(FloorLabelChanged e)
+        {
+            if (!IsBuilt) return;
+            bool sticker = buildingQuery != null ? buildingQuery.IsRelabelled(e.Floor) : e.Current != OriginalLabel(e.Floor);
+            building.SetLabel(e.Floor, e.Current, sticker);
+            UpdateFlicker(e.Floor);
+        }
+
+        void OnElevatorArrived(ElevatorArrived e) => eventCarFloor = e.Floor.Value;
+
+        void OnDoorsOpened(DoorsOpened e)
+        {
+            eventCarFloor = e.Floor.Value;
+            eventDoorsOpen = true;
+            if (IsBuilt) lighting.Flash(e.Floor, Color.white, 0.35f, 0.35f); // small "ding" brightening
+        }
+
+        void OnDoorsClosed(DoorsClosed e) => eventDoorsOpen = false;
+
+        void OnLuckJudged(LuckJudged e)
+        {
+            if (!IsBuilt) return;
+            if (e.Verdict == LuckVerdict.Unlucky) lighting.Flash(e.Floor, RenderingStyle.UnluckyFlash, RenderingStyle.UnluckyFlashSeconds);
+            else if (e.Verdict == LuckVerdict.Lucky) lighting.Flash(e.Floor, RenderingStyle.LuckyFlash, RenderingStyle.LuckyFlashSeconds, 0.7f);
+        }
+
+        void OnGuestSpawned(GuestSpawned e)
+        {
+            if (IsBuilt) guests.Spawn(e.Guest, e.Archetype, e.Floor, e.WaitingSlot, data);
+        }
+
+        void OnGuestLeft(GuestLeft e)
+        {
+            if (IsBuilt) guests.Remove(e.Guest);
+        }
+
+        void OnGuestDelivered(GuestDelivered e)
+        {
+            if (IsBuilt) guests.Remove(e.Guest);
+        }
+
+        void OnDestroy()
+        {
+            subs.Clear();
+            pipeline?.Dispose();
+            assets?.Dispose();
+        }
+    }
+}

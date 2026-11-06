@@ -27,36 +27,9 @@ namespace FloorF.Rendering
         static void TryInstall(Scene scene)
         {
             if (!scene.IsValid() || scene.name != GameScenes.Main || root != null) return;
-            var go = new GameObject("[Rendering]");
+            var go = new GameObject(RenderingNames.Root);
             SceneManager.MoveGameObjectToScene(go, scene);
             root = go.AddComponent<RenderingRoot>();
-        }
-    }
-
-    /// <summary>
-    /// Rendering module root - EXAMPLE to extend (render-dev owns it). The scene only has "Main Camera" (tag MainCamera)
-    /// and a directional light; configure/replace them at runtime from here (pixel RT, UI camera, greybox from IWorldLayout).
-    /// </summary>
-    sealed class RenderingRoot : MonoBehaviour
-    {
-        readonly Subscriptions subs = new Subscriptions();
-        IWorldLayout layout;
-
-        void OnEnable()
-        {
-            subs.Add(GameServices.Events.Subscribe<DoorsOpened>(OnDoorsOpened));
-        }
-
-        void OnDisable() => subs.Clear();
-
-        void Start()
-        {
-            GameServices.TryGet(out layout); // services are safe to resolve from Start
-        }
-
-        void OnDoorsOpened(DoorsOpened e)
-        {
-            // e.g. flash the floor light red when e.Label is someone's unlucky number (react to LuckJudged for per-guest results)
         }
     }
 }
