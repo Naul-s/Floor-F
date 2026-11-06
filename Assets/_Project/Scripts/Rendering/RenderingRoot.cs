@@ -1,4 +1,5 @@
 using FloorF.Core;
+using FloorF.Gameplay;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -23,6 +24,9 @@ namespace FloorF.Rendering
         BuildingView building;
         ElevatorView elevator;
         GuestViews guests;
+        JuiceFx fx;
+        CameraRig rig;
+        EndingDirector ending;
         Transform world;
 
         IWorldLayout layout;
@@ -31,7 +35,13 @@ namespace FloorF.Rendering
         IElevatorQuery elevatorQuery;
         IGuestQuery guestQuery;
         IActorLocator locator;
+        IDayQuery dayQuery;
+        IMenuFlow menuFlow;
         bool labelsSynced;
+
+        // juice clock: stops while the game is paused (PauseChanged / IMenuFlow.IsPaused)
+        bool eventPaused;
+        float juiceTime;
 
         // event-driven fallbacks when IElevatorQuery is not registered
         int eventCarFloor;
@@ -42,6 +52,11 @@ namespace FloorF.Rendering
         internal BuildingView Building => building;
         internal ElevatorView Elevator => elevator;
         internal GuestViews Guests => guests;
+        internal JuiceFx Fx => fx;
+        internal CameraRig Rig => rig;
+        internal EndingDirector Ending => ending;
+        internal bool IsPaused => menuFlow != null ? menuFlow.IsPaused || eventPaused : eventPaused;
+        internal float JuiceTime => juiceTime;
         internal bool IsBuilt => building != null;
 
         void Awake()
@@ -73,6 +88,11 @@ namespace FloorF.Rendering
             subs.Add(bus.Subscribe<GuestSpawned>(OnGuestSpawned));
             subs.Add(bus.Subscribe<GuestLeft>(OnGuestLeft));
             subs.Add(bus.Subscribe<GuestDelivered>(OnGuestDelivered));
+            subs.Add(bus.Subscribe<PauseChanged>(e => eventPaused = e.Paused));
+            subs.Add(bus.Subscribe<StickerApplied>(OnStickerApplied));
+            subs.Add(bus.Subscribe<EndingReached>(OnEndingReached));
+            subs.Add(bus.Subscribe<GameStarted>(e => ResetEnding()));
+            subs.Add(bus.Subscribe<DayPhaseChanged>(OnDayPhaseChanged));
         }
 
         void OnDisable() => subs.Clear();
@@ -97,6 +117,8 @@ namespace FloorF.Rendering
             if (elevatorQuery == null) GameServices.TryGet(out elevatorQuery);
             if (guestQuery == null) GameServices.TryGet(out guestQuery);
             if (locator == null) GameServices.TryGet(out locator);
+            if (dayQuery == null) GameServices.TryGet(out dayQuery);
+            if (menuFlow == null) GameServices.TryGet(out menuFlow);
         }
 
         /// <summary>Night mood: dim moonlight from the scene's directional light, flat dark ambient.</summary>
@@ -125,7 +147,7 @@ namespace FloorF.Rendering
                 (float)RenderingStyle.PixelWidth / RenderingStyle.PixelHeight, RenderingStyle.CameraMargin,
                 RenderingStyle.CameraDistance, RenderingStyle.PixelHeight);
             frame = CameraFraming.SnapToWholePixels(frame, RenderingStyle.PixelHeight);
-            pipeline.ApplyFrame(frame);
+            rig = new CameraRig(pipeline, frame, RenderingStyle.PixelHeight);
 
             building = new BuildingView(world, assets, layout, lighting, frame.PixelsPerUnit);
             building.Build(DestinationOf, CurrentLabel, IsRelabelled);
@@ -134,7 +156,9 @@ namespace FloorF.Rendering
 
             float doorSeconds = data != null ? data.Rules.doorSeconds : 0.35f;
             elevator = new ElevatorView(world, assets, layout, building, doorSeconds);
-            guests = new GuestViews(world, assets, layout);
+            guests = new GuestViews(world, assets, layout, 1f / frame.PixelsPerUnit);
+            fx = new JuiceFx(world, assets);
+            ending = new EndingDirector(lighting, building, elevator, fx, OriginalLabel);
         }
 
         DestinationId DestinationOf(FloorIndex f)
@@ -178,9 +202,41 @@ namespace FloorF.Rendering
                 }
             }
             float dt = Time.deltaTime;
-            elevator.Tick(dt, locator, elevatorQuery, eventCarFloor, eventDoorsOpen);
-            guests.Tick(dt, data, guestQuery, locator, elevatorQuery);
-            lighting.Tick(Time.time, dt);
+            float jdt = IsPaused ? 0f : dt;
+            juiceTime += jdt;
+            elevator.Tick(dt, jdt, locator, elevatorQuery, eventCarFloor, eventDoorsOpen);
+            guests.Tick(dt, jdt, juiceTime, data, guestQuery, locator, elevatorQuery);
+            building.Tick(jdt);
+            fx.Tick(jdt);
+            ending.Tick(jdt);
+            lighting.Tick(juiceTime, jdt);
+            rig.SetTitle(dayQuery != null && dayQuery.Phase == DayPhase.Title);
+            rig.Tick(jdt);
+        }
+
+        void ResetEnding()
+        {
+            if (!IsBuilt || ending.Active == EndingKind.None) return;
+            ending.Reset();
+            for (int i = 0; i < building.FloorCount; i++) UpdateFlicker(new FloorIndex(i));
+        }
+
+        void OnDayPhaseChanged(DayPhaseChanged e)
+        {
+            if (e.Previous == DayPhase.Ending || e.Current == DayPhase.Title) ResetEnding();
+        }
+
+        void OnEndingReached(EndingReached e)
+        {
+            if (IsBuilt) ending.Begin(e.Ending);
+        }
+
+        void OnStickerApplied(StickerApplied e)
+        {
+            if (!IsBuilt) return;
+            building.PlayStick(e.Floor);
+            var sign = building.GetSign(e.Floor);
+            if (sign != null) fx.Burst(sign.transform.position + new Vector3(0f, 0f, -0.2f), new Color(1f, 0.97f, 0.8f), 8, 2.4f, 0.13f);
         }
 
         // ------------------------------------------------------------------ events
@@ -193,7 +249,11 @@ namespace FloorF.Rendering
             UpdateFlicker(e.Floor);
         }
 
-        void OnElevatorArrived(ElevatorArrived e) => eventCarFloor = e.Floor.Value;
+        void OnElevatorArrived(ElevatorArrived e)
+        {
+            eventCarFloor = e.Floor.Value;
+            if (IsBuilt) elevator.Bump(1f);
+        }
 
         void OnDoorsOpened(DoorsOpened e)
         {
@@ -202,13 +262,28 @@ namespace FloorF.Rendering
             if (IsBuilt) lighting.Flash(e.Floor, Color.white, 0.35f, 0.35f); // small "ding" brightening
         }
 
-        void OnDoorsClosed(DoorsClosed e) => eventDoorsOpen = false;
+        void OnDoorsClosed(DoorsClosed e)
+        {
+            eventDoorsOpen = false;
+            if (IsBuilt) elevator.Bump(0.35f);
+        }
 
         void OnLuckJudged(LuckJudged e)
         {
             if (!IsBuilt) return;
-            if (e.Verdict == LuckVerdict.Unlucky) lighting.Flash(e.Floor, RenderingStyle.UnluckyFlash, RenderingStyle.UnluckyFlashSeconds);
-            else if (e.Verdict == LuckVerdict.Lucky) lighting.Flash(e.Floor, RenderingStyle.LuckyFlash, RenderingStyle.LuckyFlashSeconds, 0.7f);
+            if (e.Verdict == LuckVerdict.Unlucky)
+            {
+                lighting.Flash(e.Floor, RenderingStyle.UnluckyFlash, RenderingStyle.UnluckyFlashSeconds);
+                rig.Shake();
+                guests.Jump(e.Guest);
+            }
+            else if (e.Verdict == LuckVerdict.Lucky)
+            {
+                lighting.Flash(e.Floor, RenderingStyle.LuckyFlash, RenderingStyle.LuckyFlashSeconds, 0.7f);
+                if (!guests.TryGetHead(e.Guest, out var at))
+                    at = world.TransformPoint(layout.GetFloorAnchor(e.Floor).ToVector3() + new Vector3(0f, layout.FloorHeight * 0.6f, 0f));
+                fx.Burst(at, RenderingStyle.LuckyFlash, 14);
+            }
         }
 
         void OnGuestSpawned(GuestSpawned e)
