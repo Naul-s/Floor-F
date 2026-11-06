@@ -32,32 +32,4 @@ namespace FloorF.UI
             root = go.AddComponent<UIRoot>();
         }
     }
-
-    /// <summary>
-    /// UI module root - EXAMPLE to extend (ui-dev owns it). Build canvases here at runtime: Screen Space - Camera only
-    /// (Overlay is invisible to L2 captures), TextMeshPro text, EventSystem with InputSystemUIInputModule.
-    /// Player commands go through IElevatorControl / IGameFlow / IShopService - never into Gameplay classes.
-    /// </summary>
-    sealed class UIRoot : MonoBehaviour
-    {
-        readonly Subscriptions subs = new Subscriptions();
-
-        void OnEnable()
-        {
-            subs.Add(GameServices.Events.Subscribe<DayStarted>(OnDayStarted));
-            subs.Add(GameServices.Events.Subscribe<LuckChanged>(OnLuckChanged));
-        }
-
-        void OnDisable() => subs.Clear();
-
-        void OnDayStarted(DayStarted e)
-        {
-            // e.g. show "Day {e.Day.Number}/{e.DayCount}" banner
-        }
-
-        void OnLuckChanged(LuckChanged e)
-        {
-            // e.g. animate the Luck meter from e.Previous to e.Current (of e.Max)
-        }
-    }
 }
