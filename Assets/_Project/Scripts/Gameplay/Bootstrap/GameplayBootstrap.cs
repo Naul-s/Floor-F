@@ -95,6 +95,7 @@ namespace FloorF.Gameplay
             GameServices.Register<IGameFlow>(session);
             GameServices.Register<IShopService>(session);
             GameServices.Register<IActorLocator>(locator);
+            GameServices.Register<IGameSettings>(session.Settings);
 
             gameObject.AddComponent<KeyboardInput>().Bind(session);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
@@ -129,6 +130,7 @@ namespace FloorF.Gameplay
             GameServices.Unregister<IGameFlow>(session);
             GameServices.Unregister<IShopService>(session);
             GameServices.Unregister<IActorLocator>(locator);
+            GameServices.Unregister<IGameSettings>(session.Settings);
         }
     }
 }

@@ -8,13 +8,13 @@ namespace FloorF.Gameplay
 {
     /// <summary>
     /// Editor/development-only text readout (IMGUI) so the rules can be played before the real HUD exists.
-    /// F1 toggles it. In the Shop, B buys the first affordable offer onto the first floor it fits (prefers the real 4th).
+    /// Hidden by default; F1 toggles it. While shown, in the Shop, B buys the first affordable offer onto the first floor it fits (prefers the real 4th).
     /// Not shown in release builds; not part of the UI module.
     /// </summary>
     sealed class DebugOverlay : MonoBehaviour
     {
         GameSession session;
-        bool visible = true;
+        bool visible; // hidden by default (the real HUD is the UI module); F1 shows it
         readonly StringBuilder sb = new StringBuilder(512);
         readonly List<GuestId> buffer = new List<GuestId>();
         GUIStyle style;
@@ -26,7 +26,7 @@ namespace FloorF.Gameplay
             var kb = Keyboard.current;
             if (kb == null || session == null) return;
             if (kb.f1Key.wasPressedThisFrame) visible = !visible;
-            if (kb.bKey.wasPressedThisFrame && session.IsOpen) BuyFirst();
+            if (visible && kb.bKey.wasPressedThisFrame && session.IsOpen) BuyFirst();
         }
 
         void BuyFirst()
