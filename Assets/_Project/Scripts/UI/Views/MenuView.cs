@@ -27,8 +27,10 @@ namespace FloorF.UI
 
             // ---------------------------------------------------------- title
             titleRoot = UIBuild.Stretch(UIBuild.Rect("Title", canvas));
-            var panel = UIBuild.Framed("TitlePanel", titleRoot, UIStyle.TitlePanel, UIStyle.CardEdge, 3f, raycast: true).rectTransform;
+            // translucent fill + hollow gold frame (a Framed box would tint the see-through fill gold)
+            var panel = UIBuild.Box("TitlePanel", titleRoot, UIStyle.TitlePanel, raycast: true).rectTransform;
             UIBuild.Place(panel, new Vector2(0.5f, 0.5f), new Vector2(0f, 20f), new Vector2(760f, 380f));
+            UIBuild.Outline("Frame", panel, UIStyle.CardEdge, 3f, 0f);
             var v = Column(panel, new RectOffset(40, 40, 30, 30), 14f);
             gameName = UIBuild.Text("GameName", panel, UIStrings.GameName, 96f, UIStyle.Title, TextAlignmentOptions.Center, bold: true);
             gameName.textWrappingMode = TextWrappingModes.NoWrap;

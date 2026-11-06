@@ -14,9 +14,9 @@ namespace FloorF.UI
     /// </summary>
     sealed class GuestBubblesView
     {
-        public const float ChipW = 70f, ChipH = 62f, BadgeH = 26f, BadgeSize = 24f;
+        public const float ChipW = 80f, ChipH = 62f, BadgeH = 26f, BadgeSize = 24f;
         const float HeadHeight = 1.45f, Spacing = 3f, ColumnMargin = 4f;
-        const int RiderColumns = 4;
+        public const int RiderColumns = 3;
 
         sealed class Chip
         {

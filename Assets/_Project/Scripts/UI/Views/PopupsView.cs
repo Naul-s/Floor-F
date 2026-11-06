@@ -257,7 +257,8 @@ namespace FloorF.UI
                 }
                 else pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
                 pos.x -= 6f + size.x * 0.5f;
-                pos.y += 2f * (GuestBubblesView.ChipH + 3f) + 4f;
+                int rows = Mathf.Max(1, (ctx.Elevator.Occupancy + GuestBubblesView.RiderColumns - 1) / GuestBubblesView.RiderColumns);
+                pos.y += rows * (GuestBubblesView.ChipH + 3f) + 4f;
                 s.Side = -1f;
             }
             else

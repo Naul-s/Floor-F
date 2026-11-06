@@ -202,6 +202,7 @@ namespace FloorF.UI
             t.fontSize = UIFonts.Px(size);
             name = string.IsNullOrEmpty(name) ? "?" : name.Trim();
             float width = t.rectTransform.rect.width;
+            if (t.font != null) t.font.TryAddCharacters(name); // dynamic atlas: glyphs must exist before measuring
             string s = name;
             for (int max = name.Length; max >= 3; max--)
             {

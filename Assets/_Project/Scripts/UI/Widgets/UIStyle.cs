@@ -64,7 +64,7 @@ namespace FloorF.UI
         }
 
         public static readonly Color Title = Hex("#FFD447");
-        public static readonly Color TitlePanel = new Color(0.04f, 0.045f, 0.07f, 0.78f);
+        public static readonly Color TitlePanel = new Color(0.04f, 0.045f, 0.07f, 0.96f);
         public static readonly Color Highlight = Hex("#FFE14D");
     }
 }

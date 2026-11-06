@@ -137,6 +137,8 @@ namespace FloorF.UI
         {
             shownLuck = -1f;
             ghostLuck = -1f;
+            luckDeltaTimer = tipsDeltaTimer = 0f; // the new run's reset is not a "+/-" moment
+            ghostHold = 0f;
         }
 
         public void Tick(float dt)

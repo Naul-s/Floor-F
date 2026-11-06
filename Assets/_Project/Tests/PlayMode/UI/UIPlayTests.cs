@@ -31,10 +31,12 @@ namespace FloorF.Tests.PlayMode.UI
             return root.Session;
         }
 
+        /// <summary>Boots Main straight into Day 1 Intro (no title / attract demo).</summary>
         public static IEnumerator LoadMain()
         {
             Time.timeScale = 1f;
             Time.captureDeltaTime = 0f;
+            GameplayRoot.SkipTitleForTests = true;
             yield return SceneManager.LoadSceneAsync(GameScenes.Main);
             for (int i = 0; i < 4; i++) yield return null;
             var ui = UI();
@@ -58,10 +60,53 @@ namespace FloorF.Tests.PlayMode.UI
             yield return null;
         }
 
+        /// <summary>Boots Main the real way: the title screen with the attract demo behind it.</summary>
+        public static IEnumerator LoadTitle()
+        {
+            Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
+            GameplayRoot.SkipTitleForTests = false;
+            yield return SceneManager.LoadSceneAsync(GameScenes.Main);
+            for (int i = 0; i < 4; i++) yield return null;
+            var ui = UI();
+            Assert.IsNotNull(ui, "[UI] root");
+            Assert.IsTrue(ui.IsBuilt, "UI built");
+            Assert.AreEqual(DayPhase.Title, GameServices.Get<IDayQuery>().Phase, "boots into the title");
+            Assert.IsTrue(GameServices.Get<IMenuFlow>().IsOnTitle);
+        }
+
+        /// <summary>Waits (simulated 0.1 s frames) until <paramref name="done"/> or <paramref name="frames"/> run out.</summary>
+        public static IEnumerator Until(System.Func<bool> done, int frames = 150)
+        {
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < frames && !done(); i++) yield return null;
+            Time.captureDeltaTime = 0f;
+        }
+
+        /// <summary>Plays every remaining day through the session (BeginDay -> EndDayNow -> ...) up to the ending card.</summary>
+        public static void RunToEnding(GameSession s)
+        {
+            var day = GameServices.Get<IDayQuery>();
+            for (int guard = 0; guard < 20 && day.Phase != DayPhase.Ending; guard++)
+            {
+                switch (day.Phase)
+                {
+                    case DayPhase.Intro: s.BeginDay(); break;
+                    case DayPhase.Running: s.EndDayNow(); break;
+                    case DayPhase.Summary: s.ContinueFromSummary(); break;
+                    case DayPhase.Shop: s.FinishShopping(); break;
+                }
+            }
+            Assert.AreEqual(DayPhase.Ending, day.Phase, "reached an ending");
+        }
+
         public static void Reset()
         {
             Time.timeScale = 1f;
             Time.captureDeltaTime = 0f;
+            GameplayRoot.SkipTitleForTests = false;
+            GameplayRoot.SettingsStoreOverride = null;
+            GameplayRoot.SeedOverride = null;
         }
     }
 
@@ -304,6 +349,390 @@ namespace FloorF.Tests.PlayMode.UI
                 Assert.IsNull(ui.SpeechPopupOverlap(), "frame " + f + ": bubble under a luck popup");
             }
             GameplayRoot.SeedOverride = null;
+        }
+    }
+
+    /// <summary>Phase 3a: day-1 tutorial prompts, title, pause/settings, sign-column avoidance, badges, ending card.</summary>
+    public class UIMenuTutorialTests
+    {
+        [UnityTearDown]
+        public IEnumerator TearDown()
+        {
+            UITestDriver.Reset();
+            yield return null;
+        }
+
+        static IEnumerator BoardLobbyGuests(UIRoot ui)
+        {
+            var guests = GameServices.Get<IGuestQuery>();
+            var elevator = GameServices.Get<IElevatorQuery>();
+            var waiting = new System.Collections.Generic.List<GuestId>();
+            yield return UITestDriver.Until(() => guests.GetWaiting(FloorIndex.Ground, waiting) >= 3);
+            Assert.AreEqual(3, guests.GetWaiting(FloorIndex.Ground, waiting), "day 1: three guests wait in the lobby");
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator TutorialPrompts_FollowDay1Flow()
+        {
+            GameplayRoot.SeedOverride = 7;
+            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var elevator = GameServices.Get<IElevatorQuery>();
+            var guests = GameServices.Get<IGuestQuery>();
+            Assert.IsTrue(GameServices.Get<IGameSettings>().ShowTutorialHints, "hints on by default");
+            Assert.IsTrue(GameServices.Get<IDayQuery>().IsTutorial, "day 1 is the tutorial");
+            Assert.IsNull(ui.TutorialPrompt, "no prompt on the intro card");
+            yield return UITestDriver.ClickStart();
+            yield return BoardLobbyGuests(ui);
+
+            // 1. guests waiting where the car is -> OPEN
+            Assert.AreEqual(TutorialView.Step.Board, ui.TutorialStep);
+            StringAssert.Contains("OPEN", ui.TutorialPrompt);
+            StringAssert.Contains("floor 1", ui.TutorialPrompt);
+            Assert.AreEqual("Open", ui.TutorialTarget, "arrow + outline on the OPEN button");
+            ui.ClickOpen();
+            yield return UITestDriver.Until(() => elevator.Occupancy >= 3);
+            Assert.AreEqual(3, elevator.Occupancy);
+            yield return null;
+
+            // 2. riders inside, doors open -> CLOSE (head count)
+            Assert.AreEqual(TutorialView.Step.Close, ui.TutorialStep);
+            StringAssert.Contains("CLOSE", ui.TutorialPrompt);
+            StringAssert.Contains("HEAD COUNT", ui.TutorialPrompt);
+            Assert.AreEqual("Close", ui.TutorialTarget);
+            ui.ClickClose();
+            yield return UITestDriver.Until(() => elevator.Doors == DoorState.Closed);
+            yield return null;
+
+            // first LuckJudged (grandma: 3 people is lucky) -> the "why" card
+            Assert.IsNotNull(ui.TutorialWhy, "first judgement explained");
+            StringAssert.Contains("LUCKY", ui.TutorialWhy);
+            StringAssert.Contains("3", ui.TutorialWhy);
+
+            // 3. doors closed with riders -> press the destination floor
+            Assert.AreEqual(TutorialView.Step.Floor, ui.TutorialStep);
+            Assert.IsTrue(guests.TryGet(elevator.Riders[0], out var first));
+            var dest = first.DestinationFloor;
+            string label = GameServices.Get<IBuildingQuery>().GetLabel(dest).Text;
+            StringAssert.Contains("floor " + label, ui.TutorialPrompt);
+            Assert.AreEqual("Floor " + dest.PhysicalNumber, ui.TutorialTarget, "arrow on the first rider's floor button");
+            ui.ClickFloor(dest.Value);
+            yield return UITestDriver.Until(() => elevator.Motion == ElevatorMotion.Idle && elevator.CurrentFloor == dest && !elevator.HasTarget);
+            Assert.AreEqual(dest, elevator.CurrentFloor, "arrived");
+            yield return null;
+
+            // 4. arrived, doors closed -> OPEN (floor number)
+            Assert.AreEqual(TutorialView.Step.OpenThere, ui.TutorialStep);
+            StringAssert.Contains("FLOOR", ui.TutorialPrompt);
+            Assert.AreEqual("Open", ui.TutorialTarget);
+            int opened = 0;
+            using (GameServices.Events.Subscribe<DoorsOpened>(e => opened++))
+            {
+                ui.ClickOpen();
+                yield return UITestDriver.Until(() => opened > 0);
+            }
+            yield return null;
+            Assert.AreEqual(TutorialView.Step.Done, ui.TutorialStep);
+            StringAssert.Contains("tips", ui.TutorialPrompt);
+            Assert.IsNull(ui.TutorialTarget, "wrap-up line has no arrow");
+
+            // passed steps never come back, the wrap-up fades
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < 80; i++)
+            {
+                yield return null;
+                var p = ui.TutorialPrompt;
+                if (p != null) StringAssert.DoesNotContain("waiting", p, "frame " + i);
+                if (p != null) StringAssert.DoesNotContain("CLOSE", p, "frame " + i);
+            }
+            Time.captureDeltaTime = 0f;
+            Assert.AreEqual(TutorialView.Step.Finished, ui.TutorialStep);
+            Assert.IsNull(ui.TutorialPrompt);
+        }
+
+        [UnityTest]
+        public IEnumerator TutorialHints_Off_HidesPrompts()
+        {
+            GameplayRoot.SeedOverride = 7;
+            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var settings = GameServices.Get<IGameSettings>();
+            settings.ShowTutorialHints = false;
+            yield return UITestDriver.ClickStart();
+            yield return BoardLobbyGuests(ui);
+            for (int i = 0; i < 5; i++)
+            {
+                yield return null;
+                Assert.IsNull(ui.TutorialPrompt, "hints off: no prompt");
+                Assert.IsNull(ui.TutorialTarget, "hints off: no arrow");
+            }
+            settings.ShowTutorialHints = true;
+            yield return null;
+            StringAssert.Contains("OPEN", ui.TutorialPrompt, "hints back on: the current step shows");
+        }
+
+        /// <summary>Canvas x-range covered by Rendering's floor-sign plates ("Sign n" objects).</summary>
+        static bool SignColumn(UIRoot ui, out float minX, out float maxX)
+        {
+            minX = float.MaxValue; maxX = float.MinValue;
+            int n = GameServices.Get<IBuildingQuery>().FloorCount, found = 0;
+            for (int f = 1; f <= n; f++)
+            {
+                var sign = GameObject.Find("Sign " + f);
+                if (sign == null) continue;
+                foreach (var r in sign.GetComponentsInChildren<Renderer>())
+                {
+                    var b = r.bounds;
+                    if (!ui.WorldToCanvas(new Vector3(b.min.x, b.center.y, b.min.z), out var a)) continue;
+                    if (!ui.WorldToCanvas(new Vector3(b.max.x, b.center.y, b.min.z), out var c)) continue;
+                    minX = Mathf.Min(minX, a.x, c.x);
+                    maxX = Mathf.Max(maxX, a.x, c.x);
+                    found++;
+                }
+            }
+            return found > 0;
+        }
+
+        [UnityTest]
+        public IEnumerator Bubbles_AvoidSignColumn()
+        {
+            GameplayRoot.SeedOverride = 7;
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var bus = GameServices.Events;
+            var elevator = GameServices.Get<IElevatorQuery>();
+            var guests = GameServices.Get<IGuestQuery>();
+            yield return UITestDriver.ClickStart();
+            yield return BoardLobbyGuests(ui);
+            Assert.IsTrue(SignColumn(ui, out float sMin, out float sMax), "floor signs rendered");
+            Assert.Greater(sMax - sMin, 4f, "sign column has width");
+
+            // waiting guests talk: their chips + bubbles stay right of the signs
+            var waiting = new System.Collections.Generic.List<GuestId>();
+            int n = guests.GetWaiting(FloorIndex.Ground, waiting);
+            for (int i = 0; i < n; i++) bus.Publish(new GuestSpoke(waiting[i], GuestLineTriggers.Impatient, "Waiting here for a long time, number " + i));
+            for (int f = 0; f < 3; f++)
+            {
+                yield return null;
+                Assert.IsNull(ui.SpeechOverlapX(sMin, sMax), "waiting: bubble over the floor signs");
+                Assert.IsNull(ui.ChipOverlapX(sMin, sMax), "waiting: chip over the floor signs");
+                Assert.IsNull(ui.SpeechShaftOverlap(), "waiting: bubble over the shaft");
+            }
+
+            // riders talk while the car moves: their grid + bubbles stay left of the signs
+            ui.ClickOpen();
+            yield return UITestDriver.Until(() => elevator.Occupancy >= 3);
+            ui.ClickFloor(6);
+            yield return UITestDriver.Until(() => elevator.Motion != ElevatorMotion.Idle, 40);
+            var riders = elevator.Riders;
+            Assert.Greater(riders.Count, 0);
+            for (int i = 0; i < riders.Count; i++) bus.Publish(new GuestSpoke(riders[i], GuestLineTriggers.Board, "Riding up now, me number " + i));
+            Time.captureDeltaTime = 0.05f;
+            for (int f = 0; f < 6; f++)
+            {
+                yield return null;
+                Assert.IsTrue(SignColumn(ui, out sMin, out sMax));
+                Assert.IsNull(ui.SpeechOverlapX(sMin, sMax), "frame " + f + ": rider bubble over the floor signs");
+                Assert.IsNull(ui.ChipOverlapX(sMin, sMax), "frame " + f + ": rider chip over the floor signs");
+                Assert.IsNull(ui.SpeechShaftOverlap(), "frame " + f + ": rider bubble over the shaft");
+            }
+            Time.captureDeltaTime = 0f;
+        }
+
+        [UnityTest]
+        public IEnumerator Badges_AreOneGridStepBigger()
+        {
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            for (int f = 0; f < ui.FloorButtonCount; f++)
+            {
+                Assert.GreaterOrEqual(ui.BadgeFontSize(f), 24f, "panel badge " + f + " at 24px");
+                Assert.GreaterOrEqual(ui.BadgeText(f).Length, 3, "badge " + f + " readable: " + ui.BadgeText(f));
+            }
+            Assert.IsNull(ui.FirstOffGridOrForeignText(), "still on the 12px grid");
+        }
+
+        [UnityTest]
+        public IEnumerator Title_StartButton_StartsDay1()
+        {
+            yield return UITestDriver.LoadTitle();
+            var ui = UITestDriver.UI();
+            var day = GameServices.Get<IDayQuery>();
+            yield return UITestDriver.Frames(2);
+            Assert.IsTrue(ui.TitleVisible, "title card");
+            StringAssert.Contains("FLOOR F", ui.TitleText);
+            StringAssert.Contains("4th floor", ui.TitleText);
+            Assert.AreEqual(DayPhase.None, ui.VisibleFlowScreen, "no day card over the title");
+            Assert.IsFalse(ui.PauseButtonVisible, "no pause on the title");
+
+            // attract demo runs behind it without popping HUD feedback on top
+            yield return UITestDriver.Until(() => false, 30);
+            Assert.AreEqual(0, ui.VisibleBubbleCount, "no number chips over the demo");
+            Assert.IsTrue(ui.TitleVisible);
+
+            ui.ClickTitleLanguage();
+            yield return null;
+            Assert.IsTrue(ui.Korean, "title language toggle");
+            StringAssert.Contains("4층", ui.TitleText);
+            ui.ClickTitleLanguage();
+            yield return null;
+            Assert.IsFalse(ui.Korean);
+
+            ui.ClickTitleStart();
+            Assert.AreEqual(DayPhase.Intro, day.Phase, "START -> Day 1 Intro");
+            Assert.AreEqual(1, day.CurrentDay.Number);
+            yield return null;
+            Assert.IsFalse(ui.TitleVisible);
+            Assert.AreEqual(DayPhase.Intro, ui.VisibleFlowScreen);
+            StringAssert.Contains("Day 1", ui.FlowTitle);
+            yield return UITestDriver.ClickStart();
+            Assert.AreEqual(TutorialView.Step.Board, ui.TutorialStep, "fresh tutorial after the demo");
+        }
+
+        [UnityTest]
+        public IEnumerator Pause_Menu_ResumesAndReturnsToTitle()
+        {
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var menu = GameServices.Get<IMenuFlow>();
+            var day = GameServices.Get<IDayQuery>();
+            yield return UITestDriver.ClickStart();
+            yield return null;
+            Assert.IsTrue(ui.PauseButtonVisible, "HUD pause button while running");
+
+            ui.ClickPauseButton();
+            Assert.IsTrue(menu.IsPaused, "pause button -> SetPaused(true)");
+            yield return null;
+            Assert.IsTrue(ui.PauseVisible, "pause card on PauseChanged");
+            Assert.IsFalse(ui.PauseButtonVisible);
+            float t = day.ElapsedSeconds;
+            yield return UITestDriver.Until(() => false, 10);
+            Assert.AreEqual(t, day.ElapsedSeconds, 1e-4f, "sim clock frozen");
+            Assert.IsNull(ui.TutorialPrompt, "no tutorial prompt over the pause card");
+
+            ui.ClickResume();
+            Assert.IsFalse(menu.IsPaused, "RESUME");
+            yield return null;
+            Assert.IsFalse(ui.PauseVisible);
+            yield return UITestDriver.Until(() => false, 5);
+            Assert.Greater(day.ElapsedSeconds, t, "clock runs again");
+
+            menu.SetPaused(true); // e.g. Esc (KeyboardInput) - the UI follows PauseChanged
+            yield return null;
+            Assert.IsTrue(ui.PauseVisible);
+            ui.ClickQuitToTitle();
+            Assert.IsTrue(menu.IsOnTitle, "QUIT TO TITLE -> ReturnToTitle");
+            Assert.IsFalse(menu.IsPaused);
+            yield return null;
+            Assert.IsFalse(ui.PauseVisible);
+            Assert.IsTrue(ui.TitleVisible);
+            Assert.AreEqual(DayPhase.Title, day.Phase);
+        }
+
+        [UnityTest]
+        public IEnumerator VolumeSlider_WritesSettings()
+        {
+            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var settings = GameServices.Get<IGameSettings>();
+            yield return UITestDriver.ClickStart();
+            ui.ClickPauseButton();
+            yield return null;
+            Assert.IsTrue(ui.PauseVisible);
+
+            ui.SetVolumeSlider(0.25f);
+            Assert.AreEqual(0.25f, settings.MasterVolume, 1e-4f, "slider -> IGameSettings.MasterVolume");
+            settings.MasterVolume = 0.8f; // changed elsewhere -> slider follows
+            yield return null;
+            Assert.AreEqual(0.8f, ui.VolumeSliderValue, 1e-4f, "slider follows SettingsChanged");
+
+            Assert.IsTrue(settings.ShowTutorialHints);
+            ui.ClickHintsToggle();
+            Assert.IsFalse(settings.ShowTutorialHints, "hints toggle -> IGameSettings.ShowTutorialHints");
+            StringAssert.Contains("OFF", ui.HintsText);
+            ui.ClickHintsToggle();
+            Assert.IsTrue(settings.ShowTutorialHints);
+            settings.MasterVolume = 1f;
+            ui.ClickResume();
+        }
+
+        [UnityTest]
+        public IEnumerator Ending_ShowsStats_PlayAgainAndTitle()
+        {
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var day = GameServices.Get<IDayQuery>();
+            UITestDriver.RunToEnding(UITestDriver.Session());
+            yield return null;
+            Assert.AreEqual(DayPhase.Ending, ui.VisibleFlowScreen, "ending card");
+            Assert.IsFalse(string.IsNullOrEmpty(ui.FlowTitle));
+            Assert.IsTrue(ui.EndingTitleButtonVisible, "TITLE button next to PLAY AGAIN");
+            StringAssert.Contains("PLAY AGAIN", ui.FlowActionText);
+            ui.ClickEndingTitle();
+            Assert.AreEqual(DayPhase.Title, day.Phase, "TITLE -> ReturnToTitle");
+            yield return null;
+            Assert.IsTrue(ui.TitleVisible);
+        }
+    }
+
+    /// <summary>L2 captures of the title, tutorial, pause and ending (run with -Filter Capture).</summary>
+    public class UIMenuCaptureTests
+    {
+        [UnityTearDown]
+        public IEnumerator TearDown()
+        {
+            UITestDriver.Reset();
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Capture_MenuAndTutorial() => Flow("", false);
+
+        [UnityTest]
+        public IEnumerator Capture_MenuAndTutorial_Korean() => Flow("_ko", true);
+
+        static IEnumerator Flow(string suffix, bool korean)
+        {
+            GameplayRoot.SeedOverride = 7;
+            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
+            yield return UITestDriver.LoadTitle();
+            var ui = UITestDriver.UI();
+            GameServices.Get<IGameSettings>().UseKorean = korean;
+            yield return UITestDriver.Until(() => false, 40); // demo plays behind the title
+            yield return null;
+            Assert.IsTrue(ui.TitleVisible);
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_title" + suffix)));
+
+            ui.ClickTitleStart();
+            yield return null;
+            yield return UITestDriver.ClickStart();
+            var elevator = GameServices.Get<IElevatorQuery>();
+            var guests = GameServices.Get<IGuestQuery>();
+            var waiting = new System.Collections.Generic.List<GuestId>();
+            yield return UITestDriver.Until(() => guests.GetWaiting(FloorIndex.Ground, waiting) >= 3);
+            ui.ClickOpen();
+            yield return UITestDriver.Until(() => elevator.Occupancy >= 3);
+            ui.ClickClose();
+            yield return UITestDriver.Until(() => elevator.Doors == DoorState.Closed);
+            yield return UITestDriver.Frames(2);
+            Assert.IsNotNull(ui.TutorialPrompt, "floor prompt");
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_tutorial" + suffix)));
+
+            ui.ClickPauseButton();
+            yield return UITestDriver.Frames(2);
+            Assert.IsTrue(ui.PauseVisible);
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_pause" + suffix)));
+            ui.ClickResume();
+            yield return null;
+
+            UITestDriver.RunToEnding(UITestDriver.Session());
+            yield return UITestDriver.Frames(2);
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_ending" + suffix)));
+            GameServices.Get<IGameSettings>().UseKorean = false;
         }
     }
 

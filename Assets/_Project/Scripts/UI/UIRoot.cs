@@ -33,10 +33,11 @@ namespace FloorF.UI
         {
             var bus = GameServices.Events;
             subs.Add(bus.Subscribe<GameStarted>(OnGameStarted));
-            subs.Add(bus.Subscribe<LuckChanged>(e => { if (built) hud.OnLuckChanged(e); }));
-            subs.Add(bus.Subscribe<TipsChanged>(e => { if (built) hud.OnTipsChanged(e); }));
+            // the title's attract demo publishes guest/elevator/luck events too: the title card stays clean
+            subs.Add(bus.Subscribe<LuckChanged>(e => { if (built && !OnTitle) hud.OnLuckChanged(e); }));
+            subs.Add(bus.Subscribe<TipsChanged>(e => { if (built && !OnTitle) hud.OnTipsChanged(e); }));
             subs.Add(bus.Subscribe<FloorLabelChanged>(e => { if (built) panel.RefreshLabel(e.Floor); }));
-            subs.Add(bus.Subscribe<LuckJudged>(e => { if (built) { popups.OnLuckJudged(e); tutorial.OnLuckJudged(e); } }));
+            subs.Add(bus.Subscribe<LuckJudged>(e => { if (built && !OnTitle) { popups.OnLuckJudged(e); tutorial.OnLuckJudged(e); } }));
             subs.Add(bus.Subscribe<GuestSpoke>(OnGuestSpoke));
             subs.Add(bus.Subscribe<SettingsChanged>(e => RefreshLanguage()));
             subs.Add(bus.Subscribe<DayPhaseChanged>(OnPhaseChanged));
@@ -48,6 +49,8 @@ namespace FloorF.UI
         }
 
         void OnDisable() => subs.Clear();
+
+        bool OnTitle => ctx.Phase == DayPhase.Title || (ctx.Menu != null && ctx.Menu.IsOnTitle);
 
         void Start()
         {
@@ -157,7 +160,7 @@ namespace FloorF.UI
 
         void OnGuestSpoke(GuestSpoke e)
         {
-            if (!built) return;
+            if (!built || OnTitle) return;
             popups.OnGuestSpoke(e);
             // the mystery guest's last words come right before the 4th-floor ending - the ending card quotes them
             if (e.LineTrigger == GuestLineTriggers.Special) flow.LastSpecialLine = e.Text;
