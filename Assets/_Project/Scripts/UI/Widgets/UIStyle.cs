@@ -28,7 +28,12 @@ namespace FloorF.UI
         public static readonly Color BtnApplicable = Hex("#FFD447");
         public static readonly Color BtnBlocked = new Color(0.23f, 0.24f, 0.28f, 0.55f);
         public static readonly Color Led = Hex("#FF5A36");
-        public static readonly Color LedGhost = new Color(1f, 0.35f, 0.21f, 0.07f);
+        /// <summary>
+        /// Unlit segments: OPAQUE dark red at ~13% of the lit LED's brightness. (A low alpha looked far brighter than its
+        /// value because blending happens in linear space - a "1" read as an "8".)
+        /// </summary>
+        public static readonly Color LedGhost = new Color(Led.r * GhostLevel, Led.g * GhostLevel, Led.b * GhostLevel, 1f);
+        public const float GhostLevel = 0.13f;
         public static readonly Color Action = Hex("#2E7D5B");
         public static readonly Color ActionHot = Hex("#3FAE7E");
 

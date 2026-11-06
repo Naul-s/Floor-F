@@ -31,19 +31,19 @@ namespace FloorF.UI
             // day + clock (top-left, above the panel)
             dayBox = UIBuild.Framed("DayBox", canvas, UIStyle.Box, UIStyle.CardEdge, 2f).rectTransform;
             UIBuild.Place(dayBox, new Vector2(0f, 1f), new Vector2(24f, -16f), new Vector2(ElevatorPanelView.Width, 64f));
-            dayText = UIBuild.Text("Day", dayBox, "", 20f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
+            dayText = UIBuild.Text("Day", dayBox, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(dayText.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(110f, 40f));
-            clockText = UIBuild.Text("Clock", dayBox, "", 34f, UIStyle.Ink, TextAlignmentOptions.Right, bold: true);
+            clockText = UIBuild.Text("Clock", dayBox, "", 36f, UIStyle.Ink, TextAlignmentOptions.Right, bold: true);
             UIBuild.Place(clockText.rectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f), new Vector2(100f, 48f));
 
             // luck meter (top-right)
             luckBox = UIBuild.Framed("LuckBox", canvas, UIStyle.Box, UIStyle.CardEdge, 2f).rectTransform;
             UIBuild.Place(luckBox, new Vector2(1f, 1f), new Vector2(-24f, -16f), new Vector2(MeterW + 32f, 76f));
-            luckCaption = UIBuild.Text("Caption", luckBox, "", 20f, UIStyle.Lucky, TextAlignmentOptions.Left, bold: true);
+            luckCaption = UIBuild.Text("Caption", luckBox, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(luckCaption.rectTransform, new Vector2(0f, 1f), new Vector2(16f, -6f), new Vector2(120f, 28f));
             luckValue = UIBuild.Text("Value", luckBox, "", 24f, UIStyle.Ink, TextAlignmentOptions.Right, bold: true);
             UIBuild.Place(luckValue.rectTransform, new Vector2(1f, 1f), new Vector2(-16f, -4f), new Vector2(140f, 30f));
-            luckDelta = UIBuild.Text("Delta", luckBox, "", 22f, UIStyle.Good, TextAlignmentOptions.Center, bold: true);
+            luckDelta = UIBuild.Text("Delta", luckBox, "", 24f, UIStyle.Good, TextAlignmentOptions.Center, bold: true);
             UIBuild.Place(luckDelta.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(100f, 30f));
             var track = UIBuild.Box("Track", luckBox, new Color(0f, 0f, 0f, 0.8f));
             UIBuild.Place(track.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 12f), new Vector2(MeterW, 24f));
@@ -56,28 +56,28 @@ namespace FloorF.UI
             // tips (under the luck meter)
             tipsBox = UIBuild.Framed("TipsBox", canvas, UIStyle.Box, UIStyle.CardEdge, 2f).rectTransform;
             UIBuild.Place(tipsBox, new Vector2(1f, 1f), new Vector2(-24f, -98f), new Vector2(MeterW + 32f, 44f));
-            tipsCaption = UIBuild.Text("Caption", tipsBox, "", 20f, UIStyle.Good, TextAlignmentOptions.Left, bold: true);
+            tipsCaption = UIBuild.Text("Caption", tipsBox, "", 24f, UIStyle.Good, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(tipsCaption.rectTransform, new Vector2(0f, 0.5f), new Vector2(16f, 0f), new Vector2(120f, 32f));
-            tipsValue = UIBuild.Text("Value", tipsBox, "", 26f, UIStyle.Ink, TextAlignmentOptions.Right, bold: true);
+            tipsValue = UIBuild.Text("Value", tipsBox, "", 24f, UIStyle.Ink, TextAlignmentOptions.Right, bold: true);
             UIBuild.Place(tipsValue.rectTransform, new Vector2(1f, 0.5f), new Vector2(-16f, 0f), new Vector2(160f, 34f));
-            tipsDelta = UIBuild.Text("Delta", tipsBox, "", 22f, UIStyle.Good, TextAlignmentOptions.Center, bold: true);
+            tipsDelta = UIBuild.Text("Delta", tipsBox, "", 24f, UIStyle.Good, TextAlignmentOptions.Center, bold: true);
             UIBuild.Place(tipsDelta.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(100f, 32f));
 
             // rule reminder (right, under tips)
             rulesBox = UIBuild.Framed("RulesBox", canvas, UIStyle.Box, new Color(1f, 1f, 1f, 0.15f), 2f).rectTransform;
             UIBuild.Place(rulesBox, new Vector2(1f, 1f), new Vector2(-24f, -150f), new Vector2(MeterW + 32f, 112f));
-            rulesTitle = UIBuild.Text("Title", rulesBox, "", 15f, UIStyle.CardEdge, TextAlignmentOptions.Left, bold: true);
+            rulesTitle = UIBuild.Text("Title", rulesBox, "", 12f, UIStyle.CardEdge, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(rulesTitle.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -6f), new Vector2(MeterW, 22f));
-            ruleOpen = UIBuild.Text("Open", rulesBox, "", 15f, UIStyle.Ink, TextAlignmentOptions.Left);
+            ruleOpen = UIBuild.Text("Open", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left);
             UIBuild.Place(ruleOpen.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -30f), new Vector2(MeterW + 10f, 22f));
-            ruleClose = UIBuild.Text("Close", rulesBox, "", 15f, UIStyle.Ink, TextAlignmentOptions.Left);
+            ruleClose = UIBuild.Text("Close", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left);
             UIBuild.Place(ruleClose.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -54f), new Vector2(MeterW + 10f, 22f));
-            ruleLegend = UIBuild.Text("Legend", rulesBox, "", 16f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
+            ruleLegend = UIBuild.Text("Legend", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(ruleLegend.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -80f), new Vector2(MeterW, 24f));
 
             // language toggle (bottom-right)
-            language = UIBuild.Button("Language", canvas, "", 16f, UIStyle.Btn, () => onLanguage?.Invoke());
-            UIBuild.Place(language.Rect, new Vector2(1f, 0f), new Vector2(-24f, 16f), new Vector2(130f, 34f));
+            language = UIBuild.Button("Language", canvas, "", 24f, UIStyle.Btn, () => onLanguage?.Invoke());
+            UIBuild.Place(language.Rect, new Vector2(1f, 0f), new Vector2(-24f, 16f), new Vector2(170f, 36f));
             language.Label.color = UIStyle.Ink;
 
             RefreshLanguage();
@@ -106,7 +106,11 @@ namespace FloorF.UI
             UIBuild.Set(ruleOpen, ctx.S(UIStrings.RuleOpen));
             UIBuild.Set(ruleClose, ctx.S(UIStrings.RuleClose));
             UIBuild.Set(ruleLegend, string.Format(ctx.S(UIStrings.RuleLegend), UIFormat.LuckyHex, UIFormat.UnluckyHex));
-            UIBuild.Set(language.Label, ctx.S(UIStrings.Language));
+            if (!string.Equals(language.Label.text, ctx.S(UIStrings.Language), System.StringComparison.Ordinal))
+            {
+                language.Label.text = ctx.S(UIStrings.Language);
+                UIBuild.Fit(language.Label, 24f);
+            }
         }
 
         public void OnLuckChanged(LuckChanged e)

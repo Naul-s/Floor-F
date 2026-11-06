@@ -20,14 +20,13 @@ namespace FloorF.UI
         public IShopService Shop;
         public IActorLocator Locator;
         public IGameSettings Settings;
+        public IWorldLayout Layout;
 
         public RectTransform CanvasRect;
         Camera worldCamera;
 
-        /// <summary>Used when no IGameSettings is registered (the toggle still works locally).</summary>
-        bool localKorean;
-
-        public bool Korean => Settings != null ? Settings.UseKorean : localKorean;
+        /// <summary>Language comes only from IGameSettings (Gameplay); without it the UI stays English.</summary>
+        public bool Korean => Settings != null && Settings.UseKorean;
 
         public bool HasGame => Building != null && Elevator != null && Day != null;
 
@@ -44,18 +43,38 @@ namespace FloorF.UI
             GameServices.TryGet(out Shop);
             GameServices.TryGet(out Locator);
             GameServices.TryGet(out Settings);
+            GameServices.TryGet(out Layout);
         }
 
-        /// <summary>Returns true when the language flipped locally (no settings service -> caller refreshes itself).</summary>
+        /// <summary>Flips IGameSettings.UseKorean (publishes SettingsChanged -> UIRoot refreshes). False when no service.</summary>
         public bool ToggleLanguage()
         {
             if (Settings == null && GameServices.TryGet(out IGameSettings s)) Settings = s;
-            if (Settings != null)
+            if (Settings == null)
             {
-                Settings.UseKorean = !Settings.UseKorean; // publishes SettingsChanged -> UIRoot refreshes
+                Debug.LogWarning("[UI] no IGameSettings registered - language toggle ignored");
                 return false;
             }
-            localKorean = !localKorean;
+            Settings.UseKorean = !Settings.UseKorean;
+            return true;
+        }
+
+        public float CarWidth => Data != null ? Data.Layout.carWidth : 2.4f;
+
+        /// <summary>
+        /// Canvas x-range of the elevator shaft column (IWorldLayout.ShaftX ± carWidth/2 projected at the car's height),
+        /// widened by <paramref name="margin"/>. False when nothing can be projected.
+        /// </summary>
+        public bool ShaftColumn(float margin, out float minX, out float maxX)
+        {
+            minX = maxX = 0f;
+            float shaftX = Layout != null ? Layout.ShaftX : Data != null ? Data.Layout.shaftX : 0f;
+            var car = Locator != null ? ToVector3(Locator.CarPosition) : new Vector3(shaftX, 0f, 0f);
+            float half = CarWidth * 0.5f;
+            if (!WorldToCanvas(new Vector3(shaftX - half, car.y, car.z), out var a)) return false;
+            if (!WorldToCanvas(new Vector3(shaftX + half, car.y, car.z), out var b)) return false;
+            minX = Mathf.Min(a.x, b.x) - margin;
+            maxX = Mathf.Max(a.x, b.x) + margin;
             return true;
         }
 

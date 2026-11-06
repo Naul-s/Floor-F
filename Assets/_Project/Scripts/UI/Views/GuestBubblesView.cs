@@ -14,7 +14,7 @@ namespace FloorF.UI
     /// </summary>
     sealed class GuestBubblesView
     {
-        public const float ChipW = 52f, ChipH = 44f;
+        public const float ChipW = 52f, ChipH = 50f;
         const float HeadHeight = 1.45f, Spacing = 3f;
         const int RiderColumns = 4;
 
@@ -62,15 +62,12 @@ namespace FloorF.UI
             c.Rect.anchorMin = c.Rect.anchorMax = Vector2.zero;
             c.Rect.pivot = new Vector2(0.5f, 0f);
             c.Rect.sizeDelta = new Vector2(ChipW, ChipH);
-            c.Numbers = UIBuild.Text("Numbers", c.Rect, "", 20f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(c.Numbers.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -1f), new Vector2(ChipW - 4f, 22f));
+            c.Numbers = UIBuild.Text("Numbers", c.Rect, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(c.Numbers.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -1f), new Vector2(ChipW - 4f, 26f));
             c.Numbers.textWrappingMode = TextWrappingModes.NoWrap;
-            c.Numbers.enableAutoSizing = true;
-            c.Numbers.fontSizeMin = 11f;
-            c.Numbers.fontSizeMax = 20f;
             c.Badge = UIBuild.Box("Badge", c.Rect, Color.gray);
-            UIBuild.Place(c.Badge.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, 14f));
-            c.Dest = UIBuild.Text("Dest", c.Badge.transform, "", 10f, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(c.Badge.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, 16f));
+            c.Dest = UIBuild.Text("Dest", c.Badge.transform, "", 12f, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
             UIBuild.Stretch(c.Dest.rectTransform);
             c.Dest.textWrappingMode = TextWrappingModes.NoWrap;
             c.Dest.overflowMode = TextOverflowModes.Ellipsis;
@@ -92,6 +89,7 @@ namespace FloorF.UI
             c.Id = info.Id;
             c.Edge.color = ctx.GuestColor(info.Archetype);
             c.Numbers.text = UIFormat.Numbers(info.Luck, info.HideNumbers);
+            UIBuild.Fit(c.Numbers, 24f);
             c.ShownDestination = new DestinationId("\u0000");
             chips.Add(info.Id.Value, c);
             return c;
@@ -141,7 +139,7 @@ namespace FloorF.UI
                 var riders = ctx.Elevator.Riders;
                 if (riders.Count > 0)
                 {
-                    float halfCar = (ctx.Data != null ? ctx.Data.Layout.carWidth * 0.5f : 1.2f) + 0.1f;
+                    float halfCar = ctx.CarWidth * 0.5f + 0.1f;
                     var car = UIContext.ToVector3(ctx.Locator.CarPosition);
                     if (ctx.WorldToCanvas(car + new Vector3(-halfCar, 0.1f, 0f), out var anchor))
                     {

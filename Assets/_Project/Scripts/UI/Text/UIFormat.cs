@@ -111,7 +111,7 @@ namespace FloorF.UI
         public static string StickerHeadline(StickerDef s, bool ko)
         {
             if (s == null) return "?";
-            string from = s.MatchesAnyLabel ? (ko ? "아무 층" : "any") : s.from.Trim();
+            string from = s.MatchesAnyLabel ? (ko ? "아무" : "any") : s.from.Trim();
             return from + " → " + (s.to ?? "").Trim();
         }
 

@@ -14,12 +14,12 @@ namespace FloorF.UI
     /// </summary>
     sealed class ShopView
     {
-        const float CardW = 400f, OfferH = 96f;
+        const float CardW = 400f, OfferH = 124f;
 
         sealed class OfferButton
         {
             public UIBuild.ButtonParts Parts;
-            public TextMeshProUGUI Headline, Name, Description, Price;
+            public TextMeshProUGUI Headline, Name, Description, Price, Need;
             public StickerId Id;
         }
 
@@ -52,17 +52,17 @@ namespace FloorF.UI
             v.childForceExpandHeight = false;
             card.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            title = UIBuild.Text("Title", card, "", 30f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            tips = UIBuild.Text("Tips", card, "", 22f, UIStyle.Good, TextAlignmentOptions.Center, bold: true);
-            hint = UIBuild.Text("Hint", card, "", 16f, UIStyle.Ink, TextAlignmentOptions.Center);
+            title = UIBuild.Text("Title", card, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            tips = UIBuild.Text("Tips", card, "", 24f, UIStyle.Good, TextAlignmentOptions.Center, bold: true);
+            hint = UIBuild.Text("Hint", card, "", 12f, UIStyle.Ink, TextAlignmentOptions.Center);
             offersRoot = UIBuild.Rect("Offers", card);
             var ov = offersRoot.gameObject.AddComponent<VerticalLayoutGroup>();
             ov.spacing = 8f;
             ov.childControlWidth = ov.childControlHeight = true;
             ov.childForceExpandWidth = true;
             ov.childForceExpandHeight = false;
-            result = UIBuild.Text("Result", card, "", 18f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            done = UIBuild.Button("Done", card, "", 22f, UIStyle.Action, () => ctx.Flow?.FinishShopping());
+            result = UIBuild.Text("Result", card, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            done = UIBuild.Button("Done", card, "", 24f, UIStyle.Action, () => ctx.Flow?.FinishShopping());
             done.Label.color = UIStyle.Ink;
             done.Rect.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
 
@@ -76,21 +76,21 @@ namespace FloorF.UI
         OfferButton MakeOffer()
         {
             var o = new OfferButton();
-            o.Parts = UIBuild.Button("Offer", offersRoot, "", 14f, UIStyle.Btn, null);
+            o.Parts = UIBuild.Button("Offer", offersRoot, "", 12f, UIStyle.Btn, null);
             o.Parts.Label.gameObject.SetActive(false);
             o.Parts.Rect.gameObject.AddComponent<LayoutElement>().preferredHeight = OfferH;
-            o.Headline = UIBuild.Text("Headline", o.Parts.Rect, "", 34f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            o.Headline = UIBuild.Text("Headline", o.Parts.Rect, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
             UIBuild.Place(o.Headline.rectTransform, new Vector2(0f, 0.5f), new Vector2(8f, 0f), new Vector2(110f, OfferH));
             o.Headline.textWrappingMode = TextWrappingModes.NoWrap;
-            o.Headline.enableAutoSizing = true;
-            o.Headline.fontSizeMin = 16f;
-            o.Headline.fontSizeMax = 34f;
-            o.Name = UIBuild.Text("Name", o.Parts.Rect, "", 19f, UIStyle.Ink, TextAlignmentOptions.TopLeft, bold: true);
-            UIBuild.Place(o.Name.rectTransform, new Vector2(0f, 1f), new Vector2(124f, -8f), new Vector2(CardW - 40f - 130f, 24f));
-            o.Description = UIBuild.Text("Description", o.Parts.Rect, "", 13f, UIStyle.InkDim, TextAlignmentOptions.TopLeft);
-            UIBuild.Place(o.Description.rectTransform, new Vector2(0f, 1f), new Vector2(124f, -32f), new Vector2(CardW - 40f - 130f, 40f));
-            o.Price = UIBuild.Text("Price", o.Parts.Rect, "", 16f, UIStyle.Good, TextAlignmentOptions.BottomLeft, bold: true);
-            UIBuild.Place(o.Price.rectTransform, new Vector2(0f, 0f), new Vector2(124f, 6f), new Vector2(CardW - 40f - 130f, 22f));
+            o.Need = UIBuild.Text("Need", o.Parts.Rect, "", 12f, UIStyle.Unlucky, TextAlignmentOptions.Center);
+            UIBuild.Place(o.Need.rectTransform, new Vector2(0f, 0f), new Vector2(8f, 6f), new Vector2(110f, 16f));
+            o.Need.textWrappingMode = TextWrappingModes.NoWrap;
+            o.Name = UIBuild.Text("Name", o.Parts.Rect, "", 24f, UIStyle.Ink, TextAlignmentOptions.TopLeft, bold: true);
+            UIBuild.Place(o.Name.rectTransform, new Vector2(0f, 1f), new Vector2(124f, -6f), new Vector2(CardW - 40f - 130f, 30f));
+            o.Description = UIBuild.Text("Description", o.Parts.Rect, "", 12f, UIStyle.InkDim, TextAlignmentOptions.TopLeft);
+            UIBuild.Place(o.Description.rectTransform, new Vector2(0f, 1f), new Vector2(124f, -38f), new Vector2(CardW - 40f - 130f, 34f));
+            o.Price = UIBuild.Text("Price", o.Parts.Rect, "", 24f, UIStyle.Good, TextAlignmentOptions.BottomLeft, bold: true);
+            UIBuild.Place(o.Price.rectTransform, new Vector2(0f, 0f), new Vector2(124f, 4f), new Vector2(CardW - 40f - 130f, 30f));
             var self = o;
             o.Parts.Button.onClick.AddListener(() => Select(self.Id));
             return o;
@@ -176,27 +176,30 @@ namespace FloorF.UI
                 if (!active) continue;
                 var offer = list[i];
                 o.Id = offer.Id;
-                o.Headline.text = UIFormat.StickerHeadline(offer.Sticker, ctx.Korean);
+                string headline = UIFormat.StickerHeadline(offer.Sticker, ctx.Korean);
+                if (!string.Equals(o.Headline.text, headline, System.StringComparison.Ordinal)) { o.Headline.text = headline; UIBuild.Fit(o.Headline, 36f); }
                 string name = ctx.StickerName(offer.Sticker);
                 // the headline already says "4 -> F"; only repeat the name when it adds something
-                o.Name.text = string.Equals(name.Replace(" ", ""), o.Headline.text.Replace(" ", ""), System.StringComparison.OrdinalIgnoreCase) ? "" : name;
+                o.Name.text = name.Contains("→") || string.Equals(name.Replace(" ", ""), o.Headline.text.Replace(" ", ""), System.StringComparison.OrdinalIgnoreCase) ? "" : name;
                 o.Description.text = ctx.StickerDescription(offer.Sticker);
                 bool soldOut = offer.Remaining == 0;
                 o.Price.text = soldOut ? ctx.S(UIStrings.SoldOut)
                     : offer.Remaining < 0 ? string.Format(ctx.S(UIStrings.PriceUnlimited), offer.Price.ToString(CultureInfo.InvariantCulture))
                     : string.Format(ctx.S(UIStrings.PriceStock), offer.Price.ToString(CultureInfo.InvariantCulture), offer.Remaining.ToString(CultureInfo.InvariantCulture));
-                o.Price.color = isSelPre(offer.Id) ? UIStyle.Dark : soldOut || tipsNow < offer.Price ? UIStyle.Unlucky : UIStyle.Good;
                 bool isSel = !selected.IsEmpty && selected == offer.Id;
+                bool broke = !soldOut && tipsNow < offer.Price;
+                o.Price.color = isSel ? UIStyle.Dark : soldOut || broke ? UIStyle.Unlucky : UIStyle.Good;
+                // unaffordable: still selectable (to read it / see the floors), but clearly not buyable
+                o.Need.text = broke ? string.Format(ctx.S(UIStrings.NeedMore), (offer.Price - tipsNow).ToString(CultureInfo.InvariantCulture)) : "";
+                o.Need.color = isSel ? UIStyle.Dark : UIStyle.Unlucky;
                 o.Parts.Background.color = isSel ? UIStyle.BtnTarget : soldOut ? UIStyle.BtnBlocked : UIStyle.Btn;
                 o.Name.color = isSel ? UIStyle.Dark : UIStyle.Ink;
                 o.Description.color = isSel ? new Color(0.06f, 0.06f, 0.09f, 0.8f) : UIStyle.InkDim;
-                o.Headline.color = isSel ? UIStyle.Dark : UIStyle.Lucky;
+                o.Headline.color = isSel ? UIStyle.Dark : broke ? new Color(UIStyle.Lucky.r, UIStyle.Lucky.g, UIStyle.Lucky.b, 0.45f) : UIStyle.Lucky;
                 o.Parts.Button.interactable = !soldOut;
             }
             LayoutRebuilder.ForceRebuildLayoutImmediate(card);
         }
-
-        bool isSelPre(StickerId id) => !selected.IsEmpty && selected == id;
 
         public void Tick()
         {

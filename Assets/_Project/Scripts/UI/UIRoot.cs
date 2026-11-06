@@ -35,7 +35,7 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<TipsChanged>(e => { if (built) hud.OnTipsChanged(e); }));
             subs.Add(bus.Subscribe<FloorLabelChanged>(e => { if (built) panel.RefreshLabel(e.Floor); }));
             subs.Add(bus.Subscribe<LuckJudged>(e => { if (built) popups.OnLuckJudged(e); }));
-            subs.Add(bus.Subscribe<GuestSpoke>(e => { if (built) popups.OnGuestSpoke(e); }));
+            subs.Add(bus.Subscribe<GuestSpoke>(OnGuestSpoke));
             subs.Add(bus.Subscribe<SettingsChanged>(e => RefreshLanguage()));
             subs.Add(bus.Subscribe<DayPhaseChanged>(OnPhaseChanged));
         }
@@ -136,19 +136,27 @@ namespace FloorF.UI
             panel.RefreshLabels();
             bubbles.Clear();
             popups.Clear();
+            flow.LastSpecialLine = null;
+        }
+
+        void OnGuestSpoke(GuestSpoke e)
+        {
+            if (!built) return;
+            popups.OnGuestSpoke(e);
+            // the mystery guest's last words come right before the 4th-floor ending - the ending card quotes them
+            if (e.LineTrigger == GuestLineTriggers.Special) flow.LastSpecialLine = e.Text;
         }
 
         void OnPhaseChanged(DayPhaseChanged e)
         {
             if (!built) return;
             panel.RefreshLabels();
-            if (e.Current != DayPhase.Running) popups.Clear();
+            if (e.Current == DayPhase.Ending) popups.ClearPopups(); // keep the last speech bubble behind the card
+            else if (e.Current != DayPhase.Running) popups.Clear();
+            if (e.Current == DayPhase.Intro) flow.LastSpecialLine = null;
         }
 
-        void ToggleLanguage()
-        {
-            if (ctx.ToggleLanguage()) RefreshLanguage(); // else SettingsChanged arrives and refreshes
-        }
+        void ToggleLanguage() => ctx.ToggleLanguage(); // SettingsChanged arrives and refreshes
 
         void RefreshLanguage()
         {
@@ -177,6 +185,7 @@ namespace FloorF.UI
         internal bool Korean => ctx.Korean;
         internal DayPhase VisibleFlowScreen => built ? (shop.IsOpen ? DayPhase.Shop : flow.Shown) : DayPhase.None;
         internal string FlowTitle => flow.TitleText;
+        internal string FlowBody => flow.BodyText;
         internal void ClickFlowButton() => flow.Click();
         internal int FloorButtonCount => panel.ButtonCount;
         internal string FloorButtonText(int floor) => panel.ButtonText(floor);
@@ -193,6 +202,31 @@ namespace FloorF.UI
         internal int ActiveSpeechCount => popups.ActiveSpeechCount;
         internal string LastPopupText => popups.LastPopupText;
         internal int VisibleBubbleCount => bubbles.VisibleCount;
+        internal bool SettingsServiceBound => ctx.Settings != null && GameServices.TryGet(out IGameSettings s) && ReferenceEquals(s, ctx.Settings);
+        /// <summary>Every visible speech bubble is outside the shaft column (null) or the first offender's description.</summary>
+        internal string SpeechShaftOverlap() => popups.FirstShaftOverlap();
+        /// <summary>Every visible speech bubble is clear of every luck popup (null) or the first offender's description.</summary>
+        internal string SpeechPopupOverlap() => popups.FirstPopupOverlap();
+        internal string SpeechTexts => popups.SpeechTexts;
+        internal void ShowFontCompare(bool show)
+        {
+            if (show && fontCompare == null) { fontCompare = FontSampleCard.Build(ctx.CanvasRect); SetLayerRecursively(fontCompare.transform, PresentationContract.UiLayer); }
+            else if (!show && fontCompare != null) { Destroy(fontCompare); fontCompare = null; }
+        }
+        GameObject fontCompare;
+        internal int TextCount => canvas.GetComponentsInChildren<TMPro.TMP_Text>(true).Length;
+        internal bool FontIsGalmuri => !UIFonts.IsFallback && UIFonts.IsGalmuri(UIFonts.Main);
+        /// <summary>null when every UI text uses the runtime Galmuri asset at a 12px-grid size, else the first offender.</summary>
+        internal string FirstOffGridOrForeignText()
+        {
+            foreach (var t in canvas.GetComponentsInChildren<TMPro.TMP_Text>(true))
+            {
+                if (t.font != UIFonts.Main || !UIFonts.IsGalmuri(t.font)) return t.name + " font " + (t.font != null ? t.font.name : "<null>");
+                if (Mathf.Abs(t.fontSize % UIFonts.Grid) > 0.01f) return t.name + " size " + t.fontSize;
+                if (t.enableAutoSizing) return t.name + " auto-sizes";
+            }
+            return null;
+        }
         internal void ClickLanguage() => hud.ClickLanguage();
     }
 }

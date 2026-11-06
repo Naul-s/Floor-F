@@ -70,6 +70,7 @@ namespace FloorF.UI
         public static readonly Loc PriceStock = new Loc("${0}   {1} left", "${0}   {1}개 남음");
         public static readonly Loc PriceUnlimited = new Loc("${0}", "${0}");
         public static readonly Loc SoldOut = new Loc("SOLD OUT", "품절");
+        public static readonly Loc NeedMore = new Loc("need +${0}", "${0} 부족");
         public static readonly Loc ResultApplied = new Loc("Floor {0} is now {1}!", "{0}층이 이제 {1}층!");
         public static readonly Loc ResultNotEnough = new Loc("Not enough tips.", "팁이 부족합니다.");
         public static readonly Loc ResultNotApplicable = new Loc("That sticker does not fit that floor.", "그 층에는 붙일 수 없습니다.");
@@ -79,20 +80,20 @@ namespace FloorF.UI
         // ---- endings
         public static readonly Loc EndProsperousTitle = new Loc("THE LUCKIEST HOTEL IN TOWN", "동네에서 가장 운 좋은 호텔");
         public static readonly Loc EndProsperousText = new Loc(
-            "Word spreads about the elevator that never lands on a bad number. Guests book months ahead.",
-            "나쁜 숫자에 절대 서지 않는 엘리베이터 소문이 퍼졌다. 몇 달 치 예약이 꽉 찼다.");
+            "Word spreads about the elevator that never stops on a bad number. Guests book months ahead - and ask for you by name.",
+            "나쁜 숫자에는 절대 서지 않는 엘리베이터라는 소문이 퍼졌다. 몇 달 치 예약이 꽉 찼고, 다들 당신을 찾는다.");
         public static readonly Loc EndModestTitle = new Loc("BUSINESS AS USUAL", "평범한 영업");
         public static readonly Loc EndModestText = new Loc(
-            "Five nights survived. The hotel is fine. Just... fine. Maybe more stickers next season?",
-            "닷새를 버텼다. 호텔은 괜찮다. 그냥... 괜찮다. 다음 시즌엔 스티커를 더?");
+            "Every day survived. The hotel is fine. Just... fine. Maybe more stickers next season?",
+            "모든 날을 버텼다. 호텔은 괜찮다. 그냥... 괜찮다. 다음 시즌엔 스티커를 더?");
         public static readonly Loc EndHauntedTitle = new Loc("THE HAUNTED HOTEL", "흉가 호텔");
         public static readonly Loc EndHauntedText = new Loc(
-            "Too many bad omens. Rumour says the elevator is cursed, and nobody checks in anymore.",
-            "불길한 일이 너무 많았다. 엘리베이터가 저주받았다는 소문에 아무도 체크인하지 않는다.");
+            "Too many bad numbers, too many screams. Rumour says the elevator is cursed, and nobody checks in anymore.",
+            "나쁜 숫자, 비명이 너무 많았다. 엘리베이터가 저주받았다는 소문에 이제 아무도 체크인하지 않는다.");
         public static readonly Loc EndFourthTitle = new Loc("THE FOURTH FLOOR", "4층");
         public static readonly Loc EndFourthText = new Loc(
-            "The doors open on a floor that should not exist. The stranger steps out, smiles... and the lights go out.",
-            "있어선 안 될 층에서 문이 열린다. 낯선 손님이 내리며 웃는다... 그리고 불이 꺼진다.");
+            "You covered the 4. It was still there. The stranger stepped out onto the floor you hid, smiled... and the lights went out.",
+            "4를 가렸지만, 4층은 여전히 거기 있었다. 낯선 손님은 당신이 감춘 그 층에 내려 웃었다... 그리고 불이 꺼졌다.");
         public static readonly Loc FinalStats = new Loc("Final luck {0}   •   Tips ${1}", "최종 운 {0}   •   팁 ${1}");
     }
 }
