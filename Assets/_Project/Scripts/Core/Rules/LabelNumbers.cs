@@ -47,7 +47,7 @@ namespace FloorF.Core
         /// <summary>GDD 2/7: the hotel has a REAL 4th floor, whatever its label says.</summary>
         public static FloorIndex RealFourthFloor => FloorIndex.FromPhysicalNumber(4);
 
-        /// <summary>Below this patience fraction a waiting guest turns Impatient (mood + "impatient" line).</summary>
+        /// <summary>Default of RulesDef.impatientPatienceFraction (the data value is what GameSession uses).</summary>
         public const float ImpatientFraction = 0.3f;
     }
 }

@@ -75,6 +75,8 @@ namespace FloorF.Core
         public int unluckyOccupancyLuckPenalty = 5;
 
         // patience / delivery
+        /// <summary>Patience01 below this -> mood Impatient + "impatient" line.</summary>
+        public float impatientPatienceFraction = 0.3f;
         public int patienceOutLuckPenalty = 5;
         public int deliveryLuckBonus = 1;
 
