@@ -1,0 +1,105 @@
+{
+  "guests": [
+    {
+      "id": "korean_grandma",
+      "name": "Korean Grandma",
+      "nameKo": "한국 할머니",
+      "lucky": [3],
+      "unlucky": [4],
+      "hideNumbers": false,
+      "patienceSeconds": 45,
+      "baseTip": 8,
+      "partySize": 1,
+      "destinations": ["restaurant", "sauna", "rooms"],
+      "traits": ["tutorial"],
+      "color": "#C9A0DC",
+      "accessory": "perm_hair",
+      "lines": [
+        { "trigger": "spawn", "text": "Not the 4th floor, dear!", "textKo": "4층은 안 돼!" },
+        { "trigger": "unlucky_floor", "text": "Aigoo! That's a four!", "textKo": "아이고, 4잖아!" },
+        { "trigger": "lucky_floor", "text": "Three - third time's the charm.", "textKo": "삼세판이지~" },
+        { "trigger": "delivered", "text": "Thank you, young one.", "textKo": "고마워요, 젊은이." }
+      ]
+    },
+    {
+      "id": "chinese_businessman",
+      "name": "Chinese Businessman",
+      "nameKo": "중국 사업가",
+      "lucky": [8, 9],
+      "unlucky": [4],
+      "hideNumbers": false,
+      "patienceSeconds": 20,
+      "baseTip": 25,
+      "partySize": 1,
+      "destinations": ["casino", "restaurant", "bar"],
+      "traits": ["vip"],
+      "color": "#B22222",
+      "accessory": "briefcase",
+      "lines": [
+        { "trigger": "spawn", "text": "Quickly, quickly!", "textKo": "빨리빨리!" },
+        { "trigger": "lucky_floor", "text": "Eight! Fortune is coming!", "textKo": "8이다! 돈 들어온다!" },
+        { "trigger": "unlucky_floor", "text": "Four?! Terrible for business!", "textKo": "4?! 사업 망한다!" },
+        { "trigger": "impatient", "text": "Time is money!", "textKo": "시간이 돈이오!" }
+      ]
+    },
+    {
+      "id": "western_tourist",
+      "name": "Western Tourist",
+      "nameKo": "서양 관광객",
+      "lucky": [7],
+      "unlucky": [],
+      "hideNumbers": false,
+      "patienceSeconds": 35,
+      "baseTip": 12,
+      "partySize": 1,
+      "destinations": ["rooftop", "bar", "gym", "lobby"],
+      "traits": [],
+      "color": "#4A90D9",
+      "accessory": "camera",
+      "lines": [
+        { "trigger": "spawn", "text": "Hi! Is this the elevator?", "textKo": "안녕! 여기 엘리베이터 맞죠?" },
+        { "trigger": "lucky_floor", "text": "Lucky seven, baby!", "textKo": "럭키 세븐!" },
+        { "trigger": "lucky_occupancy", "text": "Seven of us - jackpot!", "textKo": "일곱 명이다, 잭팟!" }
+      ]
+    },
+    {
+      "id": "japanese_couple",
+      "name": "Japanese Newlyweds",
+      "nameKo": "일본 신혼부부",
+      "lucky": [7],
+      "unlucky": [4, 9],
+      "hideNumbers": false,
+      "patienceSeconds": 30,
+      "baseTip": 15,
+      "partySize": 2,
+      "destinations": ["sauna", "restaurant", "rooms"],
+      "traits": [],
+      "color": "#F4A6B8",
+      "accessory": "matching_hats",
+      "lines": [
+        { "trigger": "spawn", "text": "Together, please.", "textKo": "같이 탈게요." },
+        { "trigger": "unlucky_floor", "text": "Nine... 'ku', suffering...", "textKo": "9... 苦(쿠)... 괴로움이야..." },
+        { "trigger": "unlucky_occupancy", "text": "Four people? Let's not...", "textKo": "넷이서? 좀 그런데..." }
+      ]
+    },
+    {
+      "id": "mystery_guest",
+      "name": "Mysterious Guest",
+      "nameKo": "수상한 손님",
+      "lucky": [4],
+      "unlucky": [],
+      "hideNumbers": true,
+      "patienceSeconds": 999,
+      "baseTip": 0,
+      "partySize": 1,
+      "destinations": [],
+      "traits": ["mystery"],
+      "color": "#2B2B2B",
+      "accessory": "hood",
+      "lines": [
+        { "trigger": "spawn", "text": "...Fourth floor.", "textKo": "...4층이요." },
+        { "trigger": "delivered", "text": "I knew it was here all along.", "textKo": "역시 있었군요." }
+      ]
+    }
+  ]
+}

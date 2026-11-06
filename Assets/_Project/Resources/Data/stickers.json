@@ -1,0 +1,26 @@
+{
+  "stickers": [
+    {
+      "id": "four_to_f",
+      "name": "4 → F",
+      "nameKo": "4 → F",
+      "description": "Cover a 4 with an F, like real buildings do.",
+      "descriptionKo": "진짜 건물처럼 4를 F로 가린다.",
+      "from": "4",
+      "to": "F",
+      "price": 20,
+      "stock": 1
+    },
+    {
+      "id": "any_to_8",
+      "name": "Any → 8",
+      "nameKo": "아무 층 → 8",
+      "description": "Turn any floor into an 8. Fortune!",
+      "descriptionKo": "아무 층이나 8층으로. 대박!",
+      "from": "*",
+      "to": "8",
+      "price": 40,
+      "stock": 1
+    }
+  ]
+}
