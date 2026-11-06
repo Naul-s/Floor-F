@@ -7,8 +7,8 @@ namespace FloorF.Rendering
     static class RenderingNames
     {
         public const string Root = "[Rendering]";
-        /// <summary>Screen camera that shows the pixel RenderTexture; HUD canvases (Screen Space - Camera) go on it.</summary>
-        public const string UiCamera = "[Rendering] UI Camera";
+        /// <summary>Alias of PresentationContract.UiCameraName (HUD canvases, Screen Space - Camera, go on it).</summary>
+        public const string UiCamera = PresentationContract.UiCameraName;
         public const string ScreenCanvas = "[Rendering] Pixel Screen Canvas";
         public const string World = "World";
         public const string FloorSignPrefix = "Sign ";
@@ -21,12 +21,12 @@ namespace FloorF.Rendering
     static class RenderingStyle
     {
         // ---- pipeline
-        public const int PixelWidth = 640;
-        public const int PixelHeight = 360;
+        public const int PixelWidth = PresentationContract.PixelWidth;
+        public const int PixelHeight = PresentationContract.PixelHeight;
         /// <summary>Screen-pixels per sign texel in the low-res target (2 = chunky but readable 5x7 glyphs).</summary>
         public const int SignPixelsPerTexel = 2;
         /// <summary>Canvas sorting order of the pixel screen. HUD canvases must sort above (>= 0).</summary>
-        public const int ScreenCanvasSortingOrder = -100;
+        public const int ScreenCanvasSortingOrder = PresentationContract.PixelScreenSortingOrder;
         public const float ScreenCanvasPlaneDistance = 10f;
 
         // ---- camera (orthographic, slightly from above and from the right so side faces read as 3D)

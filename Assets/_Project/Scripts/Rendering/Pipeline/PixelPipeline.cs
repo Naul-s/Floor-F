@@ -1,4 +1,5 @@
 using System;
+using FloorF.Core;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
@@ -21,14 +22,7 @@ namespace FloorF.Rendering
         public PixelScreen Screen { get; private set; }
         bool createdWorldCamera;
 
-        public static int UiLayer
-        {
-            get
-            {
-                int l = LayerMask.NameToLayer("UI");
-                return l >= 0 ? l : 5;
-            }
-        }
+        public static int UiLayer => PresentationContract.UiLayer;
 
         public static PixelPipeline Create(Transform parent, Camera sceneCamera)
         {
