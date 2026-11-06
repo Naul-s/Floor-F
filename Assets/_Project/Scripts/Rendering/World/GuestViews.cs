@@ -36,6 +36,7 @@ namespace FloorF.Rendering
 
         public int Count => proxies.Count;
         public bool Contains(GuestId id) => proxies.ContainsKey(id);
+        public IEnumerable<GuestId> Ids => proxies.Keys;
         public Transform Get(GuestId id) => proxies.TryGetValue(id, out var p) ? p.Root : null;
 
         public GuestViews(Transform parent, RenderAssets assets, IWorldLayout layout)

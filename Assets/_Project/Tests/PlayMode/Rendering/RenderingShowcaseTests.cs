@@ -4,37 +4,42 @@ using FloorF.Core;
 using FloorF.Harness;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 
 namespace FloorF.Tests.PlayMode.Rendering
 {
     /// <summary>
-    /// Visual check of the event-driven visuals without gameplay: fake guests on a few floors, floor 4 stickered to
-    /// "F" (flicker), an unlucky red flash on floor 9. Writes captures/rendering_showcase.png (main.png stays clean).
+    /// Visual check on the real session: floor 4 stickered to "F" in the day-1 shop, day 2 running with real guests
+    /// (proxies), plus an unlucky red flash on floor 9. Writes captures/rendering_showcase.png (main.png stays the
+    /// untouched boot frame).
     /// </summary>
     public class RenderingShowcaseTests
     {
-        [UnityTest]
-        public IEnumerator Showcase_GuestsStickerAndRedFlash_WritesPng()
+        [UnityTearDown]
+        public IEnumerator TearDown()
         {
-            yield return SceneManager.LoadSceneAsync(GameScenes.Main);
+            RenderingTestDriver.Unfreeze();
             yield return null;
-            yield return null;
-            var bus = GameServices.Events;
-            string[] who = { "korean_grandma", "chinese_businessman", "western_tourist", "japanese_couple", "japanese_couple", "mystery_guest" };
-            int[] floor = { 1, 1, 3, 6, 6, 8 };
-            int[] slot = { 0, 1, 0, 0, 1, 0 };
-            for (int i = 0; i < who.Length; i++)
-                bus.Publish(new GuestSpawned(new GuestId(9000 + i), new GuestArchetypeId(who[i]), PartyId.None,
-                    FloorIndex.FromPhysicalNumber(floor[i]), new DestinationId("lobby"), FloorIndex.FromPhysicalNumber(2), slot[i]));
-            var f4 = FloorIndex.FromPhysicalNumber(4);
-            bus.Publish(new FloorLabelChanged(f4, FloorLabel.Original(f4), new FloorLabel("F")));
-            for (int i = 0; i < 10; i++) yield return null;
-            var f9 = FloorIndex.FromPhysicalNumber(9);
-            bus.Publish(new LuckJudged(new GuestId(9000), LuckSource.FloorLabel, 9, LuckVerdict.Unlucky, f9));
-            yield return null;
-            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator Showcase_StickerGuestsAndRedFlash_WritesPng()
+        {
+            yield return RenderingTestDriver.LoadMain();
+            var flow = GameServices.Get<IGameFlow>();
+            var guests = GameServices.Get<IGuestQuery>();
+            RenderingTestDriver.EnterShopWithTips(100);
+            Assert.AreEqual(StickerApplyResult.Applied,
+                GameServices.Get<IShopService>().TryBuyAndApply(new StickerId("four_to_f"), FloorIndex.FromPhysicalNumber(4)));
+            Assert.IsTrue(flow.FinishShopping());
+            Assert.IsTrue(flow.BeginDay(), "day 2 starts");
+
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < 200 && guests.ActiveGuests.Count < 3; i++) yield return null;
+            Time.captureDeltaTime = 0f;
+            GameServices.Events.Publish(new LuckJudged(new GuestId(1), LuckSource.FloorLabel, 9, LuckVerdict.Unlucky, FloorIndex.FromPhysicalNumber(9)));
+            yield return RenderingTestDriver.Freeze();
+            Assert.AreEqual(guests.ActiveGuests.Count, RenderingTestDriver.Rendering().Guests.Count, "every active guest has a proxy");
 
             var path = FrameCapture.Capture("rendering_showcase");
             Assert.IsTrue(File.Exists(path), path);
