@@ -310,7 +310,7 @@ namespace FloorF.Core
                     Leave(g, GuestLeaveReason.PatienceRanOut);
                     if (CheckHaunted()) return;
                 }
-                else if (g.Patience01 < StoryRules.ImpatientFraction && !g.ImpatientSpoken)
+                else if (g.Patience01 < rules.impatientPatienceFraction && !g.ImpatientSpoken)
                 {
                     g.ImpatientSpoken = true;
                     SetMood(g, GuestMood.Impatient);
