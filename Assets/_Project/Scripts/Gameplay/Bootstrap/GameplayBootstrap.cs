@@ -49,22 +49,46 @@ namespace FloorF.Gameplay
     }
 
     /// <summary>
-    /// Gameplay module root. Awake: load data, build the Core <see cref="GameSession"/> (rules engine) and register
-    /// every Gameplay-owned service. First LateUpdate (after every module's Start and Update): StartNewGame
-    /// (GameStarted + DayPhaseChanged). Every Update after that: Tick(Time.deltaTime).
+    /// Gameplay module root. Awake: load data, build the Core <see cref="GameSession"/> (rules engine), load the saved
+    /// settings and register every Gameplay-owned service. First LateUpdate (after every module's Start and Update):
+    /// boot to the title (DayPhaseChanged(None -> Title) + attract demo), or with <see cref="SkipTitleForTests"/>
+    /// straight to Day 1 Intro (GameStarted + DayPhaseChanged). Every Update after that: Tick(Time.deltaTime).
     /// </summary>
     sealed class GameplayRoot : MonoBehaviour
     {
         /// <summary>Tests may fix the random seed (destination picks). Null = time-based.</summary>
         internal static int? SeedOverride;
 
+        /// <summary>
+        /// Tests: boot straight into Day 1 Intro (the pre-title behaviour) instead of the title + demo. Set it BEFORE
+        /// loading Main; it stays set for later loads until you clear it (and is reset when play mode starts).
+        /// </summary>
+        internal static bool SkipTitleForTests;
+
+        /// <summary>
+        /// Tests: settings storage for the next Main loads (e.g. a shared <see cref="MemorySettingsStore"/> to simulate a
+        /// relaunch). Null = PlayerPrefs, except in batch mode (CI/agents), which always uses a fresh in-memory store so
+        /// test runs never write the real player prefs.
+        /// </summary>
+        internal static ISettingsStore SettingsStoreOverride;
+
+        /// <summary>Seconds between settings flushes to disk (PlayerPrefs.Save) while values keep changing.</summary>
+        const float SettingsFlushInterval = 1f;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => SeedOverride = null;
+        static void ResetStatics()
+        {
+            SeedOverride = null;
+            SkipTitleForTests = false;
+            SettingsStoreOverride = null;
+        }
 
         GameData data;
         HotelLayout layout;
         GameSession session;
         ActorLocator locator;
+        SettingsPersistence settingsPersistence;
+        float nextSettingsFlush;
 
         internal GameSession Session => session;
 
@@ -83,6 +107,8 @@ namespace FloorF.Gameplay
             int seed = SeedOverride ?? System.Environment.TickCount;
             session = new GameSession(data, GameServices.Events, new System.Random(seed));
             locator = new ActorLocator(session, layout);
+            settingsPersistence = new SettingsPersistence(session.Settings, CreateSettingsStore(), GameServices.Events);
+            settingsPersistence.Load();
 
             GameServices.Register(data);
             GameServices.Register<IWorldLayout>(layout);
@@ -96,12 +122,20 @@ namespace FloorF.Gameplay
             GameServices.Register<IShopService>(session);
             GameServices.Register<IActorLocator>(locator);
             GameServices.Register<IGameSettings>(session.Settings);
+            GameServices.Register<IMenuFlow>(session);
 
             gameObject.AddComponent<KeyboardInput>().Bind(session);
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             gameObject.AddComponent<DebugOverlay>().Bind(session);
 #endif
             Debug.Log($"[Gameplay] installed: {data.FloorCount} floors, {data.Guests.Count} guests, {data.DayCount} days, {data.Stickers.Count} stickers (seed {seed})");
+        }
+
+        internal static ISettingsStore CreateSettingsStore()
+        {
+            if (SettingsStoreOverride != null) return SettingsStoreOverride;
+            if (Application.isBatchMode) return new MemorySettingsStore();
+            return new PlayerPrefsSettingsStore();
         }
 
         void Update()
@@ -112,11 +146,30 @@ namespace FloorF.Gameplay
         // First game event only after every module's Start and first Update (ARCHITECTURE "runtime assembly").
         void LateUpdate()
         {
-            if (session != null && !session.HasStarted) session.StartNewGame();
+            if (session == null) return;
+            if (!session.HasStarted)
+            {
+                if (SkipTitleForTests) session.StartNewGame();
+                else session.ReturnToTitle();
+            }
+            if (settingsPersistence != null && settingsPersistence.IsDirty && Time.unscaledTime >= nextSettingsFlush)
+            {
+                settingsPersistence.Flush();
+                nextSettingsFlush = Time.unscaledTime + SettingsFlushInterval;
+            }
         }
+
+        void OnApplicationPause(bool pausing)
+        {
+            if (pausing) settingsPersistence?.Flush();
+        }
+
+        void OnApplicationQuit() => settingsPersistence?.Flush();
 
         void OnDestroy()
         {
+            settingsPersistence?.Dispose();
+            settingsPersistence = null;
             if (data == null) return;
             GameServices.Unregister(data);
             GameServices.Unregister<IWorldLayout>(layout);
@@ -131,6 +184,7 @@ namespace FloorF.Gameplay
             GameServices.Unregister<IShopService>(session);
             GameServices.Unregister<IActorLocator>(locator);
             GameServices.Unregister<IGameSettings>(session.Settings);
+            GameServices.Unregister<IMenuFlow>(session);
         }
     }
 }

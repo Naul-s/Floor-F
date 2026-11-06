@@ -5,12 +5,13 @@ using UnityEngine.InputSystem;
 namespace FloorF.Gameplay
 {
     /// <summary>
-    /// Keyboard bindings (GDD 4: W/S + Space as the keyboard alternative to the panel). Enter advances the flow
-    /// TEMPORARILY until ui-dev's buttons call IGameFlow; set <see cref="AdvanceWithEnter"/> false then.
+    /// Keyboard bindings (GDD 4: W/S + Space as the keyboard alternative to the panel), Esc = pause toggle,
+    /// Enter = flow shortcut (Title -> new game, Intro -> start, ...). Mapping: <see cref="PlayerCommands.IntentForKey"/>.
+    /// Enter can be turned off with <see cref="AdvanceWithEnter"/> if the UI wants to own it.
     /// </summary>
     sealed class KeyboardInput : MonoBehaviour
     {
-        /// <summary>Enter drives IGameFlow (Intro/Summary/Shop/Ending). Temporary.</summary>
+        /// <summary>Enter drives IGameFlow / IMenuFlow (Title/Intro/Summary/Shop/Ending).</summary>
         public static bool AdvanceWithEnter = true;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -25,12 +26,17 @@ namespace FloorF.Gameplay
             if (session == null || !session.HasStarted) return;
             var kb = Keyboard.current;
             if (kb == null) return;
-            if (kb.wKey.wasPressedThisFrame || kb.upArrowKey.wasPressedThisFrame) Do(PlayerIntent.Up);
-            if (kb.sKey.wasPressedThisFrame || kb.downArrowKey.wasPressedThisFrame) Do(PlayerIntent.Down);
-            if (kb.spaceKey.wasPressedThisFrame) Do(PlayerIntent.ToggleDoors);
-            if (AdvanceWithEnter && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame)) Do(PlayerIntent.Advance);
+            if (kb.escapeKey.wasPressedThisFrame) Press(KeyPress.Escape);
+            if (kb.wKey.wasPressedThisFrame) Press(KeyPress.W);
+            else if (kb.upArrowKey.wasPressedThisFrame) Press(KeyPress.UpArrow);
+            if (kb.sKey.wasPressedThisFrame) Press(KeyPress.S);
+            else if (kb.downArrowKey.wasPressedThisFrame) Press(KeyPress.DownArrow);
+            if (kb.spaceKey.wasPressedThisFrame) Press(KeyPress.Space);
+            if (AdvanceWithEnter && kb.enterKey.wasPressedThisFrame) Press(KeyPress.Enter);
+            else if (AdvanceWithEnter && kb.numpadEnterKey.wasPressedThisFrame) Press(KeyPress.NumpadEnter);
         }
 
-        void Do(PlayerIntent intent) => PlayerCommands.Apply(intent, session.Elevator, session, session.Building, session, session);
+        void Press(KeyPress key)
+            => PlayerCommands.Apply(PlayerCommands.IntentForKey(key), session.Elevator, session, session.Building, session, session, session);
     }
 }
