@@ -31,8 +31,17 @@ namespace FloorF.Core
         public GuestRoster Guests { get; }
         public ScoreKeeper Score { get; }
 
-        /// <summary>GuestSpoke texts in Korean (textKo) when available.</summary>
-        public bool UseKorean { get; set; }
+        /// <summary>IGameSettings (owner Gameplay registers it). GuestSpoke text follows <see cref="GameSettings.UseKorean"/>.</summary>
+        public GameSettings Settings { get; }
+
+        /// <summary>GuestSpoke texts in Korean (textKo) when available. Same value as <c>Settings.UseKorean</c>.</summary>
+        public bool UseKorean { get => Settings.UseKorean; set => Settings.UseKorean = value; }
+
+        /// <summary>
+        /// Early day end: once every scheduled spawn of the day has appeared and no guest is active any more, the day
+        /// ends after this many seconds (no bonus for the time left). A guest appearing in between cancels the wait.
+        /// </summary>
+        public const float EarlyEndDelaySeconds = 2f;
 
         // ---- day flow
         DayId day = DayId.First;
@@ -43,6 +52,7 @@ namespace FloorF.Core
         SpawnDef[] spawns = Array.Empty<SpawnDef>();
         int nextSpawn;
         float elapsed;
+        float emptyFor;
         bool started;
         int luckAtStart, dayDelivered, dayLeft, dayLucky, dayUnlucky;
         int nextGuestId = 1, nextPartyId = 1;
@@ -70,6 +80,7 @@ namespace FloorF.Core
             Elevator = new Elevator(data.Capacity);
             Guests = new GuestRoster(data.FloorCount);
             Score = new ScoreKeeper(rules, bus);
+            Settings = new GameSettings(bus);
             Elevator.Reset();
             dayDef = data.GetDay(day);
         }
@@ -126,6 +137,7 @@ namespace FloorF.Core
             Array.Sort(times, spawns);
             nextSpawn = 0;
             elapsed = 0f;
+            emptyFor = 0f;
             luckAtStart = Score.Luck;
             dayDelivered = dayLeft = dayLucky = dayUnlucky = 0;
             Score.BeginDay();
@@ -206,7 +218,18 @@ namespace FloorF.Core
             if (phase != DayPhase.Running) return;
             StepDoors(dt);
             if (phase != DayPhase.Running) return;
-            if (elapsed >= dayDef.durationSeconds) EndDay(EndingKind.None);
+            if (elapsed >= dayDef.durationSeconds) { EndDay(EndingKind.None); return; }
+            StepEarlyEnd(dt);
+        }
+
+        /// <summary>True once the day had scheduled spawns, all of them appeared, and nobody is active.</summary>
+        internal bool AllGuestsDone => spawns.Length > 0 && nextSpawn >= spawns.Length && Guests.Active.Count == 0;
+
+        void StepEarlyEnd(float dt)
+        {
+            if (!AllGuestsDone) { emptyFor = 0f; return; }
+            emptyFor += dt;
+            if (emptyFor >= EarlyEndDelaySeconds - 1e-4f) EndDay(EndingKind.None);
         }
 
         // =========================================================================================== guests
@@ -535,12 +558,19 @@ namespace FloorF.Core
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyFloor);
             }
-            if (g.Def.HasTrait(GuestTraits.Honest) && Building.IsRelabelled(floor))
+            if (!Building.IsRelabelled(floor)) return;
+            if (g.Def.HasTrait(GuestTraits.Honest))
             {
+                // GDD 5 counterweight: honest guests hate stickers (once per floor per ride, like every floor reaction)
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Sticker, -1, LuckVerdict.Unlucky, floor));
                 Score.AddLuck(-rules.honestGuestLuckPenalty, LuckSource.Sticker);
                 SetMood(g, GuestMood.Angry);
+            }
+            // everyone comments on the first sticker they see (once per guest, after the luck line; no luck effect)
+            if (!g.RelabelledSpoken)
+            {
+                g.RelabelledSpoken = true;
                 Speak(g, GuestLineTriggers.Relabelled);
             }
         }
