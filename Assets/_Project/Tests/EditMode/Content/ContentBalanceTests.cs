@@ -342,5 +342,32 @@ namespace FloorF.Tests.EditMode.Content
                 Assert.IsFalse(data.GetDay(new DayId(n)).spawns.Any(s => s.guest == mystery.id), "mystery guest before the last day");
             Assert.IsTrue(ContainsNumber(mystery.FindLine(GuestLineTriggers.Spawn).text, 4), "spawn line must ask for the 4th floor");
         }
+
+        /// <summary>
+        /// 4th-floor ending (choice A: only when the real 4th floor is relabelled) must be discoverable from the text:
+        /// the request hints at a HIDDEN fourth floor, a plain delivery says "not this one", the ending has its own twist line,
+        /// and 4 -> F is on sale at every shop.
+        /// </summary>
+        [Test]
+        public void MysteryGuest_LinesHintTheHiddenFourth()
+        {
+            var mystery = data.Guests.Single(g => g.HasTrait(GuestTraits.Mystery));
+            foreach (var trigger in new[] { GuestLineTriggers.Spawn, GuestLineTriggers.Delivered, GuestLineTriggers.Special })
+            {
+                var line = mystery.FindLine(trigger);
+                Assert.IsNotNull(line, "mystery guest needs a '" + trigger + "' line");
+                Assert.IsTrue(line.text.IndexOf("hid", StringComparison.OrdinalIgnoreCase) >= 0, trigger + ": should talk about hiding - " + line.text);
+                Assert.IsTrue(line.textKo.Contains("숨") || line.textKo.Contains("가려") || line.textKo.Contains("가렸"),
+                    trigger + ".textKo: should talk about hiding - " + line.textKo);
+            }
+            Assert.AreNotEqual(mystery.FindLine(GuestLineTriggers.Delivered).text, mystery.FindLine(GuestLineTriggers.Special).text,
+                "plain delivery and the ending need different lines");
+            Assert.IsNotNull(mystery.FindLine(GuestLineTriggers.Relabelled), "mystery guest should react to stickers");
+
+            var fourToF = data.Stickers.Single(s => s.from.Trim() == "4");
+            for (int n = 1; n < data.DayCount; n++)
+                CollectionAssert.Contains(data.GetDay(new DayId(n)).shopStickers, fourToF.id,
+                    "day " + n + ": 4 -> F must be on sale at every shop (the ending stays reachable)");
+        }
     }
 }

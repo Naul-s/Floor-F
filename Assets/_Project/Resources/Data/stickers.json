@@ -4,11 +4,11 @@
       "id": "four_to_f",
       "name": "4 → F",
       "nameKo": "4 → F",
-      "description": "Cover a 4 with an F (for \"Four\"), like many buildings in Korea do.",
-      "descriptionKo": "한국의 많은 건물처럼 4를 F(Four)로 가린다.",
+      "description": "Cover a 4 with an F (for \"Four\"), like many buildings in Korea do. The floor itself is still there.",
+      "descriptionKo": "한국의 많은 건물처럼 4를 F(Four)로 가린다. 층 자체는 그대로 있다.",
       "from": "4",
       "to": "F",
-      "price": 20,
+      "price": 30,
       "stock": 1
     },
     {
@@ -19,8 +19,8 @@
       "descriptionKo": "아무 층이나 8층으로. 대박! 정직한 손님은 알아챈다.",
       "from": "*",
       "to": "8",
-      "price": 40,
-      "stock": 1
+      "price": 220,
+      "stock": 3
     }
   ]
 }

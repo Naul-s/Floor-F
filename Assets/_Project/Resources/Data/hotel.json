@@ -39,7 +39,8 @@
     "prosperousEndingLuck": 70,
     "elevatorSecondsPerFloor": 0.6,
     "doorSeconds": 0.35,
-    "boardSeconds": 0.4
+    "boardSeconds": 0.4,
+    "earlyEndDelaySeconds": 2.0
   },
   "layout": {
     "floorHeight": 3.0,
