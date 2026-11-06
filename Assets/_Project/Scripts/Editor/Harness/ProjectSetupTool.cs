@@ -23,5 +23,27 @@ namespace FloorF.EditorTools
             AssetDatabase.SaveAssets();
             Debug.Log("[ProjectSetupTool] " + MobileRpAsset + " renderScale = 1");
         }
+
+        const string TmpEssentials = "Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage";
+
+        /// <summary>
+        /// Imports TextMesh Pro Essential Resources (default font asset, shaders, TMP Settings) into Assets/TextMesh Pro.
+        /// Same as Window > TextMeshPro > Import TMP Essential Resources, non-interactive. EDITOR ONLY: the import is
+        /// queued and runs on a later editor update, so it does not complete under batch -executeMethod ... -quit.
+        /// (Already committed - only needed if Assets/TextMesh Pro is ever deleted.)
+        /// </summary>
+        [MenuItem("Floor F/Setup/Import TMP Essentials")]
+        public static void ImportTmpEssentials()
+        {
+            if (AssetDatabase.IsValidFolder("Assets/TextMesh Pro"))
+            {
+                Debug.Log("[ProjectSetupTool] TMP Essentials already present");
+                return;
+            }
+#pragma warning disable CS0618 // AssetPackage.Package.Import replacement is not available on every 6000.x
+            AssetDatabase.ImportPackage(TmpEssentials, false);
+#pragma warning restore CS0618
+            Debug.Log("[ProjectSetupTool] queued TMP Essential Resources import");
+        }
     }
 }
