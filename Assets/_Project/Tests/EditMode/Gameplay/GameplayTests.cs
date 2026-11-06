@@ -44,6 +44,83 @@ namespace FloorF.Tests.EditMode.Gameplay
             Assert.AreEqual(2, s.CurrentDay.Number);
         }
 
+        static bool Press(GameSession s, KeyPress key)
+            => PlayerCommands.Apply(PlayerCommands.IntentForKey(key), s.Elevator, s, s.Building, s, s, s);
+
+        [Test]
+        public void Esc_TogglesPause()
+        {
+            Assert.AreEqual(PlayerIntent.TogglePause, PlayerCommands.IntentForKey(KeyPress.Escape));
+            Assert.AreEqual(PlayerIntent.Advance, PlayerCommands.IntentForKey(KeyPress.Enter));
+            Assert.AreEqual(PlayerIntent.Advance, PlayerCommands.IntentForKey(KeyPress.NumpadEnter));
+            Assert.AreEqual(PlayerIntent.Up, PlayerCommands.IntentForKey(KeyPress.W));
+            Assert.AreEqual(PlayerIntent.Up, PlayerCommands.IntentForKey(KeyPress.UpArrow));
+            Assert.AreEqual(PlayerIntent.Down, PlayerCommands.IntentForKey(KeyPress.S));
+            Assert.AreEqual(PlayerIntent.Down, PlayerCommands.IntentForKey(KeyPress.DownArrow));
+            Assert.AreEqual(PlayerIntent.ToggleDoors, PlayerCommands.IntentForKey(KeyPress.Space));
+            Assert.AreEqual(PlayerIntent.None, PlayerCommands.IntentForKey(KeyPress.None));
+
+            var s = new GameSession(SimFixture.Create(), new EventBus(), new System.Random(1));
+            s.StartNewGame();
+            Assert.IsTrue(Press(s, KeyPress.Enter));
+            Assert.AreEqual(DayPhase.Running, s.Phase);
+
+            Assert.IsTrue(Press(s, KeyPress.Escape), "Esc pauses");
+            Assert.IsTrue(s.IsPaused);
+            Assert.IsFalse(Press(s, KeyPress.W), "no elevator input while paused");
+            Assert.IsFalse(Press(s, KeyPress.Space));
+            Assert.IsTrue(Press(s, KeyPress.Escape), "Esc resumes");
+            Assert.IsFalse(s.IsPaused);
+            Assert.IsTrue(Press(s, KeyPress.W));
+
+            Assert.IsFalse(PlayerCommands.Apply(PlayerIntent.TogglePause, s.Elevator, s, s.Building, s, s), "no menu: refused");
+        }
+
+        [Test]
+        public void Title_EnterStartsGame_EscRefused()
+        {
+            var s = new GameSession(SimFixture.Create(), new EventBus(), new System.Random(1));
+            s.ReturnToTitle();
+            Assert.IsFalse(Press(s, KeyPress.Escape), "no pause on the title");
+            Assert.IsFalse(s.IsPaused);
+            Assert.IsFalse(Press(s, KeyPress.W), "player keys ignored during the demo");
+            Assert.IsFalse(PlayerCommands.Apply(PlayerIntent.Advance, s.Elevator, s, s.Building, s, s), "old overload: no menu, no start");
+            Assert.AreEqual(DayPhase.Title, s.Phase);
+            Assert.IsTrue(Press(s, KeyPress.Enter), "Enter on the title = StartGameFromTitle");
+            Assert.AreEqual(DayPhase.Intro, s.Phase);
+            Assert.IsTrue(Press(s, KeyPress.Enter), "then Enter starts the day as before");
+            Assert.AreEqual(DayPhase.Running, s.Phase);
+        }
+
+        [Test]
+        public void RealData_TitleDemo_PlaysDay1AndLoops()
+        {
+            var data = GameDataResources.Load();
+            var bus = new EventBus();
+            var s = new GameSession(data, bus, new System.Random(3));
+            int delivered = 0, flow = 0, spawned = 0;
+            bus.Subscribe<GuestDelivered>(e => delivered++);
+            bus.Subscribe<GuestSpawned>(e => spawned++);
+            bus.Subscribe<DayStarted>(e => flow++);
+            bus.Subscribe<DayEnded>(e => flow++);
+            bus.Subscribe<GameStarted>(e => flow++);
+            s.ReturnToTitle();
+            int loops = 0;
+            float last = 0f;
+            float horizon = data.GetDay(DayId.First).durationSeconds * 2f + 10f;
+            for (float t = 0f; t < horizon; t += 1f / 30f)
+            {
+                s.Tick(1f / 30f);
+                if (s.ElapsedSeconds < last) loops++;
+                last = s.ElapsedSeconds;
+            }
+            Assert.AreEqual(DayPhase.Title, s.Phase);
+            Assert.That(delivered, Is.GreaterThan(0), "the LuckAware demo delivers guests");
+            Assert.That(loops, Is.GreaterThan(0), "the demo day looped");
+            Assert.AreEqual(0, flow, "no flow events from the demo");
+            TestContext.WriteLine($"demo: {delivered} delivered, {spawned} spawned, {loops} loops over {horizon:0}s, luck {s.Score.Luck}");
+        }
+
         [Test]
         public void RealData_AutoPilot_PlaysEveryDay_ReachesAnEnding()
         {
