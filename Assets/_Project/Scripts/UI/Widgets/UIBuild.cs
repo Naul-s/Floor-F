@@ -61,15 +61,17 @@ namespace FloorF.UI
         {
             var rt = Rect(name, parent);
             var t = rt.gameObject.AddComponent<TextMeshProUGUI>();
+            t.font = UIFonts.Main; // before any text: TMP's default font is never rendered
             t.text = text;
-            t.fontSize = size;
+            t.fontSize = UIFonts.Px(size);
             t.color = color;
             t.alignment = align;
             t.raycastTarget = false;
             t.richText = true;
             t.textWrappingMode = TextWrappingModes.Normal;
             t.overflowMode = TextOverflowModes.Overflow;
-            if (bold) t.fontStyle = FontStyles.Bold;
+            // `bold` is accepted for intent but not applied: faux bold smears a pixel font. Hierarchy comes from size/colour.
+            t.fontStyle = FontStyles.Normal;
             return t;
         }
 
@@ -102,6 +104,25 @@ namespace FloorF.UI
             var t = Text("Label", img.transform, label, fontSize, UIStyle.InkOn(bg), TextAlignmentOptions.Center, bold: true);
             Stretch(t.rectTransform, 4f);
             return new ButtonParts { Button = b, Background = img, Label = t };
+        }
+
+        /// <summary>
+        /// Pixel-grid replacement for TMP auto-sizing: the largest multiple of 12 (&lt;= <paramref name="max"/>) at which
+        /// the text fits the rect width on one line (12 at minimum).
+        /// </summary>
+        public static void Fit(TextMeshProUGUI t, float max)
+        {
+            if (t == null) return;
+            t.enableAutoSizing = false;
+            float width = t.rectTransform.rect.width;
+            float s = UIFonts.Px(max);
+            if (s > max) s -= UIFonts.Grid;
+            for (; s > UIFonts.Grid; s -= UIFonts.Grid)
+            {
+                t.fontSize = s;
+                if (width <= 0f || t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity).x <= width) return;
+            }
+            t.fontSize = UIFonts.Grid;
         }
 
         /// <summary>Sets text only when it changed (no TMP rebuild per frame).</summary>

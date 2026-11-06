@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Text;
 using FloorF.Core;
 using TMPro;
 using UnityEngine;
@@ -9,10 +10,15 @@ namespace FloorF.UI
     /// <summary>
     /// LuckJudged -> big number + LUCKY!/UNLUCKY! popup over the car shaft (riders judged together are merged: "x2"),
     /// caption "floor F" (FloorLabel) or "3 people" (Occupancy). GuestSpoke -> speech bubble over that guest.
+    /// Speech rules (anti-clutter): at most <see cref="MaxSpeech"/> at once (oldest dropped), identical text merged into
+    /// one bubble, <see cref="SpeechLife"/> s, never inside the shaft column (IWorldLayout.ShaftX ± carWidth/2 on screen -
+    /// pushed to the guest's side), and luck popups win: a bubble that overlaps one is pushed sideways out of it.
     /// </summary>
     sealed class PopupsView
     {
-        const float PopupLife = 1.8f, MergeWindow = 0.3f, SpeechLife = 2.8f, SpeechMaxW = 230f;
+        public const int MaxSpeech = 3;
+        public const float SpeechLife = 2.5f;
+        const float PopupLife = 1.8f, MergeWindow = 0.3f, SpeechMaxW = 240f, ShaftMargin = 6f, PopupGap = 4f;
 
         sealed class Popup
         {
@@ -35,14 +41,18 @@ namespace FloorF.UI
             public TextMeshProUGUI Text;
             public float Age;
             public Vector3 LastWorld;
+            /// <summary>-1 = left of the shaft (riders), +1 = right (waiting line side).</summary>
+            public float Side;
         }
 
         readonly UIContext ctx;
         readonly RectTransform layer, speechLayer;
         readonly List<Popup> popups = new List<Popup>();
         readonly Stack<Popup> popupPool = new Stack<Popup>();
+        /// <summary>Oldest first (a refreshed bubble moves to the end).</summary>
         readonly List<Speech> speeches = new List<Speech>();
         readonly Stack<Speech> speechPool = new Stack<Speech>();
+        readonly StringBuilder sb = new StringBuilder();
         float floorHeight = 3f;
 
         public PopupsView(UIContext ctx, RectTransform canvas)
@@ -53,9 +63,20 @@ namespace FloorF.UI
             if (ctx.Data != null) floorHeight = ctx.Data.Layout.floorHeight;
         }
 
+        public RectTransform SpeechLayer => speechLayer;
         public int ActivePopupCount => popups.Count;
         public int ActiveSpeechCount => speeches.Count;
         public string LastPopupText { get; private set; } = "";
+
+        public string SpeechTexts
+        {
+            get
+            {
+                sb.Clear();
+                foreach (var s in speeches) { if (sb.Length > 0) sb.Append(" | "); sb.Append(s.Text.text); }
+                return sb.ToString();
+            }
+        }
 
         // ------------------------------------------------------------------ luck popups
 
@@ -98,6 +119,7 @@ namespace FloorF.UI
             pop.Rect.SetAsLastSibling();
             LastPopupText = pop.Number.text + " " + pop.Verdict.text + " " + pop.Caption.text;
             Animate(pop);
+            LayoutSpeech();
         }
 
         Popup MakePopup()
@@ -112,14 +134,14 @@ namespace FloorF.UI
             p.Group.interactable = false;
             var bg = UIBuild.Box("Back", p.Rect, new Color(0f, 0f, 0f, 0.72f));
             UIBuild.Stretch(bg.rectTransform);
-            p.Number = UIBuild.Text("Number", p.Rect, "", 52f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(p.Number.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 2f), new Vector2(170f, 56f));
+            p.Number = UIBuild.Text("Number", p.Rect, "", 48f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(p.Number.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 2f), new Vector2(170f, 60f));
             p.Number.textWrappingMode = TextWrappingModes.NoWrap;
-            p.Verdict = UIBuild.Text("Verdict", p.Rect, "", 22f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(p.Verdict.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(170f, 28f));
+            p.Verdict = UIBuild.Text("Verdict", p.Rect, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(p.Verdict.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(170f, 30f));
             p.Verdict.textWrappingMode = TextWrappingModes.NoWrap;
-            p.Caption = UIBuild.Text("Caption", p.Rect, "", 15f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(p.Caption.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 4f), new Vector2(170f, 20f));
+            p.Caption = UIBuild.Text("Caption", p.Rect, "", 12f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(p.Caption.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 4f), new Vector2(170f, 18f));
             p.Caption.textWrappingMode = TextWrappingModes.NoWrap;
             return p;
         }
@@ -134,29 +156,66 @@ namespace FloorF.UI
             if (p.Kind == LuckVerdict.Unlucky && t < 0.4f) p.Rect.anchoredPosition += new Vector2(Mathf.Sin(t * 90f) * 4f, 0f);
         }
 
+        /// <summary>Popup's on-canvas box at its largest (punch scale included).</summary>
+        static Rect PopupBox(Popup p)
+        {
+            float k = Mathf.Max(1f, p.Rect.localScale.x);
+            var size = p.Rect.sizeDelta * k;
+            var pos = p.Rect.anchoredPosition;
+            return new Rect(pos.x - size.x * 0.5f, pos.y, size.x, size.y);
+        }
+
+        static Rect SpeechBox(Speech s)
+        {
+            var size = s.Rect.sizeDelta;
+            var pos = s.Rect.anchoredPosition;
+            return new Rect(pos.x - size.x * 0.5f, pos.y, size.x, size.y);
+        }
+
         // ------------------------------------------------------------------ speech
 
         public void OnGuestSpoke(GuestSpoke e)
         {
             if (string.IsNullOrEmpty(e.Text)) return;
             Speech s = null;
-            foreach (var x in speeches) if (x.Guest == e.Guest) { s = x; break; }
-            if (s == null)
+            // identical line already on screen (a party saying the same thing) -> one bubble, refreshed
+            foreach (var x in speeches) if (string.Equals(x.Text.text, e.Text, System.StringComparison.Ordinal)) { s = x; break; }
+            if (s == null) foreach (var x in speeches) if (x.Guest == e.Guest) { s = x; break; }
+            if (s != null) speeches.Remove(s);
+            else
             {
+                while (speeches.Count >= MaxSpeech) Recycle(0);
                 s = speechPool.Count > 0 ? speechPool.Pop() : MakeSpeech();
                 s.Rect.gameObject.SetActive(true);
                 s.Guest = e.Guest;
                 s.LastWorld = new Vector3(float.NaN, 0f, 0f);
-                speeches.Add(s);
             }
+            speeches.Add(s);
             s.Age = 0f;
-            s.Text.text = e.Text;
-            var size = s.Text.GetPreferredValues(e.Text, SpeechMaxW, 0f);
-            float w = Mathf.Min(SpeechMaxW, size.x) + 16f;
-            var pref = s.Text.GetPreferredValues(e.Text, w - 16f, 0f);
-            s.Rect.sizeDelta = new Vector2(w, pref.y + 10f);
+            s.Group.alpha = 1f;
+            if (!string.Equals(s.Text.text, e.Text, System.StringComparison.Ordinal))
+            {
+                s.Text.text = e.Text;
+                s.Text.ForceMeshUpdate(); // dynamic atlas: make sure every glyph exists before measuring
+                var size = s.Text.GetPreferredValues(e.Text, float.PositiveInfinity, float.PositiveInfinity); // one-line width
+                bool oneLine = size.x + 8f <= SpeechMaxW;
+                s.Text.textWrappingMode = oneLine ? TextWrappingModes.NoWrap : TextWrappingModes.Normal;
+                float w = Mathf.Min(SpeechMaxW, Mathf.Ceil(size.x) + 8f) + 16f;
+                var pref = oneLine ? size : s.Text.GetPreferredValues(e.Text, w - 16f, float.PositiveInfinity);
+                s.Rect.sizeDelta = new Vector2(w, pref.y + 10f);
+                s.Text.ForceMeshUpdate();
+            }
             s.Rect.SetAsLastSibling();
-            PlaceSpeech(s);
+            LayoutSpeech();
+        }
+
+        void Recycle(int index)
+        {
+            var s = speeches[index];
+            s.Rect.gameObject.SetActive(false);
+            s.Text.text = "";
+            speeches.RemoveAt(index);
+            speechPool.Push(s);
         }
 
         Speech MakeSpeech()
@@ -168,11 +227,12 @@ namespace FloorF.UI
             s.Rect.pivot = new Vector2(0.5f, 0f);
             s.Group = s.Rect.gameObject.AddComponent<CanvasGroup>();
             s.Group.blocksRaycasts = false;
-            s.Text = UIBuild.Text("Text", s.Rect, "", 15f, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
+            s.Text = UIBuild.Text("Text", s.Rect, "", 12f, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
             UIBuild.Stretch(s.Text.rectTransform, 6f);
             return s;
         }
 
+        /// <summary>Base position: above the guest (waiting) or above the riders' chip grid left of the car.</summary>
         void PlaceSpeech(Speech s)
         {
             if (ctx.Locator != null && ctx.Locator.TryGetGuestPosition(s.Guest, out var wp)) s.LastWorld = UIContext.ToVector3(wp);
@@ -181,17 +241,70 @@ namespace FloorF.UI
             Vector2 pos;
             if (riding && ctx.Locator != null)
             {
-                // riders speak from above their chip grid (left of the car), leaving the shaft free for luck popups
-                float halfCar = (ctx.Data != null ? ctx.Data.Layout.carWidth * 0.5f : 1.2f) + 0.1f;
+                float halfCar = ctx.CarWidth * 0.5f + 0.1f;
                 if (!ctx.WorldToCanvas(UIContext.ToVector3(ctx.Locator.CarPosition) + new Vector3(-halfCar, 0.1f, 0f), out pos))
                     pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
                 pos.x -= 6f + size.x * 0.5f;
                 pos.y += 2f * (GuestBubblesView.ChipH + 3f) + 4f;
+                s.Side = -1f;
             }
-            else if (float.IsNaN(s.LastWorld.x) || !ctx.WorldToCanvas(s.LastWorld + Vector3.up * (floorHeight * 0.98f), out pos))
-                pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
-            pos.x = Mathf.Clamp(pos.x, size.x * 0.5f + 8f, layer.rect.width - size.x * 0.5f - 8f);
-            pos.y = Mathf.Clamp(pos.y, 8f, layer.rect.height - size.y - 8f);
+            else
+            {
+                if (float.IsNaN(s.LastWorld.x) || !ctx.WorldToCanvas(s.LastWorld + Vector3.up * (floorHeight * 0.98f), out pos))
+                    pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
+                float shaftX = ctx.Layout != null ? ctx.Layout.ShaftX : 0f;
+                s.Side = float.IsNaN(s.LastWorld.x) || s.LastWorld.x >= shaftX ? 1f : -1f; // waiting line is right of the shaft
+            }
+            s.Rect.anchoredPosition = pos;
+        }
+
+        /// <summary>Base positions -> out of the shaft column -> unstack upward -> out of luck popups -> on screen.</summary>
+        void LayoutSpeech()
+        {
+            if (speeches.Count == 0) return;
+            foreach (var s in speeches) PlaceSpeech(s);
+
+            bool haveColumn = ctx.ShaftColumn(ShaftMargin, out float colMin, out float colMax);
+            if (haveColumn) foreach (var s in speeches) PushOutOfColumn(s, colMin, colMax);
+
+            Unstack();
+
+            foreach (var s in speeches)
+            {
+                for (int guard = 0; guard < 4; guard++)
+                {
+                    bool moved = false;
+                    foreach (var p in popups)
+                    {
+                        if (p.Group.alpha <= 0.01f) continue;
+                        var pr = PopupBox(p);
+                        var sr = SpeechBox(s);
+                        if (!sr.Overlaps(pr)) continue;
+                        var pos = s.Rect.anchoredPosition;
+                        pos.x = s.Side < 0f ? pr.xMin - PopupGap - sr.width * 0.5f : pr.xMax + PopupGap + sr.width * 0.5f;
+                        s.Rect.anchoredPosition = pos;
+                        moved = true;
+                    }
+                    if (!moved) break;
+                }
+            }
+
+            foreach (var s in speeches)
+            {
+                var size = s.Rect.sizeDelta;
+                var pos = s.Rect.anchoredPosition;
+                pos.x = Mathf.Clamp(pos.x, size.x * 0.5f + 8f, layer.rect.width - size.x * 0.5f - 8f);
+                pos.y = Mathf.Clamp(pos.y, 8f, layer.rect.height - size.y - 8f);
+                s.Rect.anchoredPosition = pos;
+            }
+        }
+
+        static void PushOutOfColumn(Speech s, float colMin, float colMax)
+        {
+            var r = SpeechBox(s);
+            if (r.xMax <= colMin || r.xMin >= colMax) return;
+            var pos = s.Rect.anchoredPosition;
+            pos.x = s.Side < 0f ? colMin - r.width * 0.5f : colMax + r.width * 0.5f;
             s.Rect.anchoredPosition = pos;
         }
 
@@ -233,19 +346,49 @@ namespace FloorF.UI
             {
                 var s = speeches[i];
                 s.Age += dt;
-                if (s.Age >= SpeechLife) { s.Rect.gameObject.SetActive(false); speeches.RemoveAt(i); speechPool.Push(s); continue; }
+                if (s.Age >= SpeechLife) { Recycle(i); continue; }
                 s.Group.alpha = s.Age > SpeechLife - 0.4f ? Mathf.Clamp01((SpeechLife - s.Age) / 0.4f) : 1f;
-                PlaceSpeech(s);
             }
-            Unstack();
+            LayoutSpeech();
         }
 
         public void Clear()
         {
             foreach (var p in popups) { p.Rect.gameObject.SetActive(false); popupPool.Push(p); }
             popups.Clear();
-            foreach (var s in speeches) { s.Rect.gameObject.SetActive(false); speechPool.Push(s); }
-            speeches.Clear();
+            while (speeches.Count > 0) Recycle(speeches.Count - 1);
+        }
+
+        /// <summary>Luck popups only (the ending's last line may stay visible).</summary>
+        public void ClearPopups()
+        {
+            foreach (var p in popups) { p.Rect.gameObject.SetActive(false); popupPool.Push(p); }
+            popups.Clear();
+        }
+
+        // ------------------------------------------------------------------ test hooks
+
+        public string FirstShaftOverlap()
+        {
+            if (!ctx.ShaftColumn(0f, out float colMin, out float colMax)) return "shaft column not projectable";
+            foreach (var s in speeches)
+            {
+                var r = SpeechBox(s);
+                if (r.xMax > colMin + 0.5f && r.xMin < colMax - 0.5f)
+                    return "'" + s.Text.text + "' x " + r.xMin.ToString("0") + ".." + r.xMax.ToString("0") + " vs shaft " + colMin.ToString("0") + ".." + colMax.ToString("0");
+            }
+            return null;
+        }
+
+        public string FirstPopupOverlap()
+        {
+            foreach (var s in speeches)
+                foreach (var p in popups)
+                {
+                    var sr = SpeechBox(s); var pr = PopupBox(p);
+                    if (sr.Overlaps(pr)) return "'" + s.Text.text + "' " + sr + " vs popup '" + p.Number.text + "' " + pr;
+                }
+            return null;
         }
     }
 }

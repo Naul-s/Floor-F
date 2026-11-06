@@ -107,6 +107,36 @@ namespace FloorF.Tests.EditMode.UI
         }
 
         [Test]
+        public void FourthFloorEnding_SaysTheStickerHidTheRealFloor()
+        {
+            UIFormat.Ending(EndingKind.FourthFloor, false, out _, out var en);
+            UIFormat.Ending(EndingKind.FourthFloor, true, out _, out var ko);
+            StringAssert.Contains("covered the 4", en);
+            StringAssert.Contains("still there", en);
+            StringAssert.Contains("4를 가렸지만", ko);
+        }
+
+        [TestCase(10f, 12f)]
+        [TestCase(12f, 12f)]
+        [TestCase(16f, 12f)]
+        [TestCase(18f, 24f)]
+        [TestCase(24f, 24f)]
+        [TestCase(30f, 36f)]
+        [TestCase(34f, 36f)]
+        [TestCase(52f, 48f)]
+        [TestCase(70f, 72f)]
+        public void FontSizes_SnapToGalmuriGrid(float requested, float expected) => Assert.AreEqual(expected, UIFonts.Px(requested));
+
+        [Test]
+        public void LedGhost_IsOpaqueAndDim()
+        {
+            float lit = UIStyle.Led.r * 0.299f + UIStyle.Led.g * 0.587f + UIStyle.Led.b * 0.114f;
+            float ghost = UIStyle.LedGhost.r * 0.299f + UIStyle.LedGhost.g * 0.587f + UIStyle.LedGhost.b * 0.114f;
+            Assert.AreEqual(1f, UIStyle.LedGhost.a, "opaque - low alpha blends too bright in linear space");
+            Assert.That(ghost / lit, Is.InRange(0.11f, 0.16f), "unlit segments ~12-15% of lit");
+        }
+
+        [Test]
         public void UIStrings_EveryEntryHasEnglishAndKorean_AndSamePlaceholders()
         {
             int count = 0;

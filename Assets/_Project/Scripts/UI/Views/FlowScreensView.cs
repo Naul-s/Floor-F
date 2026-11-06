@@ -26,7 +26,7 @@ namespace FloorF.UI
             UIBuild.Stretch(dim);
 
             card = UIBuild.Box("Card", dim, UIStyle.CardEdge).rectTransform;
-            UIBuild.Place(card, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(680f, 300f));
+            UIBuild.Place(card, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(880f, 300f));
             var fill = UIBuild.Box("Fill", card, UIStyle.Card);
             UIBuild.Stretch(fill.rectTransform, 3f);
             fill.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
@@ -40,10 +40,10 @@ namespace FloorF.UI
             var fit = card.gameObject.AddComponent<ContentSizeFitter>();
             fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            title = UIBuild.Text("Title", card, "", 34f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            body = UIBuild.Text("Body", card, "", 20f, UIStyle.Ink, TextAlignmentOptions.Center);
-            extra = UIBuild.Text("Extra", card, "", 18f, UIStyle.Ink, TextAlignmentOptions.Left);
-            extra.lineSpacing = 12f;
+            title = UIBuild.Text("Title", card, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            body = UIBuild.Text("Body", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
+            extra = UIBuild.Text("Extra", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
+            extra.lineSpacing = 4f;
             action = UIBuild.Button("Action", card, "", 24f, UIStyle.Action, OnAction);
             action.Label.color = UIStyle.Ink;
             action.Rect.gameObject.AddComponent<LayoutElement>().preferredHeight = 58f;
@@ -52,6 +52,9 @@ namespace FloorF.UI
         }
 
         public DayPhase Shown => dim.gameObject.activeSelf ? shown : DayPhase.None;
+
+        /// <summary>Last GuestSpoke with trigger "special" (the mystery guest at the hidden 4th floor). Set by UIRoot.</summary>
+        public string LastSpecialLine;
 
         void OnAction()
         {
@@ -136,7 +139,9 @@ namespace FloorF.UI
             title.text = t;
             title.color = ctx.Day.Ending == EndingKind.Haunted || ctx.Day.Ending == EndingKind.FourthFloor ? UIStyle.Unlucky : UIStyle.Lucky;
             body.gameObject.SetActive(true);
-            body.text = text;
+            body.text = ctx.Day.Ending == EndingKind.FourthFloor && !string.IsNullOrEmpty(LastSpecialLine)
+                ? "<color=" + UIFormat.HiddenHex + ">“" + LastSpecialLine + "”</color>\n\n" + text
+                : text;
             extra.gameObject.SetActive(true);
             int luck = ctx.Score != null ? ctx.Score.Luck : 0, tips = ctx.Score != null ? ctx.Score.Tips : 0;
             extra.text = "<align=center>" + string.Format(ctx.S(UIStrings.FinalStats), N(luck), N(tips)) + "</align>";
@@ -147,5 +152,6 @@ namespace FloorF.UI
         static string N(int v) => v.ToString(CultureInfo.InvariantCulture);
 
         public string TitleText => title.text;
+        public string BodyText => body.text;
     }
 }

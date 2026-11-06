@@ -204,6 +204,107 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsFalse(ui.Korean);
             StringAssert.Contains("Day 1", ui.FlowTitle);
         }
+        [UnityTest]
+        public IEnumerator Font_IsGalmuri_ForAllTexts()
+        {
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            Assert.IsTrue(ui.FontIsGalmuri, "runtime Galmuri11 font asset created (no fallback)");
+            Assert.Greater(ui.TextCount, 20, "UI has texts");
+            Assert.IsNull(ui.FirstOffGridOrForeignText(), "every text: Galmuri, 12px-grid size, no auto-size");
+            yield return UITestDriver.ClickStart();
+            ui.ClickLanguage();
+            yield return UITestDriver.Frames(2);
+            Assert.IsNull(ui.FirstOffGridOrForeignText(), "still Galmuri after the Korean toggle");
+            GameServices.Get<IGameSettings>().UseKorean = false;
+        }
+
+        [UnityTest]
+        public IEnumerator KoreanToggle_UsesSettingsService()
+        {
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var settings = GameServices.Get<IGameSettings>();
+            Assert.IsTrue(ui.SettingsServiceBound, "UI reads the registered IGameSettings");
+            Assert.IsFalse(settings.UseKorean);
+            int changed = 0;
+            using (GameServices.Events.Subscribe<SettingsChanged>(e => changed++))
+            {
+                ui.ClickLanguage();
+                yield return null;
+                Assert.IsTrue(settings.UseKorean, "toggle writes IGameSettings.UseKorean");
+                Assert.AreEqual(1, changed, "one SettingsChanged");
+                Assert.IsTrue(ui.Korean);
+                StringAssert.Contains("일차", ui.FlowTitle);
+
+                settings.UseKorean = false; // changed from outside the UI -> UI follows via SettingsChanged
+                yield return null;
+                Assert.IsFalse(ui.Korean);
+                StringAssert.Contains("Day 1", ui.FlowTitle);
+            }
+        }
+
+        static GuestSpoke Line(int guest, string text) => new GuestSpoke(new GuestId(9000 + guest), GuestLineTriggers.Spawn, text);
+
+        [UnityTest]
+        public IEnumerator SpeechBubbles_MaxThree()
+        {
+            yield return UITestDriver.LoadMain(); // Intro: no gameplay speech, only ours
+            var ui = UITestDriver.UI();
+            var bus = GameServices.Events;
+            for (int i = 0; i < 5; i++) bus.Publish(Line(i, "line " + i));
+            Assert.AreEqual(3, ui.ActiveSpeechCount, "max three bubbles");
+            StringAssert.DoesNotContain("line 0", ui.SpeechTexts, "oldest dropped first");
+            StringAssert.DoesNotContain("line 1", ui.SpeechTexts);
+            StringAssert.Contains("line 4", ui.SpeechTexts);
+
+            bus.Publish(Line(7, "same words"));
+            bus.Publish(Line(8, "same words"));
+            Assert.AreEqual(3, ui.ActiveSpeechCount);
+            Assert.AreEqual(ui.SpeechTexts.IndexOf("same words"), ui.SpeechTexts.LastIndexOf("same words"), "identical text merged: " + ui.SpeechTexts);
+
+            Time.captureDeltaTime = 0.1f;
+            yield return UITestDriver.Frames(20); // 2.0 s
+            Assert.Greater(ui.ActiveSpeechCount, 0, "still visible at 2 s");
+            yield return UITestDriver.Frames(8); // 2.8 s > 2.5 s life
+            Time.captureDeltaTime = 0f;
+            Assert.AreEqual(0, ui.ActiveSpeechCount, "short life (~2.5 s)");
+        }
+
+        [UnityTest]
+        public IEnumerator Bubbles_AvoidShaftColumn()
+        {
+            GameplayRoot.SeedOverride = 7;
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var guests = GameServices.Get<IGuestQuery>();
+            var bus = GameServices.Events;
+
+            // bubbles with no known guest fall back to the screen centre - right on the shaft
+            bus.Publish(Line(1, "Where is everybody?"));
+            yield return null;
+            Assert.IsNull(ui.SpeechShaftOverlap(), "fallback bubble pushed out of the shaft column");
+
+            yield return UITestDriver.ClickStart();
+            Time.captureDeltaTime = 0.1f;
+            var waiting = new System.Collections.Generic.List<GuestId>();
+            for (int i = 0; i < 100 && guests.GetWaiting(FloorIndex.Ground, waiting) < 3; i++) yield return null;
+            Time.captureDeltaTime = 0f;
+            int n = guests.GetWaiting(FloorIndex.Ground, waiting);
+            Assert.GreaterOrEqual(n, 3);
+            for (int i = 0; i < n; i++) bus.Publish(new GuestSpoke(waiting[i], GuestLineTriggers.Impatient, "I have been waiting for ages, number " + i));
+            // luck popups take priority over speech
+            bus.Publish(new LuckJudged(waiting[0], LuckSource.FloorLabel, 1, LuckVerdict.Lucky, FloorIndex.Ground));
+            bus.Publish(new LuckJudged(waiting[1], LuckSource.Occupancy, 4, LuckVerdict.Unlucky, FloorIndex.Ground));
+            for (int f = 0; f < 4; f++)
+            {
+                yield return null;
+                Assert.LessOrEqual(ui.ActiveSpeechCount, 3);
+                Assert.IsNull(ui.SpeechShaftOverlap(), "frame " + f + ": bubble over the shaft");
+                Assert.IsNull(ui.SpeechPopupOverlap(), "frame " + f + ": bubble under a luck popup");
+            }
+            GameplayRoot.SeedOverride = null;
+        }
     }
 
     /// <summary>L2 captures of the HUD in each flow state (run with -Filter Capture). Agents open the PNGs with Read.</summary>
@@ -217,12 +318,29 @@ namespace FloorF.Tests.PlayMode.UI
         }
 
         [UnityTest]
-        public IEnumerator Capture_UiStates()
+        public IEnumerator Capture_UiStates() => CaptureFlow("", korean: false, fontCompare: true);
+
+        [UnityTest]
+        public IEnumerator Capture_UiStates_Korean() => CaptureFlow("_ko", korean: true, fontCompare: false);
+
+        static IEnumerator CaptureFlow(string suffix, bool korean, bool fontCompare)
         {
+            GameplayRoot.SeedOverride = 7;
             yield return UITestDriver.LoadMain();
             var ui = UITestDriver.UI();
+            var settings = GameServices.Get<IGameSettings>();
+            settings.UseKorean = korean;
             yield return UITestDriver.Frames(10);
-            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_intro")));
+            Assert.AreEqual(korean, ui.Korean);
+            if (fontCompare)
+            {
+                ui.ShowFontCompare(true);
+                yield return UITestDriver.Frames(2);
+                Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_font_compare")));
+                ui.ShowFontCompare(false);
+                yield return null;
+            }
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_intro" + suffix)));
 
             yield return UITestDriver.ClickStart();
             Time.captureDeltaTime = 0.1f;
@@ -238,7 +356,7 @@ namespace FloorF.Tests.PlayMode.UI
             for (int i = 0; i < 3; i++) yield return null;
             Time.captureDeltaTime = 0f;
             yield return null;
-            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_running")));
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_running" + suffix)));
 
             var s = UITestDriver.Session();
             s.Score.AddTips(60, earned: true);
@@ -248,7 +366,9 @@ namespace FloorF.Tests.PlayMode.UI
             yield return null;
             ui.ClickShopOffer(0);
             yield return UITestDriver.Frames(2);
-            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_shop")));
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_shop" + suffix)));
+            settings.UseKorean = false;
+            GameplayRoot.SeedOverride = null;
         }
     }
 }
