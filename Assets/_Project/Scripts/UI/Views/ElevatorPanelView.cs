@@ -14,8 +14,8 @@ namespace FloorF.UI
     /// </summary>
     sealed class ElevatorPanelView
     {
-        public const float Width = 216f;
-        const float BtnW = 92f, BtnH = 60f, Gap = 10f, Pad = 11f, LabelSize = 36f;
+        public const float Width = 254f;
+        const float BtnW = 112f, BtnH = 66f, Gap = 8f, Pad = 11f, LabelSize = 36f, BadgeH = 26f, BadgeSize = 24f;
 
         enum Mark { Normal, Target, Applicable, Blocked }
 
@@ -50,6 +50,7 @@ namespace FloorF.UI
         }
 
         public RectTransform Root => root;
+        public void SetVisible(bool visible) { if (root.gameObject.activeSelf != visible) root.gameObject.SetActive(visible); }
         public int ButtonCount => buttons.Length;
 
         void Build()
@@ -122,19 +123,21 @@ namespace FloorF.UI
             fb.Parts = UIBuild.Button("Floor " + floor.PhysicalNumber, root, "", LabelSize, UIStyle.Btn, () => OnFloorClicked(floor));
             UIBuild.Place(fb.Parts.Rect, new Vector2(0.5f, 1f), new Vector2(x, y), new Vector2(BtnW, BtnH));
             fb.Label = fb.Parts.Label;
-            fb.Label.rectTransform.offsetMin = new Vector2(2f, 19f);
+            fb.Label.rectTransform.offsetMin = new Vector2(2f, BadgeH + 2f);
             fb.Label.textWrappingMode = TextWrappingModes.NoWrap;
             fb.Badge = UIBuild.Box("Badge", fb.Parts.Rect, Color.gray);
             var brt = fb.Badge.rectTransform;
             brt.anchorMin = new Vector2(0f, 0f);
             brt.anchorMax = new Vector2(1f, 0f);
             brt.pivot = new Vector2(0.5f, 0f);
-            brt.offsetMin = new Vector2(4f, 4f);
-            brt.offsetMax = new Vector2(-4f, 19f);
-            fb.BadgeText = UIBuild.Text("Dest", fb.Badge.transform, "", 11f, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
+            brt.offsetMin = new Vector2(3f, 3f);
+            brt.offsetMax = new Vector2(-3f, BadgeH);
+            fb.BadgeText = UIBuild.Text("Dest", fb.Badge.transform, "", BadgeSize, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
             UIBuild.Stretch(fb.BadgeText.rectTransform);
+            fb.BadgeText.rectTransform.offsetMin = new Vector2(2f, 0f);
+            fb.BadgeText.rectTransform.offsetMax = new Vector2(-2f, 0f);
             fb.BadgeText.textWrappingMode = TextWrappingModes.NoWrap;
-            fb.BadgeText.overflowMode = TextOverflowModes.Ellipsis;
+            fb.BadgeText.overflowMode = TextOverflowModes.Overflow;
             return fb;
         }
 
@@ -160,7 +163,8 @@ namespace FloorF.UI
             if (!string.Equals(b.Label.text, text, StringComparison.Ordinal)) { b.Label.text = text; UIBuild.Fit(b.Label, LabelSize); }
             var dest = ctx.Building.GetDestination(floor);
             b.Badge.color = UIStyle.Destination(ctx.DestinationIndex(dest));
-            UIBuild.Set(b.BadgeText, ctx.DestinationName(dest));
+            b.BadgeText.color = UIStyle.ContrastInk(b.Badge.color);
+            UIBuild.FitName(b.BadgeText, ctx.DestinationName(dest), BadgeSize);
         }
 
         public void RefreshLanguage()
@@ -236,5 +240,10 @@ namespace FloorF.UI
         public void ClickOpen() => openButton.Button.onClick.Invoke();
         public void ClickClose() => closeButton.Button.onClick.Invoke();
         public string LedText => ledText.text;
+        public RectTransform FloorButtonRect(FloorIndex floor) => floor.Value >= 0 && floor.Value < buttons.Length ? buttons[floor.Value].Parts.Rect : null;
+        public RectTransform OpenRect => openButton.Rect;
+        public RectTransform CloseRect => closeButton.Rect;
+        public float BadgeFontSize(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].BadgeText.fontSize : 0f;
+        public string BadgeText(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].BadgeText.text : null;
     }
 }

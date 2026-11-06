@@ -21,6 +21,20 @@ namespace FloorF.UI
         public IActorLocator Locator;
         public IGameSettings Settings;
         public IWorldLayout Layout;
+        IMenuFlow menu;
+
+        /// <summary>Title + pause (Gameplay). Resolved lazily: null until Gameplay registers it.</summary>
+        public IMenuFlow Menu
+        {
+            get
+            {
+                if (menu == null) GameServices.TryGet(out menu);
+                return menu;
+            }
+        }
+
+        public DayPhase Phase => Day != null ? Day.Phase : DayPhase.None;
+        public bool Paused => Menu != null && Menu.IsPaused;
 
         public RectTransform CanvasRect;
         Camera worldCamera;
@@ -44,6 +58,7 @@ namespace FloorF.UI
             GameServices.TryGet(out Locator);
             GameServices.TryGet(out Settings);
             GameServices.TryGet(out Layout);
+            GameServices.TryGet(out menu);
         }
 
         /// <summary>Flips IGameSettings.UseKorean (publishes SettingsChanged -> UIRoot refreshes). False when no service.</summary>
@@ -73,6 +88,45 @@ namespace FloorF.UI
             float half = CarWidth * 0.5f;
             if (!WorldToCanvas(new Vector3(shaftX - half, car.y, car.z), out var a)) return false;
             if (!WorldToCanvas(new Vector3(shaftX + half, car.y, car.z), out var b)) return false;
+            minX = Mathf.Min(a.x, b.x) - margin;
+            maxX = Mathf.Max(a.x, b.x) + margin;
+            return true;
+        }
+
+        // Rendering's floor-sign geometry (BuildingView: plate left of the shaft posts, 5x7 PixelFont glyphs, 2 screen
+        // pixels per texel). Duplicated here because presentation modules may not reference each other; the PlayMode test
+        // Bubbles_AvoidSignColumn checks the result against the real sign renderers.
+        const float ShaftPostPad = 0.25f, SignGap = 0.35f, SignSafety = 0.2f;
+        const int GlyphAdvance = 6, SignPadTexels = 2, SignPixelsPerTexel = 2;
+
+        /// <summary>World width of the widest floor sign (labels can grow with stickers).</summary>
+        public float SignWidth()
+        {
+            int len = 1;
+            if (Building != null)
+                for (int f = 0; f < Building.FloorCount; f++)
+                    len = Mathf.Max(len, Building.GetLabel(new FloorIndex(f)).Text?.Length ?? 1);
+            if (worldCamera == null || !worldCamera.isActiveAndEnabled) worldCamera = Camera.main;
+            float ppu = worldCamera != null && worldCamera.orthographic
+                ? Mathf.Max(1f, Mathf.Floor(PresentationContract.PixelHeight / (2f * worldCamera.orthographicSize)))
+                : 12f;
+            return (len * GlyphAdvance - 1 + SignPadTexels) * SignPixelsPerTexel / ppu;
+        }
+
+        /// <summary>
+        /// Canvas x-range of the building's centre column = floor-sign plates (left of the shaft) + the shaft itself
+        /// (posts included), projected at the car's height and widened by <paramref name="margin"/>.
+        /// Nothing UI-drawn should sit in it: the player reads the floor numbers there.
+        /// </summary>
+        public bool CenterColumn(float margin, out float minX, out float maxX)
+        {
+            minX = maxX = 0f;
+            float shaftX = Layout != null ? Layout.ShaftX : Data != null ? Data.Layout.shaftX : 0f;
+            var car = Locator != null ? ToVector3(Locator.CarPosition) : new Vector3(shaftX, 0f, 0f);
+            float shaftHalf = CarWidth * 0.5f + ShaftPostPad + 0.1f;
+            float left = shaftX - CarWidth * 0.5f - ShaftPostPad - SignGap - SignWidth() - SignSafety;
+            if (!WorldToCanvas(new Vector3(left, car.y, car.z), out var a)) return false;
+            if (!WorldToCanvas(new Vector3(shaftX + shaftHalf, car.y, car.z), out var b)) return false;
             minX = Mathf.Min(a.x, b.x) - margin;
             maxX = Mathf.Max(a.x, b.x) + margin;
             return true;

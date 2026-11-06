@@ -137,6 +137,8 @@ namespace FloorF.UI
         {
             shownLuck = -1f;
             ghostLuck = -1f;
+            luckDeltaTimer = tipsDeltaTimer = 0f; // the new run's reset is not a "+/-" moment
+            ghostHold = 0f;
         }
 
         public void Tick(float dt)
@@ -173,7 +175,8 @@ namespace FloorF.UI
 
             Fade(luckDelta, ref luckDeltaTimer, dt);
             Fade(tipsDelta, ref tipsDeltaTimer, dt);
-            rulesBox.gameObject.SetActive(phase == DayPhase.Running);
+            bool rules = phase == DayPhase.Running;
+            if (rulesBox.gameObject.activeSelf != rules) rulesBox.gameObject.SetActive(rules);
         }
 
         static void Fade(TextMeshProUGUI t, ref float timer, float dt)
@@ -184,6 +187,17 @@ namespace FloorF.UI
         }
 
         public void ClickLanguage() => language.Button.onClick.Invoke();
+
+        /// <summary>Title screen: the demo plays behind the title card without HUD boxes (the title has its own toggle).</summary>
+        public void SetVisible(bool visible)
+        {
+            if (dayBox.gameObject.activeSelf == visible) return;
+            dayBox.gameObject.SetActive(visible);
+            luckBox.gameObject.SetActive(visible);
+            tipsBox.gameObject.SetActive(visible);
+            language.Rect.gameObject.SetActive(visible);
+            if (!visible) rulesBox.gameObject.SetActive(false);
+        }
 
         /// <summary>Keep the toggle clickable above the modal flow cards.</summary>
         public void BringLanguageToFront() => language.Rect.SetAsLastSibling();

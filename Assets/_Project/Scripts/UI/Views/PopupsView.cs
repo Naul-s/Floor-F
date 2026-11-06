@@ -18,7 +18,7 @@ namespace FloorF.UI
     {
         public const int MaxSpeech = 3;
         public const float SpeechLife = 2.5f;
-        const float PopupLife = 1.8f, MergeWindow = 0.3f, SpeechMaxW = 240f, ShaftMargin = 6f, PopupGap = 4f;
+        const float PopupLife = 1.8f, MergeWindow = 0.3f, SpeechMaxW = 240f, ShaftMargin = 6f, PopupGap = 4f, LeaderMin = 60f;
 
         sealed class Popup
         {
@@ -43,6 +43,9 @@ namespace FloorF.UI
             public Vector3 LastWorld;
             /// <summary>-1 = left of the shaft (riders), +1 = right (waiting line side).</summary>
             public float Side;
+            /// <summary>Canvas point the bubble belongs to (head / riders' chips); the leader line ends here.</summary>
+            public Vector2 Anchor;
+            public RectTransform Leader;
         }
 
         readonly UIContext ctx;
@@ -227,6 +230,9 @@ namespace FloorF.UI
             s.Rect.pivot = new Vector2(0.5f, 0f);
             s.Group = s.Rect.gameObject.AddComponent<CanvasGroup>();
             s.Group.blocksRaycasts = false;
+            s.Leader = UIBuild.Box("Leader", s.Rect, UIStyle.Dark).rectTransform;
+            s.Leader.SetAsFirstSibling();
+            s.Leader.gameObject.SetActive(false);
             s.Text = UIBuild.Text("Text", s.Rect, "", 12f, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
             UIBuild.Stretch(s.Text.rectTransform, 6f);
             return s;
@@ -239,32 +245,44 @@ namespace FloorF.UI
             var size = s.Rect.sizeDelta;
             bool riding = ctx.Guests != null && ctx.Guests.TryGet(s.Guest, out var info) && info.State == GuestState.Riding;
             Vector2 pos;
+            var anchor = new Vector2(float.NaN, float.NaN); // NaN = nothing to point at (unknown guest)
             if (riding && ctx.Locator != null)
             {
                 float halfCar = ctx.CarWidth * 0.5f + 0.1f;
-                if (!ctx.WorldToCanvas(UIContext.ToVector3(ctx.Locator.CarPosition) + new Vector3(-halfCar, 0.1f, 0f), out pos))
-                    pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
+                if (ctx.WorldToCanvas(UIContext.ToVector3(ctx.Locator.CarPosition) + new Vector3(-halfCar, 0.1f, 0f), out pos))
+                {
+                    // same left edge as the riders' chip grid (GuestBubblesView), which stays left of the signs
+                    if (ctx.CenterColumn(4f, out float cMin, out _)) pos.x = Mathf.Min(pos.x, cMin);
+                    anchor = new Vector2(pos.x - 6f - GuestBubblesView.ChipW * 0.5f, pos.y + GuestBubblesView.ChipH);
+                }
+                else pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
                 pos.x -= 6f + size.x * 0.5f;
-                pos.y += 2f * (GuestBubblesView.ChipH + 3f) + 4f;
+                int rows = Mathf.Max(1, (ctx.Elevator.Occupancy + GuestBubblesView.RiderColumns - 1) / GuestBubblesView.RiderColumns);
+                pos.y += rows * (GuestBubblesView.ChipH + 3f) + 4f;
                 s.Side = -1f;
             }
             else
             {
-                if (float.IsNaN(s.LastWorld.x) || !ctx.WorldToCanvas(s.LastWorld + Vector3.up * (floorHeight * 0.98f), out pos))
-                    pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
+                if (!float.IsNaN(s.LastWorld.x) && ctx.WorldToCanvas(s.LastWorld + Vector3.up * (floorHeight * 0.98f), out pos)) anchor = pos;
+                else pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
                 float shaftX = ctx.Layout != null ? ctx.Layout.ShaftX : 0f;
                 s.Side = float.IsNaN(s.LastWorld.x) || s.LastWorld.x >= shaftX ? 1f : -1f; // waiting line is right of the shaft
             }
             s.Rect.anchoredPosition = pos;
+            s.Anchor = anchor;
         }
 
-        /// <summary>Base positions -> out of the shaft column -> unstack upward -> out of luck popups -> on screen.</summary>
+        /// <summary>
+        /// Base positions -> out of the centre column (floor signs + shaft) -> unstack upward -> out of luck popups ->
+        /// on screen. A bubble that still covers the column goes to the other side, else to the screen edge; any bubble
+        /// far from its guest gets a leader line.
+        /// </summary>
         void LayoutSpeech()
         {
             if (speeches.Count == 0) return;
             foreach (var s in speeches) PlaceSpeech(s);
 
-            bool haveColumn = ctx.ShaftColumn(ShaftMargin, out float colMin, out float colMax);
+            bool haveColumn = ctx.CenterColumn(ShaftMargin, out float colMin, out float colMax);
             if (haveColumn) foreach (var s in speeches) PushOutOfColumn(s, colMin, colMax);
 
             Unstack();
@@ -291,12 +309,51 @@ namespace FloorF.UI
 
             foreach (var s in speeches)
             {
-                var size = s.Rect.sizeDelta;
-                var pos = s.Rect.anchoredPosition;
-                pos.x = Mathf.Clamp(pos.x, size.x * 0.5f + 8f, layer.rect.width - size.x * 0.5f - 8f);
-                pos.y = Mathf.Clamp(pos.y, 8f, layer.rect.height - size.y - 8f);
-                s.Rect.anchoredPosition = pos;
+                Clamp(s);
+                if (haveColumn && InColumn(s, colMin, colMax))
+                {
+                    // no room on its side: try the other side, then the far screen edge of the roomier side
+                    s.Side = -s.Side;
+                    PushOutOfColumn(s, colMin, colMax);
+                    Clamp(s);
+                    if (InColumn(s, colMin, colMax))
+                    {
+                        var pos = s.Rect.anchoredPosition;
+                        float half = s.Rect.sizeDelta.x * 0.5f;
+                        pos.x = colMin > layer.rect.width - colMax ? half + 8f : layer.rect.width - half - 8f;
+                        s.Rect.anchoredPosition = pos;
+                    }
+                }
+                UpdateLeader(s);
             }
+        }
+
+        void Clamp(Speech s)
+        {
+            var size = s.Rect.sizeDelta;
+            var pos = s.Rect.anchoredPosition;
+            pos.x = Mathf.Clamp(pos.x, size.x * 0.5f + 8f, layer.rect.width - size.x * 0.5f - 8f);
+            pos.y = Mathf.Clamp(pos.y, 8f, layer.rect.height - size.y - 8f);
+            s.Rect.anchoredPosition = pos;
+        }
+
+        static bool InColumn(Speech s, float colMin, float colMax)
+        {
+            var r = SpeechBox(s);
+            return r.xMax > colMin + 0.5f && r.xMin < colMax - 0.5f;
+        }
+
+        /// <summary>Leader line from the bubble's nearest bottom corner to its guest when it was pushed far away.</summary>
+        void UpdateLeader(Speech s)
+        {
+            var r = SpeechBox(s);
+            var to = s.Anchor;
+            bool show = !float.IsNaN(to.x);
+            var from = show ? new Vector2(Mathf.Clamp(to.x, r.xMin + 6f, r.xMax - 6f), r.yMin) : Vector2.zero;
+            show &= (to - from).magnitude > LeaderMin;
+            if (s.Leader.gameObject.activeSelf != show) s.Leader.gameObject.SetActive(show);
+            if (!show) return;
+            UIBuild.SetLine(s.Leader, from - r.min, to - r.min, 2f);
         }
 
         static void PushOutOfColumn(Speech s, float colMin, float colMax)
@@ -379,6 +436,20 @@ namespace FloorF.UI
             }
             return null;
         }
+
+        /// <summary>First visible speech bubble whose box crosses the canvas x-range, or null.</summary>
+        public string FirstOverlapX(float minX, float maxX)
+        {
+            foreach (var s in speeches)
+            {
+                var r = SpeechBox(s);
+                if (r.xMax > minX + 0.5f && r.xMin < maxX - 0.5f)
+                    return "'" + s.Text.text + "' x " + r.xMin.ToString("0") + ".." + r.xMax.ToString("0") + " vs " + minX.ToString("0") + ".." + maxX.ToString("0");
+            }
+            return null;
+        }
+
+        public int LeaderCount { get { int n = 0; foreach (var s in speeches) if (s.Leader.gameObject.activeSelf) n++; return n; } }
 
         public string FirstPopupOverlap()
         {

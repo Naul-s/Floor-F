@@ -25,22 +25,32 @@ namespace FloorF.UI
         PopupsView popups;
         FlowScreensView flow;
         ShopView shop;
+        TutorialView tutorial;
+        MenuView menu;
         bool built;
 
         void OnEnable()
         {
             var bus = GameServices.Events;
             subs.Add(bus.Subscribe<GameStarted>(OnGameStarted));
-            subs.Add(bus.Subscribe<LuckChanged>(e => { if (built) hud.OnLuckChanged(e); }));
-            subs.Add(bus.Subscribe<TipsChanged>(e => { if (built) hud.OnTipsChanged(e); }));
+            // the title's attract demo publishes guest/elevator/luck events too: the title card stays clean
+            subs.Add(bus.Subscribe<LuckChanged>(e => { if (built && !OnTitle) hud.OnLuckChanged(e); }));
+            subs.Add(bus.Subscribe<TipsChanged>(e => { if (built && !OnTitle) hud.OnTipsChanged(e); }));
             subs.Add(bus.Subscribe<FloorLabelChanged>(e => { if (built) panel.RefreshLabel(e.Floor); }));
-            subs.Add(bus.Subscribe<LuckJudged>(e => { if (built) popups.OnLuckJudged(e); }));
+            subs.Add(bus.Subscribe<LuckJudged>(e => { if (built && !OnTitle) { popups.OnLuckJudged(e); tutorial.OnLuckJudged(e); } }));
             subs.Add(bus.Subscribe<GuestSpoke>(OnGuestSpoke));
             subs.Add(bus.Subscribe<SettingsChanged>(e => RefreshLanguage()));
             subs.Add(bus.Subscribe<DayPhaseChanged>(OnPhaseChanged));
+            subs.Add(bus.Subscribe<GuestBoarded>(e => { if (built) tutorial.OnGuestBoarded(e); }));
+            subs.Add(bus.Subscribe<DoorsClosed>(e => { if (built) tutorial.OnDoorsClosed(e); }));
+            subs.Add(bus.Subscribe<DoorsOpened>(e => { if (built) tutorial.OnDoorsOpened(e); }));
+            subs.Add(bus.Subscribe<ElevatorDeparted>(e => { if (built) tutorial.OnDeparted(e); }));
+            subs.Add(bus.Subscribe<PauseChanged>(e => { if (built) menu.Tick(); }));
         }
 
         void OnDisable() => subs.Clear();
+
+        bool OnTitle => ctx.Phase == DayPhase.Title || (ctx.Menu != null && ctx.Menu.IsOnTitle);
 
         void Start()
         {
@@ -59,7 +69,10 @@ namespace FloorF.UI
             hud = new HudView(ctx, rt, ToggleLanguage);
             shop = new ShopView(ctx, rt, panel);
             flow = new FlowScreensView(ctx, rt);
+            tutorial = new TutorialView(ctx, rt, panel);
             hud.BringLanguageToFront();
+            menu = new MenuView(ctx, rt);
+            menu.BringToFront();
             built = true;
             SetLayerRecursively(canvas.transform, PresentationContract.UiLayer);
             Debug.Log("[UI] built: canvas " + canvas.renderMode + " on " + (canvas.worldCamera != null ? canvas.worldCamera.name : "<none>"));
@@ -121,12 +134,17 @@ namespace FloorF.UI
             if (!built) return;
             if (canvas.renderMode != RenderMode.ScreenSpaceCamera || canvas.worldCamera == null) AttachCamera();
             float dt = Time.deltaTime;
+            bool onTitle = ctx.Phase == DayPhase.Title;
+            panel.SetVisible(!onTitle);
+            hud.SetVisible(!onTitle);
             panel.Tick(Time.unscaledTime);
             hud.Tick(dt);
             bubbles.Tick();
             popups.Tick(dt);
             shop.Tick();
             flow.Tick();
+            tutorial.Tick(dt, Time.unscaledTime);
+            menu.Tick();
         }
 
         void OnGameStarted(GameStarted e)
@@ -136,12 +154,13 @@ namespace FloorF.UI
             panel.RefreshLabels();
             bubbles.Clear();
             popups.Clear();
+            tutorial.Reset();
             flow.LastSpecialLine = null;
         }
 
         void OnGuestSpoke(GuestSpoke e)
         {
-            if (!built) return;
+            if (!built || OnTitle) return;
             popups.OnGuestSpoke(e);
             // the mystery guest's last words come right before the 4th-floor ending - the ending card quotes them
             if (e.LineTrigger == GuestLineTriggers.Special) flow.LastSpecialLine = e.Text;
@@ -154,6 +173,9 @@ namespace FloorF.UI
             if (e.Current == DayPhase.Ending) popups.ClearPopups(); // keep the last speech bubble behind the card
             else if (e.Current != DayPhase.Running) popups.Clear();
             if (e.Current == DayPhase.Intro) flow.LastSpecialLine = null;
+            // the attract demo replays day 1 behind the title: a new run's tutorial starts from step 1
+            if (e.Current == DayPhase.Title || (e.Current == DayPhase.Intro && e.Previous == DayPhase.Title)) tutorial.Reset();
+            menu.Tick();
         }
 
         void ToggleLanguage() => ctx.ToggleLanguage(); // SettingsChanged arrives and refreshes
@@ -165,6 +187,7 @@ namespace FloorF.UI
             hud.RefreshLanguage();
             shop.RefreshLanguage();
             flow.Refresh();
+            menu.OnSettingsChanged();
         }
 
         // ------------------------------------------------------------------ test hooks (PlayMode tests, no uGUI types)
@@ -228,5 +251,38 @@ namespace FloorF.UI
             return null;
         }
         internal void ClickLanguage() => hud.ClickLanguage();
+
+        // tutorial
+        internal TutorialView.Step TutorialStep => tutorial.CurrentStep;
+        internal string TutorialPrompt => tutorial.PromptText;
+        internal string TutorialWhy => tutorial.WhyText;
+        internal string TutorialTarget => tutorial.TargetName;
+
+        // title / pause / ending
+        internal bool TitleVisible => menu.TitleVisible;
+        internal string TitleText => menu.TitleText;
+        internal void ClickTitleStart() => menu.ClickStart();
+        internal void ClickTitleLanguage() => menu.ClickTitleLanguage();
+        internal bool PauseVisible => menu.PauseVisible;
+        internal bool PauseButtonVisible => menu.PauseButtonVisible;
+        internal void ClickPauseButton() => menu.ClickPauseButton();
+        internal void ClickResume() => menu.ClickResume();
+        internal void ClickQuitToTitle() => menu.ClickQuit();
+        internal void ClickHintsToggle() => menu.ClickHints();
+        internal string HintsText => menu.HintsText;
+        internal void SetVolumeSlider(float v) => menu.SetVolumeSlider(v);
+        internal float VolumeSliderValue => menu.VolumeSliderValue;
+        internal bool EndingTitleButtonVisible => flow.TitleButtonVisible;
+        internal void ClickEndingTitle() => flow.ClickTitle();
+        internal string FlowActionText => flow.ActionText;
+
+        // layout
+        internal float BadgeFontSize(int floor) => panel.BadgeFontSize(floor);
+        internal string BadgeText(int floor) => panel.BadgeText(floor);
+        internal string SpeechOverlapX(float minX, float maxX) => popups.FirstOverlapX(minX, maxX);
+        internal string ChipOverlapX(float minX, float maxX) => bubbles.FirstOverlapX(minX, maxX);
+        internal int SpeechLeaderCount => popups.LeaderCount;
+        internal Vector2 CanvasSize => ctx.CanvasRect.rect.size;
+        internal bool WorldToCanvas(Vector3 world, out Vector2 pos) => ctx.WorldToCanvas(world, out pos);
     }
 }
