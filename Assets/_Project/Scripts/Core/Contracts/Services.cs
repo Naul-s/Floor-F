@@ -5,7 +5,7 @@ namespace FloorF.Core
     // =====================================================================================================
     // Service interfaces. Registered in GameServices by their OWNER, read by everyone else.
     //   Owner Gameplay : IBuildingQuery, IElevatorQuery, IElevatorControl, IGuestQuery, IScoreQuery, IDayQuery,
-    //                    IGameFlow, IShopService, IActorLocator, IWorldLayout (HotelLayout), GameData, IGameSettings
+    //                    IGameFlow, IShopService, IActorLocator, IWorldLayout (HotelLayout), GameData, IGameSettings, IMenuFlow
     //   Rendering / UI / Audio : register nothing by default; if one needs to expose something, it goes here first
     //                    (CONTRACT REQUEST), never as a direct reference between presentation modules.
     // Queries are cheap and allocation-free - poll them every frame if you like. Commands return false/an enum on
@@ -24,6 +24,23 @@ namespace FloorF.Core
         float MasterVolume { get; set; }
         /// <summary>Show day-1 style rule hints (UI).</summary>
         bool ShowTutorialHints { get; set; }
+    }
+
+    /// <summary>
+    /// Title screen + pause (owner: Gameplay). Pausing freezes the simulation clock (not Unity timeScale - presentation
+    /// keeps animating). Changes publish <see cref="PauseChanged"/> / <see cref="DayPhaseChanged"/>.
+    /// </summary>
+    public interface IMenuFlow
+    {
+        /// <summary>True while DayPhase is Title.</summary>
+        bool IsOnTitle { get; }
+        /// <summary>Title -> new game, Day 1 Intro. False if not on the title screen.</summary>
+        bool StartGameFromTitle();
+        /// <summary>Anywhere -> Title (abandons the current run).</summary>
+        void ReturnToTitle();
+        bool IsPaused { get; }
+        /// <summary>Only meaningful in Running (and Intro/Summary/Shop are already waiting on the player). Returns false if rejected.</summary>
+        bool SetPaused(bool paused);
     }
 
     /// <summary>The building: floors, their CURRENT labels and destinations.</summary>

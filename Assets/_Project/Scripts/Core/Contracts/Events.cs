@@ -267,3 +267,13 @@ namespace FloorF.Core
         { UseKorean = useKorean; MasterVolume = masterVolume; ShowTutorialHints = showTutorialHints; }
     }
 }
+
+namespace FloorF.Core
+{
+    /// <summary>IMenuFlow pause state changed.</summary>
+    public readonly struct PauseChanged
+    {
+        public readonly bool Paused;
+        public PauseChanged(bool paused) { Paused = paused; }
+    }
+}

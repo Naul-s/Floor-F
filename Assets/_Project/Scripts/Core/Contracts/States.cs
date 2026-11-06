@@ -54,7 +54,7 @@ namespace FloorF.Core
         Angry = 5,
     }
 
-    /// <summary>Game flow phase. One day = Intro -> Running -> Summary -> Shop (-> next day's Intro), or -> Ending.</summary>
+    /// <summary>Game flow phase. Title -> (Day: Intro -> Running -> Summary -> Shop -> next Intro) ... -> Ending.</summary>
     public enum DayPhase
     {
         None = 0,
@@ -68,6 +68,8 @@ namespace FloorF.Core
         Shop = 4,
         /// <summary>An ending is showing. Terminal until restart.</summary>
         Ending = 5,
+        /// <summary>Title screen (boot). Gameplay may run an attract-mode demo behind it. IMenuFlow.StartGameFromTitle leaves it.</summary>
+        Title = 6,
     }
 
     /// <summary>GDD 7 endings. <see cref="Modest"/> = finished all days without reaching the prosperity threshold.</summary>
