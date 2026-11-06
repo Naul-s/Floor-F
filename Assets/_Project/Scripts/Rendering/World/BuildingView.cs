@@ -23,7 +23,19 @@ namespace FloorF.Rendering
             public string SignText;
             public bool SignSticker;
             public Material Indicator;
+            /// <summary>Sticker "slap" animation age (&gt;= StickSeconds = idle).</summary>
+            public float StickAge = float.MaxValue;
+            /// <summary>Ending: plate showing the original number behind the (falling) sticker.</summary>
+            public GameObject Reveal;
+            public string RevealText;
+            public bool Falling, Fallen;
+            public Vector3 FallVelocity;
+            public float FallSpin;
         }
+
+        public const float StickSeconds = 0.32f;
+        Material hotelSign;
+        public Transform HotelSign { get; private set; }
 
         readonly RenderAssets assets;
         readonly IWorldLayout layout;
@@ -215,6 +227,113 @@ namespace FloorF.Rendering
             e.Sign.transform.localPosition = new Vector3(sx - ShaftHalfWidth - 0.35f - sw * 0.5f, floor.Value * h + (h - SlabThickness) * 0.58f, -d * 0.5f - 0.06f);
         }
 
+        /// <summary>Roof HOTEL sign tint (white = normal, darker = off, &gt;1 not possible: unlit, so use warm whites).</summary>
+        public void SetHotelSignTint(Color tint)
+        {
+            if (hotelSign != null) RenderAssets.SetColor(hotelSign, tint);
+        }
+
+        public Color HotelSignTint => hotelSign != null && hotelSign.HasProperty("_BaseColor") ? hotelSign.GetColor("_BaseColor") : Color.white;
+
+        /// <summary>Sticker "slap": the sign overshoots big, slams down small, settles (scale on the sign root).</summary>
+        public void PlayStick(FloorIndex floor)
+        {
+            if (floor.Value >= 0 && floor.Value < floors.Count) floors[floor.Value].StickAge = 0f;
+        }
+
+        public bool IsSignAnimating(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count && floors[floor.Value].StickAge < StickSeconds;
+
+        /// <summary>Pure: sign scale during the stick animation (1 when idle).</summary>
+        public static float StickScale(float age)
+        {
+            if (age < 0f || age >= StickSeconds) return 1f;
+            const float slam = 0.07f;
+            if (age < slam) return Mathf.Lerp(1.7f, 0.82f, age / slam);
+            float u = (age - slam) / (StickSeconds - slam);
+            return 1f - 0.18f * Mathf.Exp(-5f * u) * Mathf.Cos(u * Mathf.PI * 3f) * (1f - u);
+        }
+
+        /// <summary>
+        /// Ending reveal: a plate with <paramref name="original"/> appears behind the sticker plate and the sticker drops
+        /// off (falls, spins, disappears). No-op when the sign already shows that text.
+        /// </summary>
+        public void RevealOriginal(FloorIndex floor, string original, Color ink, Color plate)
+        {
+            if (floor.Value < 0 || floor.Value >= floors.Count || string.IsNullOrEmpty(original)) return;
+            var e = floors[floor.Value];
+            if (e.Reveal != null) return;
+            var tex = assets.Own(PixelFont.CreateTexture(original, ink, plate));
+            var mat = assets.NewUnlit(Color.white, tex);
+            e.Reveal = assets.Plate(e.Sign.transform, "Reveal", new Vector3(0f, 0f, 0.015f), new Vector2(tex.width * signTexel, tex.height * signTexel), mat);
+            e.RevealText = original;
+            if (e.SignText == original) { e.Fallen = true; return; }
+            e.Falling = true;
+            e.FallVelocity = new Vector3(-0.6f, 1.2f, -0.4f);
+            e.FallSpin = 0f;
+        }
+
+        public bool IsRevealed(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count && floors[floor.Value].Reveal != null;
+        public bool IsStickerFallen(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count && floors[floor.Value].Fallen;
+
+        /// <summary>What the sign shows right now: the revealed number once the sticker fell off, else the label.</summary>
+        public string GetDisplayedText(FloorIndex floor)
+        {
+            if (floor.Value < 0 || floor.Value >= floors.Count) return null;
+            var e = floors[floor.Value];
+            return e.Reveal != null && e.Fallen ? e.RevealText : e.SignText;
+        }
+
+        /// <summary>Undo endings' reveals (restart).</summary>
+        public void ClearReveals()
+        {
+            for (int i = 0; i < floors.Count; i++)
+            {
+                var e = floors[i];
+                if (e.Reveal != null) Object.Destroy(e.Reveal);
+                e.Reveal = null;
+                e.RevealText = null;
+                e.Falling = e.Fallen = false;
+                var plate = e.Sign.transform.childCount > 0 ? e.Sign.transform.GetChild(0) : null;
+                if (plate != null)
+                {
+                    plate.gameObject.SetActive(true);
+                    plate.localPosition = Vector3.zero;
+                    plate.localRotation = Quaternion.identity;
+                }
+            }
+        }
+
+        /// <summary>Animations on the juice clock (dt = 0 while paused).</summary>
+        public void Tick(float dt)
+        {
+            for (int i = 0; i < floors.Count; i++)
+            {
+                var e = floors[i];
+                if (e.StickAge < StickSeconds)
+                {
+                    e.StickAge += dt;
+                    float k = StickScale(e.StickAge);
+                    e.Sign.transform.localScale = new Vector3(k, k, 1f);
+                    float tilt = e.StickAge < StickSeconds ? -9f * (1f - e.StickAge / StickSeconds) : 0f;
+                    e.Sign.transform.localRotation = Quaternion.Euler(0f, 0f, tilt);
+                }
+                if (e.Falling && dt > 0f)
+                {
+                    var plate = e.Sign.transform.GetChild(0);
+                    e.FallVelocity += new Vector3(0f, -9f * dt, 0f);
+                    plate.localPosition += e.FallVelocity * dt;
+                    e.FallSpin += 220f * dt;
+                    plate.localRotation = Quaternion.Euler(0f, 0f, e.FallSpin);
+                    if (plate.localPosition.y < -layout.FloorHeight * 0.62f)
+                    {
+                        e.Falling = false;
+                        e.Fallen = true;
+                        plate.gameObject.SetActive(false);
+                    }
+                }
+            }
+        }
+
         public string GetSignText(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].SignText : null;
         public bool GetSignSticker(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count && floors[floor.Value].SignSticker;
         public GameObject GetSign(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].Sign : null;
@@ -317,9 +436,11 @@ namespace FloorF.Rendering
         {
             var tex = assets.Own(PixelFont.CreateTexture("HOTEL", RenderingStyle.HotelSign, new Color(0.10f, 0.05f, 0.06f)));
             var mat = assets.NewUnlit(Color.white, tex);
+            hotelSign = mat;
             float w = tex.width * signTexel, h = tex.height * signTexel;
             float d = layout.Depth;
-            assets.Plate(Root, "Hotel Sign", new Vector3(layout.ShaftX, height + 0.5f + h * 0.5f, -d * 0.5f + 0.6f), new Vector2(w, h), mat);
+            var signGo = assets.Plate(Root, "Hotel Sign", new Vector3(layout.ShaftX, height + 0.5f + h * 0.5f, -d * 0.5f + 0.6f), new Vector2(w, h), mat);
+            HotelSign = signGo.transform;
             var metal = assets.Lit(new Color(0.22f, 0.22f, 0.25f));
             assets.Box(Root, "Sign Leg L", new Vector3(layout.ShaftX - w * 0.35f, height + 0.4f, -d * 0.5f + 0.7f), new Vector3(0.12f, 0.8f, 0.12f), metal);
             assets.Box(Root, "Sign Leg R", new Vector3(layout.ShaftX + w * 0.35f, height + 0.4f, -d * 0.5f + 0.7f), new Vector3(0.12f, 0.8f, 0.12f), metal);

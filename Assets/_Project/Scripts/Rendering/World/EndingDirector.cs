@@ -1,0 +1,149 @@
+using FloorF.Core;
+using UnityEngine;
+
+namespace FloorF.Rendering
+{
+    /// <summary>
+    /// GDD 7 ending lighting, driven by EndingReached (juice clock, so it holds while paused):
+    ///   FourthFloor - every floor goes dark, then only the PHYSICAL 4th floor comes back cold and flickering, and its
+    ///                 sticker drops off the sign to reveal the original "4".
+    ///   Haunted     - all floors red and flickering, HOTEL sign stutters.
+    ///   Prosperous  - warm gold wave lights every floor bottom-up brighter than normal, HOTEL sign blinks.
+    ///   Modest      - unchanged.
+    /// Reset() (restart / back to title) restores the normal look.
+    /// </summary>
+    sealed class EndingDirector
+    {
+        public const float DarkSeconds = 0.7f;
+        public const float Floor4OnAt = 1.2f;
+        public const float RevealAt = 1.9f;
+
+        public static readonly Color ColdLight = new Color(0.55f, 0.82f, 1.00f);
+        public static readonly Color HauntedLight = new Color(1.00f, 0.12f, 0.08f);
+        public static readonly Color ProsperousLight = new Color(1.00f, 0.80f, 0.42f);
+        static readonly Color RevealInk = new Color(0.75f, 0.95f, 1.00f);
+        static readonly Color RevealPlate = new Color(0.03f, 0.04f, 0.06f);
+
+        readonly FloorLighting lighting;
+        readonly BuildingView building;
+        readonly ElevatorView elevator;
+        readonly JuiceFx fx;
+        readonly System.Func<FloorIndex, FloorLabel> originalLabel;
+        float t;
+        bool floor4On, revealed;
+        int wave;
+
+        public EndingKind Active { get; private set; }
+        public float Elapsed => t;
+        public static FloorIndex RealFourth => FloorIndex.FromPhysicalNumber(4);
+
+        public EndingDirector(FloorLighting lighting, BuildingView building, ElevatorView elevator, JuiceFx fx, System.Func<FloorIndex, FloorLabel> originalLabel)
+        {
+            this.lighting = lighting;
+            this.building = building;
+            this.elevator = elevator;
+            this.fx = fx;
+            this.originalLabel = originalLabel;
+        }
+
+        public void Begin(EndingKind kind)
+        {
+            Reset();
+            Active = kind;
+            t = 0f;
+            int n = lighting.FloorCount;
+            switch (kind)
+            {
+                case EndingKind.FourthFloor:
+                    for (int i = 0; i < n; i++) lighting.SetLevel(new FloorIndex(i), 0f, 1f / DarkSeconds);
+                    break;
+                case EndingKind.Haunted:
+                    for (int i = 0; i < n; i++)
+                    {
+                        var f = new FloorIndex(i);
+                        lighting.SetBaseColor(f, HauntedLight);
+                        lighting.SetFlicker(f, true);
+                        lighting.SetLevel(f, 0.85f, 2f);
+                        lighting.Flash(f, HauntedLight, 0.8f);
+                    }
+                    elevator.SetLightLevel(0.35f);
+                    break;
+                case EndingKind.Prosperous:
+                    for (int i = 0; i < n; i++)
+                    {
+                        var f = new FloorIndex(i);
+                        lighting.SetBaseColor(f, ProsperousLight);
+                        lighting.SetFlicker(f, false);
+                        lighting.SetLevel(f, 0.5f, 0f);
+                    }
+                    break;
+            }
+        }
+
+        /// <summary>Back to normal (flicker is re-derived from the signs by the caller).</summary>
+        public void Reset()
+        {
+            Active = EndingKind.None;
+            floor4On = revealed = false;
+            wave = 0;
+            lighting.ResetMood();
+            building.ClearReveals();
+            building.SetHotelSignTint(Color.white);
+            elevator.SetLightLevel(1f);
+        }
+
+        public void Tick(float dt)
+        {
+            if (Active == EndingKind.None || dt <= 0f) return;
+            t += dt;
+            int n = lighting.FloorCount;
+            switch (Active)
+            {
+                case EndingKind.FourthFloor:
+                {
+                    elevator.SetLightLevel(Mathf.Clamp01(1f - t / DarkSeconds));
+                    building.SetHotelSignTint(Color.Lerp(Color.white, new Color(0.18f, 0.18f, 0.2f), Mathf.Clamp01(t / DarkSeconds)));
+                    var f4 = RealFourth;
+                    if (!floor4On && t >= Floor4OnAt)
+                    {
+                        floor4On = true;
+                        for (int i = 0; i < n; i++) lighting.SetFlicker(new FloorIndex(i), false);
+                        lighting.SetBaseColor(f4, ColdLight);
+                        lighting.SetFlicker(f4, true);
+                        lighting.SetLevel(f4, 1f, 0f);
+                        lighting.Flash(f4, Color.white, 0.4f, 0.8f);
+                    }
+                    if (!revealed && t >= RevealAt)
+                    {
+                        revealed = true;
+                        var original = originalLabel(f4);
+                        building.RevealOriginal(f4, original.IsEmpty ? FloorLabel.Original(f4).Text : original.Text, RevealInk, RevealPlate);
+                    }
+                    break;
+                }
+                case EndingKind.Haunted:
+                {
+                    bool on = FloorLighting.FlickerValue(t, 99) > 0.5f;
+                    building.SetHotelSignTint(on ? new Color(1f, 0.55f, 0.55f) : new Color(0.25f, 0.1f, 0.1f));
+                    break;
+                }
+                case EndingKind.Prosperous:
+                {
+                    // bottom-up wave of gold, then everything brighter than normal and the HOTEL sign blinking
+                    while (wave < n && t >= 0.15f * wave)
+                    {
+                        var f = new FloorIndex(wave);
+                        lighting.SetLevel(f, 1.3f, 3f);
+                        lighting.Flash(f, RenderingStyle.LuckyFlash, 0.6f, 0.8f);
+                        wave++;
+                    }
+                    bool blink = Mathf.Repeat(t, 0.5f) < 0.3f;
+                    if (building.HotelSign != null && Mathf.Repeat(t, 0.7f) < dt)
+                        fx.Burst(building.HotelSign.position + new Vector3(Random.Range(-2.5f, 2.5f), 0.4f, -0.4f), RenderingStyle.LuckyFlash, 6, 2.6f);
+                    building.SetHotelSignTint(blink ? Color.white : new Color(1f, 0.75f, 0.35f) * 0.6f);
+                    break;
+                }
+            }
+        }
+    }
+}

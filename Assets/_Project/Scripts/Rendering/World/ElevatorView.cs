@@ -5,25 +5,37 @@ using UnityEngine;
 namespace FloorF.Rendering
 {
     /// <summary>
-    /// The car: an open-front brass box riding the shaft, doors on its +X side (the waiting line side) that slide
-    /// apart along Z, a self-lit ceiling strip, and the per-floor landing lamp (amber = car here, green = doors open).
+    /// The car: an open-front brass box riding the shaft. Root follows the gameplay position exactly; everything visual
+    /// hangs under "Body" so arrival squash &amp; stretch / door-thud wobble never moves the logical car.
+    /// Doors: framed front panels (big windows so riders stay countable) that slide apart and telescope into the car
+    /// sides, plus the side doors on +X (the waiting-line side). Per-floor landing lamp: amber = car here, green = open.
     /// Position source, best first: IActorLocator.CarPosition, IElevatorQuery.Position, last ElevatorArrived floor
     /// (events), ground floor.
     /// </summary>
     sealed class ElevatorView
     {
+        public const float BumpSeconds = 0.6f;
+
         readonly IWorldLayout layout;
         readonly BuildingView building;
-        readonly Transform doorFront, doorBack;
-        readonly float doorTravel, doorHalfDepth;
+        readonly Transform body;
+        readonly Transform doorFront, doorBack, panelL, panelR;
+        readonly float doorTravel, doorHalfDepth, doorZc, carWidth;
         readonly float doorSeconds;
+        readonly Light carLight;
+        readonly Material lampMat;
         float open01;
         int lastIndicatorFloor = -1;
         Color lastIndicatorColor;
+        float bumpAge = float.MaxValue, bumpStrength;
+        float lightLevel = 1f;
 
         public Transform Root { get; }
+        public Transform Body => body;
         public float FloorPosition { get; private set; }
         public float Open01 => open01;
+        public bool IsBumping => bumpAge < BumpSeconds;
+        public float LightLevel => lightLevel;
 
         public ElevatorView(Transform parent, RenderAssets assets, IWorldLayout layout, BuildingView building, float doorSeconds)
         {
@@ -31,47 +43,74 @@ namespace FloorF.Rendering
             this.building = building;
             this.doorSeconds = Mathf.Max(0.05f, doorSeconds);
             float w = building.CarWidth;
+            carWidth = w;
             float h = layout.FloorHeight - 0.55f;
             float d = Mathf.Min(layout.Depth * 0.62f, layout.Depth - 1.2f);
             float zc = 0.1f;
             Root = new GameObject(RenderingNames.Car).transform;
             Root.SetParent(parent, false);
+            body = new GameObject("Body").transform;
+            body.SetParent(Root, false);
+            var B = body;
 
             var shell = assets.Lit(RenderingStyle.Car);
             var inside = assets.Lit(RenderingStyle.CarInside);
             var doorMat = assets.Lit(RenderingStyle.CarDoor);
-            assets.Box(Root, "Car Floor", new Vector3(0f, 0.06f, zc), new Vector3(w, 0.12f, d), shell);
-            assets.Box(Root, "Car Ceiling", new Vector3(0f, h - 0.06f, zc), new Vector3(w, 0.12f, d), shell);
-            assets.Box(Root, "Car Back", new Vector3(0f, h * 0.5f, zc + d * 0.5f - 0.05f), new Vector3(w, h, 0.1f), inside);
-            assets.Box(Root, "Car Side L", new Vector3(-w * 0.5f + 0.05f, h * 0.5f, zc), new Vector3(0.1f, h, d), shell);
-            assets.Box(Root, "Car Lamp", new Vector3(0f, h - 0.14f, zc), new Vector3(w * 0.6f, 0.05f, 0.25f), assets.Unlit(new Color(1f, 0.95f, 0.8f)), false);
-            assets.Box(Root, "Handrail", new Vector3(0f, 0.95f, zc + d * 0.5f - 0.14f), new Vector3(w * 0.8f, 0.06f, 0.06f), shell, false);
+            lampMat = assets.NewUnlit(new Color(1f, 0.95f, 0.8f));
+            assets.Box(B, "Car Floor", new Vector3(0f, 0.06f, zc), new Vector3(w, 0.12f, d), shell);
+            assets.Box(B, "Car Ceiling", new Vector3(0f, h - 0.06f, zc), new Vector3(w, 0.12f, d), shell);
+            assets.Box(B, "Car Back", new Vector3(0f, h * 0.5f, zc + d * 0.5f - 0.05f), new Vector3(w, h, 0.1f), inside);
+            assets.Box(B, "Car Side L", new Vector3(-w * 0.5f + 0.05f, h * 0.5f, zc), new Vector3(0.1f, h, d), shell);
+            assets.Box(B, "Car Lamp", new Vector3(0f, h - 0.14f, zc), new Vector3(w * 0.6f, 0.05f, 0.25f), lampMat, false);
+            assets.Box(B, "Handrail", new Vector3(0f, 0.95f, zc + d * 0.5f - 0.14f), new Vector3(w * 0.8f, 0.06f, 0.06f), shell, false);
             // front lip so the car reads as a box from the camera
-            assets.Box(Root, "Car Lip Top", new Vector3(0f, h - 0.12f, zc - d * 0.5f + 0.04f), new Vector3(w, 0.24f, 0.08f), shell);
-            assets.Box(Root, "Car Lip Bottom", new Vector3(0f, 0.1f, zc - d * 0.5f + 0.04f), new Vector3(w, 0.2f, 0.08f), shell);
+            assets.Box(B, "Car Lip Top", new Vector3(0f, h - 0.12f, zc - d * 0.5f + 0.04f), new Vector3(w, 0.24f, 0.08f), shell);
+            assets.Box(B, "Car Lip Bottom", new Vector3(0f, 0.1f, zc - d * 0.5f + 0.04f), new Vector3(w, 0.2f, 0.08f), shell);
 
             // own warm light so the car is the brightest, easiest-to-follow thing in the shaft
             var lightGo = new GameObject("Car Light");
-            lightGo.transform.SetParent(Root, false);
+            lightGo.transform.SetParent(B, false);
             lightGo.transform.localPosition = new Vector3(0f, h - 0.4f, zc - d * 0.3f);
-            var light = lightGo.AddComponent<Light>();
-            light.type = LightType.Point;
-            light.range = 3.2f;
-            light.color = RenderingStyle.CarLight;
-            light.intensity = RenderingStyle.CarLightIntensity;
-            light.shadows = LightShadows.None;
-            light.renderMode = LightRenderMode.ForcePixel;
+            carLight = lightGo.AddComponent<Light>();
+            carLight.type = LightType.Point;
+            carLight.range = 3.2f;
+            carLight.color = RenderingStyle.CarLight;
+            carLight.intensity = RenderingStyle.CarLightIntensity;
+            carLight.shadows = LightShadows.None;
+            carLight.renderMode = LightRenderMode.ForcePixel;
 
             doorHalfDepth = d * 0.5f;
             doorTravel = d * 0.5f - 0.08f;
-            doorFront = assets.Box(Root, "Door Front", new Vector3(w * 0.5f - 0.05f, h * 0.5f, zc - d * 0.25f), new Vector3(0.08f, h - 0.24f, d * 0.5f), doorMat).transform;
-            doorBack = assets.Box(Root, "Door Back", new Vector3(w * 0.5f - 0.05f, h * 0.5f, zc + d * 0.25f), new Vector3(0.08f, h - 0.24f, d * 0.5f), doorMat).transform;
+            doorFront = assets.Box(B, "Door Front", new Vector3(w * 0.5f - 0.05f, h * 0.5f, zc - d * 0.25f), new Vector3(0.08f, h - 0.24f, d * 0.5f), doorMat).transform;
+            doorBack = assets.Box(B, "Door Back", new Vector3(w * 0.5f - 0.05f, h * 0.5f, zc + d * 0.25f), new Vector3(0.08f, h - 0.24f, d * 0.5f), doorMat).transform;
             doorZc = zc;
+
+            // framed front doors (camera side)
+            float y0 = 0.2f, y1 = h - 0.24f;
+            float zFront = zc - d * 0.5f - 0.05f;
+            panelL = BuildPanel(assets, B, "Front Door L", -1, w * 0.5f, y0, y1, zFront, doorMat);
+            panelR = BuildPanel(assets, B, "Front Door R", +1, w * 0.5f, y0, y1, zFront, doorMat);
             SetDoors(0f);
             Place(0f);
         }
 
-        readonly float doorZc;
+        /// <summary>One panel (width <paramref name="pw"/>) = kick plate, top rail, outer + inner stile; the window is open.</summary>
+        static Transform BuildPanel(RenderAssets assets, Transform parent, string name, int side, float pw, float y0, float y1, float z, Material mat)
+        {
+            var t = new GameObject(name).transform;
+            t.SetParent(parent, false);
+            float ph = y1 - y0;
+            float outer = side * 0.5f * pw, inner = -side * 0.5f * pw; // panel-local x of outer / inner edges
+            var edge = assets.Lit(new Color(0.92f, 0.92f, 0.96f));
+            var dark = assets.Lit(new Color(0.34f, 0.34f, 0.40f));
+            assets.Box(t, "Kick", new Vector3(0f, y0 + 0.17f, 0f), new Vector3(pw, 0.34f, 0.06f), mat);
+            assets.Box(t, "Top", new Vector3(0f, y1 - 0.08f, 0f), new Vector3(pw, 0.16f, 0.06f), mat);
+            assets.Box(t, "Outer", new Vector3(outer - side * 0.05f, y0 + ph * 0.5f, 0f), new Vector3(0.1f, ph, 0.06f), mat);
+            assets.Box(t, "Inner", new Vector3(inner + side * 0.06f, y0 + ph * 0.5f, 0f), new Vector3(0.12f, ph, 0.06f), edge);
+            assets.Box(t, "Seam", new Vector3(inner + side * 0.015f, y0 + ph * 0.5f, -0.01f), new Vector3(0.03f, ph, 0.06f), dark, false);
+            t.localPosition = new Vector3(side * pw * 0.5f, 0f, z);
+            return t;
+        }
 
         void SetDoors(float t)
         {
@@ -85,6 +124,20 @@ namespace FloorF.Rendering
             float s = Mathf.Lerp(1f, 0.15f, t);
             var sf = doorFront.localScale; sf.z = doorHalfDepth * s; doorFront.localScale = sf;
             var sb = doorBack.localScale; sb.z = doorHalfDepth * s; doorBack.localScale = sb;
+
+            // front panels: slide out to the car sides and telescope to 12%
+            float e = t * t * (3f - 2f * t);
+            float pw = carWidth * 0.5f;
+            float sx = Mathf.Lerp(1f, 0.12f, e);
+            float centre = Mathf.Lerp(pw * 0.5f, pw - pw * 0.06f, e);
+            SetPanel(panelL, -centre, sx);
+            SetPanel(panelR, centre, sx);
+        }
+
+        static void SetPanel(Transform p, float x, float sx)
+        {
+            var lp = p.localPosition; lp.x = x; p.localPosition = lp;
+            p.localScale = new Vector3(sx, 1f, 1f);
         }
 
         void Place(float floorPosition)
@@ -93,7 +146,33 @@ namespace FloorF.Rendering
             Root.localPosition = layout.GetCarPosition(floorPosition).ToVector3();
         }
 
-        public void Tick(float dt, IActorLocator locator, IElevatorQuery elevator, int eventFloor, bool eventDoorsOpen)
+        /// <summary>Arrival squash &amp; stretch (strength 1) / door-thud wobble (smaller).</summary>
+        public void Bump(float strength)
+        {
+            bumpAge = 0f;
+            bumpStrength = Mathf.Max(strength, IsBumping ? bumpStrength * 0.5f : 0f);
+        }
+
+        /// <summary>Pure: (scaleX, scaleY, offsetX) of the body <paramref name="age"/> seconds into a bump.</summary>
+        public static Vector3 BumpPose(float age, float strength)
+        {
+            if (age < 0f || age >= BumpSeconds) return new Vector3(1f, 1f, 0f);
+            float s = Mathf.Exp(-7f * age) * Mathf.Cos(age * 26f) * strength;
+            float jitter = Mathf.Exp(-10f * age) * Mathf.Sin(age * 70f) * strength;
+            return new Vector3(1f + 0.07f * s, 1f - 0.11f * s, 0.06f * jitter);
+        }
+
+        public void SetLightLevel(float level)
+        {
+            lightLevel = Mathf.Max(0f, level);
+            carLight.intensity = RenderingStyle.CarLightIntensity * lightLevel;
+            var c = new Color(1f, 0.95f, 0.8f) * Mathf.Lerp(0.08f, 1f, Mathf.Clamp01(lightLevel));
+            c.a = 1f;
+            RenderAssets.SetColor(lampMat, c);
+        }
+
+        /// <summary><paramref name="dt"/> = real frame time (doors follow gameplay), <paramref name="juiceDt"/> = juice clock.</summary>
+        public void Tick(float dt, float juiceDt, IActorLocator locator, IElevatorQuery elevator, int eventFloor, bool eventDoorsOpen)
         {
             float pos;
             if (elevator != null) pos = elevator.Position;
@@ -115,6 +194,11 @@ namespace FloorF.Rendering
             else wantOpen = eventDoorsOpen;
             open01 = Mathf.MoveTowards(open01, wantOpen ? 1f : 0f, dt / doorSeconds);
             SetDoors(open01);
+
+            if (bumpAge < BumpSeconds) bumpAge += juiceDt;
+            var b = BumpPose(bumpAge, bumpStrength);
+            body.localScale = new Vector3(b.x, b.y, 1f);
+            body.localPosition = new Vector3(b.z, 0f, 0f);
 
             // landing lamps
             int here = Mathf.RoundToInt(FloorPosition);

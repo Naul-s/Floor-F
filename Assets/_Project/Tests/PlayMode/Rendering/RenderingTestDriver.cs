@@ -1,6 +1,8 @@
 using System.Collections;
+using System.IO;
 using FloorF.Core;
 using FloorF.Gameplay;
+using FloorF.Harness;
 using FloorF.Rendering;
 using NUnit.Framework;
 using UnityEngine;
@@ -32,13 +34,22 @@ namespace FloorF.Tests.PlayMode.Rendering
             return null;
         }
 
-        /// <summary>Loads Main and waits until gameplay started the game (Day 1 Intro) and rendering built the world.</summary>
+        /// <summary>
+        /// Loads Main straight into Day 1 Intro (GameplayRoot.SkipTitleForTests, cleared again by Unfreeze) and waits
+        /// until rendering built the world. Should the title still show, presses Start like the player does.
+        /// </summary>
         public static IEnumerator LoadMain()
         {
             Time.timeScale = 1f;
             Time.captureDeltaTime = 0f;
+            GameplayRoot.SkipTitleForTests = true;
             yield return SceneManager.LoadSceneAsync(GameScenes.Main);
             for (int i = 0; i < 3; i++) yield return null;
+            if (GameServices.Get<IDayQuery>().Phase == DayPhase.Title && GameServices.TryGet<IMenuFlow>(out var menu))
+            {
+                Assert.IsTrue(menu.StartGameFromTitle(), "IMenuFlow.StartGameFromTitle");
+                for (int i = 0; i < 2; i++) yield return null;
+            }
             Assert.AreEqual(DayPhase.Intro, GameServices.Get<IDayQuery>().Phase, "game started");
             Assert.IsTrue(Rendering().IsBuilt, "rendering built");
         }
@@ -65,10 +76,77 @@ namespace FloorF.Tests.PlayMode.Rendering
             yield return null;
         }
 
+        /// <summary>Loads Main the way the game boots: title screen + attract demo (DayPhase.Title).</summary>
+        public static IEnumerator LoadTitle()
+        {
+            Time.timeScale = 1f;
+            Time.captureDeltaTime = 0f;
+            GameplayRoot.SkipTitleForTests = false;
+            yield return SceneManager.LoadSceneAsync(GameScenes.Main);
+            for (int i = 0; i < 3; i++) yield return null;
+            Assert.AreEqual(DayPhase.Title, GameServices.Get<IDayQuery>().Phase, "boots to the title");
+            Assert.IsTrue(Rendering().IsBuilt, "rendering built");
+        }
+
         public static void Unfreeze()
         {
             Time.timeScale = 1f;
             Time.captureDeltaTime = 0f;
+            GameplayRoot.SkipTitleForTests = false;
+        }
+
+        /// <summary>Pause through the real IMenuFlow when gameplay provides it, else announce PauseChanged like it would.</summary>
+        public static void SetPaused(bool paused)
+        {
+            if (GameServices.TryGet<IMenuFlow>(out var menu))
+                Assert.IsTrue(menu.SetPaused(paused), "IMenuFlow.SetPaused(" + paused + ")");
+            else
+                GameServices.Events.Publish(new PauseChanged(paused));
+        }
+
+        /// <summary>
+        /// Writes the low-res world target region covering world points <paramref name="a"/>..<paramref name="b"/>,
+        /// nearest-upscaled by <paramref name="scale"/> (true pixel readability check). Call right after FrameCapture.Capture
+        /// (which rendered the world camera into the target).
+        /// </summary>
+        public static string CaptureTargetCrop(string name, Vector3 a, Vector3 b, int scale)
+        {
+            var p = Rendering().Pipeline;
+            var rt = p.Target;
+            var va = p.WorldCamera.WorldToViewportPoint(a);
+            var vb = p.WorldCamera.WorldToViewportPoint(b);
+            int x0 = Mathf.Clamp(Mathf.FloorToInt(Mathf.Min(va.x, vb.x) * rt.width), 0, rt.width - 1);
+            int x1 = Mathf.Clamp(Mathf.CeilToInt(Mathf.Max(va.x, vb.x) * rt.width), x0 + 1, rt.width);
+            int y0 = Mathf.Clamp(Mathf.FloorToInt(Mathf.Min(va.y, vb.y) * rt.height), 0, rt.height - 1);
+            int y1 = Mathf.Clamp(Mathf.CeilToInt(Mathf.Max(va.y, vb.y) * rt.height), y0 + 1, rt.height);
+            int w = x1 - x0, h = y1 - y0;
+            var prev = RenderTexture.active;
+            var src = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            var big = new Texture2D(w * scale, h * scale, TextureFormat.RGBA32, false);
+            try
+            {
+                RenderTexture.active = rt;
+                src.ReadPixels(new Rect(x0, y0, w, h), 0, 0);
+                src.Apply();
+                var px = src.GetPixels32();
+                var outPx = new Color32[w * scale * h * scale];
+                for (int y = 0; y < h * scale; y++)
+                    for (int x = 0; x < w * scale; x++)
+                        outPx[y * w * scale + x] = px[(y / scale) * w + x / scale];
+                big.SetPixels32(outPx);
+                big.Apply();
+                Directory.CreateDirectory(FrameCapture.OutputDir);
+                var path = Path.Combine(FrameCapture.OutputDir, name + ".png");
+                File.WriteAllBytes(path, big.EncodeToPNG());
+                Debug.Log("[FrameCapture] " + path);
+                return path;
+            }
+            finally
+            {
+                RenderTexture.active = prev;
+                Object.Destroy(src);
+                Object.Destroy(big);
+            }
         }
     }
 }
