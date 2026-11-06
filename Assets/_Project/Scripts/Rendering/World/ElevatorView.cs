@@ -50,6 +50,18 @@ namespace FloorF.Rendering
             assets.Box(Root, "Car Lip Top", new Vector3(0f, h - 0.12f, zc - d * 0.5f + 0.04f), new Vector3(w, 0.24f, 0.08f), shell);
             assets.Box(Root, "Car Lip Bottom", new Vector3(0f, 0.1f, zc - d * 0.5f + 0.04f), new Vector3(w, 0.2f, 0.08f), shell);
 
+            // own warm light so the car is the brightest, easiest-to-follow thing in the shaft
+            var lightGo = new GameObject("Car Light");
+            lightGo.transform.SetParent(Root, false);
+            lightGo.transform.localPosition = new Vector3(0f, h - 0.4f, zc - d * 0.3f);
+            var light = lightGo.AddComponent<Light>();
+            light.type = LightType.Point;
+            light.range = 3.2f;
+            light.color = RenderingStyle.CarLight;
+            light.intensity = RenderingStyle.CarLightIntensity;
+            light.shadows = LightShadows.None;
+            light.renderMode = LightRenderMode.ForcePixel;
+
             doorHalfDepth = d * 0.5f;
             doorTravel = d * 0.5f - 0.08f;
             doorFront = assets.Box(Root, "Door Front", new Vector3(w * 0.5f - 0.05f, h * 0.5f, zc - d * 0.25f), new Vector3(0.08f, h - 0.24f, d * 0.5f), doorMat).transform;

@@ -150,23 +150,28 @@ namespace FloorF.Rendering
             assets.Box(floorRoot, "Exit Door", new Vector3(right - 0.9f, y0 + 1.05f, d * 0.5f - 0.05f), new Vector3(1.0f, 2.1f, 0.1f), assets.Lit(new Color(0.25f, 0.17f, 0.12f)), false);
             assets.Box(floorRoot, "Exit Lamp", new Vector3(right - 0.9f, y0 + 2.25f, d * 0.5f - 0.05f), new Vector3(0.5f, 0.16f, 0.1f), assets.Unlit(new Color(0.3f, 1f, 0.5f)), false);
 
-            // ceiling tubes + point light
-            var lightGo = new GameObject("Light");
-            lightGo.transform.SetParent(floorRoot, false);
-            lightGo.transform.localPosition = new Vector3(sx - w * 0.1f, y0 + h - SlabThickness - 0.4f, -d * 0.15f);
-            var light = lightGo.AddComponent<Light>();
-            light.type = LightType.Point;
-            light.range = w * 0.55f;
-            light.color = lightColor;
-            light.intensity = RenderingStyle.FloorLightIntensity;
-            light.shadows = LightShadows.None;
-            light.renderMode = LightRenderMode.ForcePixel;
-            lighting.AddFloor(light, wall, wallBase, lightColor, RenderingStyle.FloorLightIntensity);
+            // one point light + one hanging tube per half (room / waiting area). Tubes hang near the front so the
+            // slab edge does not hide them from the slightly-downward camera.
+            lighting.AddFloor(wall, wallBase, lightColor, RenderingStyle.FloorLightIntensity);
+            float roomCeil = y0 + h - SlabThickness;
             for (int t = 0; t < 2; t++)
             {
                 float tx = t == 0 ? (left + holeL) * 0.5f : (holeR + right) * 0.5f;
+                var lightGo = new GameObject("Light " + t);
+                lightGo.transform.SetParent(floorRoot, false);
+                lightGo.transform.localPosition = new Vector3(tx, roomCeil - 0.45f, -d * 0.2f);
+                var light = lightGo.AddComponent<Light>();
+                light.type = LightType.Point;
+                light.range = RenderingStyle.FloorLightRange;
+                light.color = lightColor;
+                light.intensity = RenderingStyle.FloorLightIntensity;
+                light.shadows = LightShadows.None;
+                light.renderMode = LightRenderMode.ForcePixel;
+                lighting.AddLight(f.Value, light);
+
                 var tube = assets.NewUnlit(lightColor);
-                assets.Box(floorRoot, "Tube " + t, new Vector3(tx, y0 + h - SlabThickness - 0.06f, 0.2f), new Vector3(2.2f, 0.1f, 0.18f), tube, false);
+                assets.Box(floorRoot, "Tube " + t, new Vector3(tx, roomCeil - 0.3f, -d * 0.5f + 0.8f), new Vector3(2.4f, 0.14f, 0.14f), tube, false);
+                assets.Box(floorRoot, "Hanger " + t, new Vector3(tx, roomCeil - 0.12f, -d * 0.5f + 0.8f), new Vector3(0.04f, 0.24f, 0.04f), assets.Lit(RenderingStyle.ShaftBack), false);
                 lighting.AddTube(f.Value, tube);
             }
 

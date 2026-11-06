@@ -102,7 +102,7 @@ namespace FloorF.Tests.EditMode.Rendering
         static FloorLighting Make(int floors)
         {
             var l = new FloorLighting();
-            for (int i = 0; i < floors; i++) l.AddFloor(null, null, Color.grey, Color.white, 1f);
+            for (int i = 0; i < floors; i++) l.AddFloor(null, Color.grey, Color.white, 1f);
             return l;
         }
 

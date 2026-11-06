@@ -36,7 +36,7 @@ namespace FloorF.Rendering
         public const float CameraDistance = 20f;
 
         public static readonly Color Background = new Color(0.055f, 0.06f, 0.11f);
-        public static readonly Color Ambient = new Color(0.20f, 0.20f, 0.28f);
+        public static readonly Color Ambient = new Color(0.26f, 0.25f, 0.33f);
         public static readonly Color MoonColor = new Color(0.62f, 0.68f, 0.90f);
         public const float MoonIntensity = 0.45f;
 
@@ -46,8 +46,8 @@ namespace FloorF.Rendering
         public static readonly Color OuterWall = new Color(0.42f, 0.30f, 0.26f);
         public static readonly Color ShaftBack = new Color(0.10f, 0.10f, 0.12f);
         public static readonly Color ShaftFrame = new Color(0.62f, 0.52f, 0.30f);
-        public static readonly Color Car = new Color(0.78f, 0.64f, 0.34f);
-        public static readonly Color CarInside = new Color(0.45f, 0.35f, 0.22f);
+        public static readonly Color Car = new Color(0.92f, 0.74f, 0.36f);
+        public static readonly Color CarInside = new Color(0.62f, 0.46f, 0.28f);
         public static readonly Color CarDoor = new Color(0.70f, 0.70f, 0.74f);
         public static readonly Color Ground = new Color(0.16f, 0.16f, 0.18f);
         public static readonly Color Sidewalk = new Color(0.30f, 0.29f, 0.30f);
@@ -66,7 +66,10 @@ namespace FloorF.Rendering
         public static readonly Color LuckyFlash = new Color(1.00f, 0.85f, 0.30f);
         public const float UnluckyFlashSeconds = 1.1f;
         public const float LuckyFlashSeconds = 0.6f;
-        public const float FloorLightIntensity = 2.2f;
+        public const float FloorLightIntensity = 6f;
+        public const float FloorLightRange = 6.5f;
+        public static readonly Color CarLight = new Color(1.00f, 0.90f, 0.70f);
+        public const float CarLightIntensity = 4f;
         public static readonly Color IndicatorIdle = new Color(0.25f, 0.18f, 0.08f);
         public static readonly Color IndicatorHere = new Color(1.00f, 0.62f, 0.15f);
         public static readonly Color IndicatorOpen = new Color(0.35f, 1.00f, 0.45f);

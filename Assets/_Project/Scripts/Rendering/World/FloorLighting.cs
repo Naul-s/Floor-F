@@ -16,7 +16,7 @@ namespace FloorF.Rendering
     {
         sealed class Entry
         {
-            public Light Light;
+            public readonly List<Light> Lights = new List<Light>();
             public readonly List<Material> Tubes = new List<Material>();
             public Material Wall;
             public Color WallBase;
@@ -35,12 +35,17 @@ namespace FloorF.Rendering
 
         public int FloorCount => floors.Count;
 
-        internal void AddFloor(Light light, Material wall, Color wallBase, Color baseColor, float baseIntensity)
+        internal void AddFloor(Material wall, Color wallBase, Color baseColor, float baseIntensity)
         {
             floors.Add(new Entry
             {
-                Light = light, Wall = wall, WallBase = wallBase, BaseColor = baseColor, BaseIntensity = baseIntensity, Current = baseColor,
+                Wall = wall, WallBase = wallBase, BaseColor = baseColor, BaseIntensity = baseIntensity, Current = baseColor,
             });
+        }
+
+        internal void AddLight(int floor, Light light)
+        {
+            if (Valid(floor) && light != null) floors[floor].Lights.Add(light);
         }
 
         internal void AddTube(int floor, Material tube)
@@ -115,10 +120,12 @@ namespace FloorF.Rendering
                 e.CurrentIntensity01 = e.Flicker ? FlickerValue(time, i) : 1f;
                 float intensity = e.BaseIntensity * e.CurrentIntensity01 * (1f + 0.6f * flash);
 
-                if (e.Light != null)
+                for (int l = 0; l < e.Lights.Count; l++)
                 {
-                    e.Light.color = e.Current;
-                    e.Light.intensity = intensity;
+                    var light = e.Lights[l];
+                    if (light == null) continue;
+                    light.color = e.Current;
+                    light.intensity = intensity;
                 }
                 var tube = e.Current * (0.35f + 0.85f * e.CurrentIntensity01);
                 tube.a = 1f;
