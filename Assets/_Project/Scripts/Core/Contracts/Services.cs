@@ -5,12 +5,26 @@ namespace FloorF.Core
     // =====================================================================================================
     // Service interfaces. Registered in GameServices by their OWNER, read by everyone else.
     //   Owner Gameplay : IBuildingQuery, IElevatorQuery, IElevatorControl, IGuestQuery, IScoreQuery, IDayQuery,
-    //                    IGameFlow, IShopService, IActorLocator, IWorldLayout (HotelLayout), GameData
+    //                    IGameFlow, IShopService, IActorLocator, IWorldLayout (HotelLayout), GameData, IGameSettings
     //   Rendering / UI / Audio : register nothing by default; if one needs to expose something, it goes here first
     //                    (CONTRACT REQUEST), never as a direct reference between presentation modules.
     // Queries are cheap and allocation-free - poll them every frame if you like. Commands return false/an enum on
     // rejection instead of throwing.
     // =====================================================================================================
+
+    /// <summary>
+    /// Player-facing settings (owner: Gameplay). Setting a value that changes publishes <see cref="SettingsChanged"/>.
+    /// Gameplay localizes GuestSpoke text with <see cref="UseKorean"/>; UI uses it for its own strings and the *Ko data fields.
+    /// </summary>
+    public interface IGameSettings
+    {
+        /// <summary>false = English (default, international judges), true = Korean (*Ko fields; needs a Korean-capable font).</summary>
+        bool UseKorean { get; set; }
+        /// <summary>0..1, read by Audio.</summary>
+        float MasterVolume { get; set; }
+        /// <summary>Show day-1 style rule hints (UI).</summary>
+        bool ShowTutorialHints { get; set; }
+    }
 
     /// <summary>The building: floors, their CURRENT labels and destinations.</summary>
     public interface IBuildingQuery
