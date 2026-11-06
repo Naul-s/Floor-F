@@ -11,8 +11,8 @@
       "shopStickers": ["four_to_f"],
       "spawns": [
         { "time": 1, "guest": "korean_grandma", "floor": 1, "destination": "sauna" },
-        { "time": 2, "guest": "western_tourist", "floor": 1, "destination": "karaoke" },
-        { "time": 3, "guest": "western_tourist", "floor": 1, "destination": "bar" }
+        { "time": 1.5, "guest": "western_tourist", "floor": 1, "destination": "karaoke" },
+        { "time": 2, "guest": "western_tourist", "floor": 1, "destination": "bar" }
       ]
     },
     {
@@ -26,14 +26,16 @@
       "shopStickers": ["four_to_f", "any_to_8"],
       "spawns": [
         { "time": 2, "guest": "chinese_businessman", "floor": 1, "destination": "casino" },
-        { "time": 8, "guest": "korean_grandma", "floor": 3, "destination": "restaurant" },
-        { "time": 15, "guest": "western_tourist", "floor": 1, "destination": "bar" },
-        { "time": 22, "guest": "chinese_businessman", "floor": 6, "destination": "lobby" },
-        { "time": 30, "guest": "western_tourist", "floor": 4, "destination": "rooftop" },
-        { "time": 42, "guest": "korean_grandma", "floor": 1, "destination": "gym" },
-        { "time": 50, "guest": "chinese_businessman", "floor": 2, "destination": "rooftop" },
-        { "time": 62, "guest": "western_tourist", "floor": 9, "destination": "lobby" },
-        { "time": 75, "guest": "korean_grandma", "floor": 5, "destination": "rooms" }
+        { "time": 2, "guest": "western_tourist", "floor": 1, "destination": "karaoke" },
+        { "time": 12, "guest": "korean_grandma", "floor": 3, "destination": "restaurant" },
+        { "time": 20, "guest": "western_tourist", "floor": 1, "destination": "bar" },
+        { "time": 26, "guest": "chinese_businessman", "floor": 6, "destination": "lobby" },
+        { "time": 32, "guest": "western_tourist", "floor": 4, "destination": "rooftop" },
+        { "time": 44, "guest": "korean_grandma", "floor": 1, "destination": "gym" },
+        { "time": 52, "guest": "chinese_businessman", "floor": 2, "destination": "rooftop" },
+        { "time": 52, "guest": "western_tourist", "floor": 2, "destination": "gym" },
+        { "time": 64, "guest": "western_tourist", "floor": 9 },
+        { "time": 76, "guest": "korean_grandma", "floor": 5, "destination": "rooms" }
       ]
     },
     {
@@ -49,13 +51,16 @@
         { "time": 2, "guest": "japanese_couple", "floor": 1, "destination": "bar" },
         { "time": 6, "guest": "chinese_businessman", "floor": 1, "destination": "rooftop" },
         { "time": 14, "guest": "korean_grandma", "floor": 2, "destination": "sauna" },
-        { "time": 24, "guest": "western_tourist", "floor": 6, "destination": "lobby" },
-        { "time": 34, "guest": "japanese_couple", "floor": 9, "destination": "restaurant" },
-        { "time": 44, "guest": "western_tourist", "floor": 1, "destination": "karaoke" },
-        { "time": 56, "guest": "chinese_businessman", "floor": 5, "destination": "casino" },
-        { "time": 66, "guest": "korean_grandma", "floor": 1, "destination": "gym" },
-        { "time": 76, "guest": "japanese_couple", "floor": 1, "destination": "rooms" },
-        { "time": 86, "guest": "western_tourist", "floor": 8, "destination": "lobby" }
+        { "time": 24, "guest": "japanese_couple", "floor": 8, "destination": "lobby" },
+        { "time": 24, "guest": "western_tourist", "floor": 8, "destination": "rooftop" },
+        { "time": 36, "guest": "western_tourist", "floor": 6, "destination": "lobby" },
+        { "time": 46, "guest": "japanese_couple", "floor": 1, "destination": "rooms" },
+        { "time": 46, "guest": "korean_grandma", "floor": 1, "destination": "gym" },
+        { "time": 46, "guest": "western_tourist", "floor": 1, "destination": "bar" },
+        { "time": 58, "guest": "chinese_businessman", "floor": 5, "destination": "casino" },
+        { "time": 68, "guest": "korean_grandma", "floor": 1 },
+        { "time": 78, "guest": "japanese_couple", "floor": 9, "destination": "restaurant" },
+        { "time": 88, "guest": "western_tourist", "floor": 3 }
       ]
     },
     {
@@ -79,9 +84,9 @@
         { "time": 40, "guest": "japanese_couple", "floor": 5, "destination": "lobby" },
         { "time": 52, "guest": "western_tourist", "floor": 4, "destination": "casino" },
         { "time": 64, "guest": "chinese_businessman", "floor": 7, "destination": "lobby" },
-        { "time": 76, "guest": "korean_grandma", "floor": 1, "destination": "rooms" },
+        { "time": 76, "guest": "korean_grandma", "floor": 1 },
         { "time": 88, "guest": "japanese_couple", "floor": 8, "destination": "gym" },
-        { "time": 98, "guest": "western_tourist", "floor": 3, "destination": "rooftop" }
+        { "time": 98, "guest": "western_tourist", "floor": 3 }
       ]
     },
     {
@@ -102,9 +107,9 @@
         { "time": 36, "guest": "chinese_businessman", "floor": 9, "destination": "lobby" },
         { "time": 46, "guest": "korean_grandma", "floor": 7, "destination": "rooms" },
         { "time": 56, "guest": "honest_accountant", "floor": 3, "destination": "rooftop" },
-        { "time": 60, "guest": "mystery_guest", "floor": 1, "destinationFloor": 4 },
         { "time": 72, "guest": "japanese_couple", "floor": 1, "destination": "sauna" },
-        { "time": 84, "guest": "western_tourist", "floor": 5, "destination": "gym" },
+        { "time": 84, "guest": "western_tourist", "floor": 5 },
+        { "time": 90, "guest": "mystery_guest", "floor": 1, "destinationFloor": 4 },
         { "time": 96, "guest": "chinese_businessman", "floor": 3, "destination": "casino" }
       ]
     }

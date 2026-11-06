@@ -34,7 +34,7 @@
     "luckyOccupancyLuckBonus": 3,
     "unluckyOccupancyLuckPenalty": 5,
     "patienceOutLuckPenalty": 5,
-    "deliveryLuckBonus": 1,
+    "deliveryLuckBonus": 0,
     "honestGuestLuckPenalty": 5,
     "prosperousEndingLuck": 70,
     "elevatorSecondsPerFloor": 0.6,
