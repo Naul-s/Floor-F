@@ -24,6 +24,34 @@ namespace FloorF.EditorTools
             Debug.Log("[ProjectSetupTool] " + MobileRpAsset + " renderScale = 1");
         }
 
+        const string TmpSettingsAsset = "Assets/TextMesh Pro/Resources/TMP Settings.asset";
+
+        /// <summary>
+        /// QA Phase 3c MUST-FIX: (1) WebGL Gzip + decompression fallback, so the build loads even when the host (itch.io)
+        /// sends no Content-Encoding header; (2) default web canvas 1280x720 = UI reference resolution;
+        /// (3) TMP modern Hangul line breaking (Korean wraps between words, not mid-word).
+        /// Batch: tools/unity-batch.ps1 -Mode method -Method FloorF.EditorTools.ProjectSetupTool.ApplyWebBuildSettings
+        /// </summary>
+        [MenuItem("Floor F/Setup/Apply Web Build Settings")]
+        public static void ApplyWebBuildSettings()
+        {
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
+            PlayerSettings.defaultWebScreenWidth = 1280;
+            PlayerSettings.defaultWebScreenHeight = 720;
+
+            var tmp = AssetDatabase.LoadMainAssetAtPath(TmpSettingsAsset);
+            if (tmp == null) throw new System.IO.FileNotFoundException("ProjectSetupTool: missing " + TmpSettingsAsset);
+            var so = new SerializedObject(tmp);
+            var prop = so.FindProperty("m_UseModernHangulLineBreakingRules");
+            if (prop == null) throw new System.InvalidOperationException("ProjectSetupTool: TMP Settings has no m_UseModernHangulLineBreakingRules");
+            prop.boolValue = true;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(tmp);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[ProjectSetupTool] WebGL Gzip+fallback, web canvas 1280x720, TMP modern Hangul line breaking on");
+        }
+
         const string TmpEssentials = "Packages/com.unity.ugui/Package Resources/TMP Essential Resources.unitypackage";
 
         /// <summary>
