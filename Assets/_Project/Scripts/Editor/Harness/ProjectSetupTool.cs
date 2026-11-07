@@ -80,6 +80,7 @@ namespace FloorF.EditorTools
                 var ti = AssetImporter.GetAtPath(AssetDatabase.GUIDToAssetPath(guid)) as TextureImporter;
                 if (ti == null) continue;
                 ti.textureType = TextureImporterType.Sprite;
+                ti.textureShape = TextureImporterShape.Texture2D; // ensure-meta stubs imported as Cube
                 ti.spriteImportMode = SpriteImportMode.Single;
                 ti.alphaIsTransparency = true;
                 ti.mipmapEnabled = false;
