@@ -12,7 +12,7 @@ namespace FloorF.UI
     /// </summary>
     sealed class HudView
     {
-        const float MeterW = 344f;
+        const float MeterW = 344f, ClockW = 118f, PracticeW = 150f;
         readonly UIContext ctx;
         readonly TextMeshProUGUI dayText, clockText, luckCaption, luckValue, luckDelta, tipsCaption, tipsValue, tipsDelta;
         readonly TextMeshProUGUI rulesTitle, ruleOpen, ruleClose, ruleLegend;
@@ -32,9 +32,9 @@ namespace FloorF.UI
             dayBox = UIBuild.Framed("DayBox", canvas, UIStyle.Box, UIStyle.CardEdge, 2f).rectTransform;
             UIBuild.Place(dayBox, new Vector2(0f, 1f), new Vector2(24f, -16f), new Vector2(ElevatorPanelView.Width, 64f));
             dayText = UIBuild.Text("Day", dayBox, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
-            UIBuild.Place(dayText.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(110f, 40f));
+            UIBuild.Place(dayText.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(104f, 40f));
             clockText = UIBuild.Text("Clock", dayBox, "", 36f, UIStyle.Ink, TextAlignmentOptions.Right, bold: true);
-            UIBuild.Place(clockText.rectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f), new Vector2(100f, 48f));
+            UIBuild.Place(clockText.rectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f), new Vector2(ClockW, 48f));
 
             // luck meter (top-right)
             luckBox = UIBuild.Framed("LuckBox", canvas, UIStyle.Box, UIStyle.CardEdge, 2f).rectTransform;
@@ -146,10 +146,26 @@ namespace FloorF.UI
             if (!ctx.HasGame) return;
             var phase = ctx.Day.Phase;
 
-            UIBuild.Set(dayText, string.Format(ctx.S(UIStrings.DayOf), ctx.Day.CurrentDay.Number, ctx.Day.DayCount));
-            float remaining = phase == DayPhase.Running ? ctx.Day.RemainingSeconds : phase == DayPhase.Intro ? ctx.Day.DurationSeconds : 0f;
-            UIBuild.Set(clockText, UIFormat.Clock(remaining));
-            clockText.color = phase == DayPhase.Running && remaining <= 10f && Mathf.Repeat(Time.unscaledTime, 0.6f) < 0.3f ? UIStyle.Unlucky : UIStyle.Ink;
+            UIBuild.Set(dayText, UIFormat.DayLabel(ctx.Day.DisplayDay, ctx.Day.PlayableDayCount, ctx.Day.IsTutorial, ctx.Korean));
+            if (ctx.Day.IsTutorial)
+            {
+                // the training shift has no clock: "PRACTICE" instead of a countdown
+                string practice = ctx.S(UIStrings.Practice);
+                if (!string.Equals(clockText.text, practice, System.StringComparison.Ordinal))
+                {
+                    clockText.text = practice;
+                    clockText.rectTransform.sizeDelta = new Vector2(PracticeW, 48f); // "DAY 0" is short: room for 24px
+                    UIBuild.Fit(clockText, 36f);
+                }
+                clockText.color = UIStyle.Good;
+            }
+            else
+            {
+                float remaining = phase == DayPhase.Running ? ctx.Day.RemainingSeconds : phase == DayPhase.Intro ? ctx.Day.DurationSeconds : 0f;
+                string clock = UIFormat.Clock(remaining);
+                if (!string.Equals(clockText.text, clock, System.StringComparison.Ordinal)) { clockText.text = clock; clockText.fontSize = 36f; clockText.rectTransform.sizeDelta = new Vector2(ClockW, 48f); }
+                clockText.color = phase == DayPhase.Running && remaining <= 10f && Mathf.Repeat(Time.unscaledTime, 0.6f) < 0.3f ? UIStyle.Unlucky : UIStyle.Ink;
+            }
 
             if (ctx.Score != null)
             {
@@ -187,6 +203,9 @@ namespace FloorF.UI
         }
 
         public void ClickLanguage() => language.Button.onClick.Invoke();
+        public string DayText => dayText.text;
+        public string ClockText => clockText.text;
+        public float ClockFontSize => clockText.fontSize;
 
         /// <summary>Title screen: the demo plays behind the title card without HUD boxes (the title has its own toggle).</summary>
         public void SetVisible(bool visible)
