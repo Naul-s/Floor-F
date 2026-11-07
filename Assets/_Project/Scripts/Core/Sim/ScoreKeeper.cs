@@ -20,6 +20,10 @@ namespace FloorF.Core
         public int MaxLuck => rules.maxLuck;
         public int Tips { get; private set; }
         public int TipsEarnedToday { get; private set; }
+        // TODO(gameplay-dev): lucky streak (contract stub)
+        public int LuckStreak => 0;
+        public int BestStreakToday => 0;
+        public float StreakTipMultiplier => 1f;
 
         /// <summary>Adds (clamped to 0..MaxLuck). Returns the applied delta; publishes LuckChanged only if it changed.</summary>
         internal int AddLuck(int delta, LuckSource source) => SetLuck(Luck + delta, source);

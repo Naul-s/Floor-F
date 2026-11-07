@@ -215,6 +215,10 @@ namespace FloorF.Core
             }
         }
 
+        // TODO(gameplay-dev): tutorial hold (contract stub)
+        public bool TutorialHold => false;
+        public bool SetTutorialHold(bool held) => !held;
+
         public bool ContinueFromSummary()
         {
             if (phase != DayPhase.Summary || paused || onTitle) return false;

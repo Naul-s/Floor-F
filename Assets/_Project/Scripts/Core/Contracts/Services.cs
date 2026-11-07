@@ -124,6 +124,11 @@ namespace FloorF.Core
     {
         int Luck { get; }
         int MaxLuck { get; }
+        /// <summary>Current lucky streak (see <see cref="LuckStreakChanged"/>).</summary>
+        int LuckStreak { get; }
+        int BestStreakToday { get; }
+        /// <summary>Multiplier applied to tips paid now: 1 + streak x rules.streakTipBonusPerStep, capped.</summary>
+        float StreakTipMultiplier { get; }
         /// <summary>Total tips the player holds (shop currency).</summary>
         int Tips { get; }
         int TipsEarnedToday { get; }
@@ -170,6 +175,15 @@ namespace FloorF.Core
         /// Luck/tips untouched). False anywhere else.
         /// </summary>
         bool SkipTutorial();
+        /// <summary>
+        /// Day 0 coach marks. While held the simulation is frozen (Tick advances nothing: motion, doors, transfers,
+        /// spawns, clock) but elevator commands are still ACCEPTED: the first accepted OpenDoors/CloseDoors/RequestFloor
+        /// releases the hold and takes effect at once. Only on a tutorial day in Running, not paused, not on the title;
+        /// leaving Running (or the menu pause / restart / title) releases it. Changes publish <see cref="TutorialHoldChanged"/>.
+        /// </summary>
+        bool TutorialHold { get; }
+        /// <summary>Returns true if the hold is now as requested (false = refused, e.g. not a tutorial day).</summary>
+        bool SetTutorialHold(bool held);
     }
 
     public readonly struct ShopOffer

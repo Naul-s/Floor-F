@@ -48,10 +48,14 @@ namespace FloorF.Core
         public readonly int LuckAtEnd;
         public readonly int LuckyJudgements;
         public readonly int UnluckyJudgements;
+        /// <summary>Longest lucky streak of the day.</summary>
+        public readonly int BestStreak;
         public DaySummary(int delivered, int left, int tipsEarned, int luckAtStart, int luckAtEnd, int luckyJudgements, int unluckyJudgements)
+            : this(delivered, left, tipsEarned, luckAtStart, luckAtEnd, luckyJudgements, unluckyJudgements, 0) { }
+        public DaySummary(int delivered, int left, int tipsEarned, int luckAtStart, int luckAtEnd, int luckyJudgements, int unluckyJudgements, int bestStreak)
         {
             Delivered = delivered; Left = left; TipsEarned = tipsEarned; LuckAtStart = luckAtStart; LuckAtEnd = luckAtEnd;
-            LuckyJudgements = luckyJudgements; UnluckyJudgements = unluckyJudgements;
+            LuckyJudgements = luckyJudgements; UnluckyJudgements = unluckyJudgements; BestStreak = bestStreak;
         }
         public int LuckDelta => LuckAtEnd - LuckAtStart;
     }
@@ -275,6 +279,27 @@ namespace FloorF.Core
     {
         public readonly bool Paused;
         public PauseChanged(bool paused) { Paused = paused; }
+    }
+
+    /// <summary>
+    /// Lucky streak changed: consecutive Lucky judgements today. Each Lucky verdict +1, an Unlucky verdict resets to 0
+    /// (published with Streak 0 only if it was above 0), Neutral keeps it; DayStarted starts at 0 silently.
+    /// Published right after the LuckJudged that caused it. <see cref="TipMultiplier"/> = what the next tips get.
+    /// </summary>
+    public readonly struct LuckStreakChanged
+    {
+        public readonly int Streak;
+        public readonly int Previous;
+        public readonly float TipMultiplier;
+        public LuckStreakChanged(int streak, int previous, float tipMultiplier) { Streak = streak; Previous = previous; TipMultiplier = tipMultiplier; }
+        public bool Broken => Streak == 0 && Previous > 0;
+    }
+
+    /// <summary>Day 0 coach-mark hold toggled (see <see cref="IGameFlow.SetTutorialHold"/>).</summary>
+    public readonly struct TutorialHoldChanged
+    {
+        public readonly bool Held;
+        public TutorialHoldChanged(bool held) { Held = held; }
     }
 }
 
