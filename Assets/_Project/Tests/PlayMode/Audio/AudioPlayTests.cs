@@ -21,6 +21,7 @@ namespace FloorF.Tests.PlayMode.Audio
         public IEnumerator TearDown()
         {
             GameplayRoot.SkipTitleForTests = false;
+            GameplayRoot.SkipTutorialForTests = false;
             AudioUnlock.RequireGestureOverride = null;
             Time.timeScale = 1f;
             if (GameServices.TryGet<IGameSettings>(out var s)) s.MasterVolume = 1f;
@@ -36,10 +37,12 @@ namespace FloorF.Tests.PlayMode.Audio
             return null;
         }
 
-        static IEnumerator LoadMain(bool title = false)
+        static IEnumerator LoadMain(bool title = false, bool tutorial = false)
         {
             Time.timeScale = 1f;
             GameplayRoot.SkipTitleForTests = !title;
+            // Day 0 coach marks (real UI) would hold/duck the game mid-test: start on the first real day
+            GameplayRoot.SkipTutorialForTests = !title && !tutorial;
             yield return SceneManager.LoadSceneAsync(GameScenes.Main);
             for (int i = 0; i < 3; i++) yield return null;
             Assert.AreEqual(title ? DayPhase.Title : DayPhase.Intro, GameServices.Get<IDayQuery>().Phase);
@@ -325,7 +328,7 @@ namespace FloorF.Tests.PlayMode.Audio
         public IEnumerator Countdown_SilentOnTutorialAndTitleDemo()
         {
             // Day 0: the clock never runs down, and the tutorial flag silences ticks on its own
-            yield return LoadMain();
+            yield return LoadMain(tutorial: true);
             var root = Root();
             Assert.IsTrue(GameServices.Get<IDayQuery>().IsTutorial, "data starts with the Day 0 shift");
             Assert.IsTrue(GameServices.Get<IGameFlow>().BeginDay());

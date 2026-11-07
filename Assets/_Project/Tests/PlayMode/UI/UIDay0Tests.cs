@@ -101,6 +101,7 @@ namespace FloorF.Tests.PlayMode.UI
                 Assert.GreaterOrEqual(r.xMin, right.x, what + ": card " + r + " over the building (right edge " + right.x + ")");
                 Assert.GreaterOrEqual(r.yMin, 0f, what + ": card " + r + " runs off the bottom");
                 Assert.LessOrEqual(r.xMax, size.x + 0.5f, what + ": card " + r + " runs off the right");
+                Assert.LessOrEqual(size.y - r.yMin, UIStyle.RefHeight - TutorialView.BottomClear + 0.5f, what + ": card " + r + " would run off a 720-high screen");
             }
             var p = ui.TutorialPromptRect; var w = ui.TutorialWhyRect;
             if (p.width > 0f && w.width > 0f) Assert.IsFalse(p.Overlaps(w), what + ": prompt and why cards overlap");
@@ -111,6 +112,80 @@ namespace FloorF.Tests.PlayMode.UI
             if (!capture) yield break;
             yield return null;
             Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture(name)));
+        }
+
+        public static bool Held => GameServices.Get<IGameFlow>().TutorialHold;
+
+        /// <summary>Coach mark on an action step: held, dimmed, the cut-out on the target, only the target clickable.</summary>
+        public static void AssertActionCoach(UIRoot ui, Rect target, string targetName, string what)
+        {
+            Assert.IsTrue(Held, what + ": the game is held");
+            Assert.IsTrue(ui.CoachVisible, what + ": overlay up");
+            Assert.IsFalse(ui.CoachAwaitingContinue, what + ": an action step, not click-to-continue");
+            Assert.IsNull(ui.CoachContinueHint, what + ": no continue hint");
+            var hole = ui.CoachHoleRect;
+            Assert.IsTrue(hole.Contains(target.center), what + ": cut-out " + hole + " on the target " + target);
+            Assert.LessOrEqual(hole.width, target.width + 2f * TutorialView.HolePad + 1f, what + ": cut-out no wider than the target");
+            Assert.AreEqual(targetName, ui.RaycastAt(target.center), what + ": a click on the target reaches it");
+            var size = ui.CanvasSize;
+            foreach (var p in new[] { new Vector2(size.x * 0.5f, size.y * 0.5f), new Vector2(target.center.x, target.yMax + 40f), new Vector2(size.x - 60f, 120f) })
+            {
+                string hit = ui.RaycastAt(p);
+                Assert.IsTrue(hit != null && hit.StartsWith("Dim"), what + ": a click at " + p + " is absorbed by the overlay, hit " + hit);
+            }
+        }
+
+        /// <summary>Coach mark on an explain step: held, dimmed, "click to continue", clicks anywhere land on the overlay.</summary>
+        public static void AssertExplainCoach(UIRoot ui, string what)
+        {
+            Assert.IsTrue(Held, what + ": the game is held");
+            Assert.IsTrue(ui.CoachVisible, what + ": overlay up");
+            Assert.IsTrue(ui.CoachAwaitingContinue, what + ": waits for a click");
+            StringAssert.Contains(ui.Korean ? "클릭해서 계속" : "Click to continue", ui.CoachContinueHint);
+            var t = ui.TutorialTargetRect;
+            if (t.width > 0f)
+            {
+                Assert.IsTrue(ui.CoachHoleRect.Contains(t.center), what + ": cut-out on the explained element");
+                Assert.AreEqual("Hole", ui.RaycastAt(t.center), what + ": even a click on it just continues");
+            }
+            string hit = ui.RaycastAt(ui.CanvasSize * 0.5f);
+            Assert.IsTrue(hit != null && hit.StartsWith("Dim"), what + ": click anywhere hits the overlay, got " + hit);
+        }
+
+        /// <summary>One click on the overlay: the explain step goes away.</summary>
+        public static IEnumerator Continue(UIRoot ui, string what)
+        {
+            Assert.IsTrue(ui.CoachAwaitingContinue, what + ": waiting for a click");
+            var before = ui.TutorialStep;
+            string text = ui.TutorialWhy ?? ui.TutorialPrompt;
+            ui.ClickCoachOverlay();
+            yield return UITestDriver.Frames(2);
+            Assert.IsFalse(ui.TutorialStep == before && (ui.TutorialWhy ?? ui.TutorialPrompt) == text, what + ": the click moved on");
+        }
+
+        /// <summary>Clicks through every waiting explain card (why / streak), collecting their texts.</summary>
+        public static IEnumerator ContinueAll(UIRoot ui, List<string> seen)
+        {
+            for (int i = 0; i < 6 && ui.CoachAwaitingContinue && (ui.TutorialStep == TutorialView.Step.Why || ui.TutorialStep == TutorialView.Step.Streak); i++)
+            {
+                seen?.Add(ui.TutorialStep + ": " + ui.TutorialWhy);
+                yield return Continue(ui, "explain " + i);
+            }
+        }
+
+        /// <summary>Explain steps never time out: the card and the frozen game stay put.</summary>
+        public static IEnumerator AssertStaysFrozen(UIRoot ui, string what)
+        {
+            var step = ui.TutorialStep;
+            var floor = Elevator.CurrentFloor;
+            var doors = Elevator.Doors;
+            int occupancy = Elevator.Occupancy;
+            yield return UITestDriver.Until(() => false, 120); // 12 simulated seconds
+            Assert.AreEqual(step, ui.TutorialStep, what + ": no timer moved it on");
+            Assert.IsTrue(Held, what + ": still held");
+            Assert.AreEqual(floor, Elevator.CurrentFloor, what + ": car frozen");
+            Assert.AreEqual(doors, Elevator.Doors, what + ": doors frozen");
+            Assert.AreEqual(occupancy, Elevator.Occupancy, what + ": guests frozen");
         }
     }
 
@@ -159,15 +234,23 @@ namespace FloorF.Tests.PlayMode.UI
 
             // ---- wave 1: one grandma -> OPEN, chip, CLOSE, floor 3, OPEN
             yield return Day0Driver.WaitForWave(ui, 1);
+            yield return UITestDriver.Frames(2);
             Assert.AreEqual(TutorialView.Step.Board, ui.TutorialStep);
             Assert.AreEqual("Open", ui.TutorialTarget);
             if (en) { StringAssert.Contains("OPEN", ui.TutorialPrompt); StringAssert.Contains("floor 1", ui.TutorialPrompt); }
             Day0Driver.AssertArrowOn(ui, ui.OpenButtonRect, "board: OPEN");
             Day0Driver.AssertCardsClear(ui, "board");
+            Day0Driver.AssertActionCoach(ui, ui.OpenButtonRect, "Open", "board");
             Assert.AreEqual(ko ? "연습" : "PRACTICE", ui.HudClockText, "no countdown while running");
             yield return Day0Driver.Shot("ui_day0_board" + suffix, true);
+            ui.ClickCoachOverlay(); // a click beside the target does nothing
+            yield return UITestDriver.Frames(2);
+            Assert.AreEqual(TutorialView.Step.Board, ui.TutorialStep, "absorbed click: same step");
+            Assert.IsTrue(Day0Driver.Held, "absorbed click: still held");
 
             ui.ClickOpen();
+            yield return null;
+            Assert.IsFalse(ui.CoachVisible, "OPEN released the hold: overlay gone");
             yield return UITestDriver.Until(() => e.Occupancy >= 1);
             yield return UITestDriver.Frames(2);
             Assert.AreEqual(TutorialView.Step.Chips, ui.TutorialStep, "explain the rider chip");
@@ -176,13 +259,17 @@ namespace FloorF.Tests.PlayMode.UI
             StringAssert.Contains("4</s>", ui.TutorialPrompt, "her unlucky number, red + struck");
             if (en) { StringAssert.Contains("LUCKY", ui.TutorialPrompt); StringAssert.Contains("UNLUCKY", ui.TutorialPrompt); }
             Day0Driver.AssertArrowOn(ui, ui.TutorialTargetRect, "chips");
+            Day0Driver.AssertExplainCoach(ui, "chips");
+            Day0Driver.AssertCardsClear(ui, "chips");
             yield return Day0Driver.Shot("ui_day0_chips" + suffix, true);
+            yield return Day0Driver.AssertStaysFrozen(ui, "chips");
+            yield return Day0Driver.Continue(ui, "chips");
 
-            yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.Close, 80);
-            Assert.AreEqual(TutorialView.Step.Close, ui.TutorialStep, "chip lesson times out into CLOSE");
+            Assert.AreEqual(TutorialView.Step.Close, ui.TutorialStep, "chip lesson -> CLOSE after the click");
             Assert.AreEqual("Close", ui.TutorialTarget);
             if (en) { StringAssert.Contains("HEAD COUNT", ui.TutorialPrompt); StringAssert.Contains("1 inside", ui.TutorialPrompt); }
             Day0Driver.AssertArrowOn(ui, ui.CloseButtonRect, "CLOSE");
+            Day0Driver.AssertActionCoach(ui, ui.CloseButtonRect, "Close", "close");
             yield return Day0Driver.Shot("ui_day0_close" + suffix, true);
             yield return Day0Driver.Close(ui);
 
@@ -192,6 +279,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(ui.TutorialIconVisible, "destination icon inline");
             if (en) StringAssert.Contains("floor 3", ui.TutorialPrompt);
             Day0Driver.AssertArrowOn(ui, ui.FloorButtonRect(gym.Value), "floor 3 (right column)");
+            Day0Driver.AssertActionCoach(ui, ui.FloorButtonRect(gym.Value), "Floor 3", "floor 3");
             yield return Day0Driver.Shot("ui_day0_floor" + suffix, true);
             yield return Day0Driver.GoTo(ui, gym);
 
@@ -199,20 +287,29 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual("Open", ui.TutorialTarget);
             if (en) StringAssert.Contains("FLOOR", ui.TutorialPrompt);
             yield return Day0Driver.Open(ui);
-            Assert.IsNotNull(ui.TutorialWhy, "lucky floor explained");
+            Assert.AreEqual(TutorialView.Step.Why, ui.TutorialStep, "lucky floor explained");
             StringAssert.Contains("3", ui.TutorialWhy);
             if (en) StringAssert.Contains("LUCKY", ui.TutorialWhy);
+            Assert.AreEqual("LuckBox", ui.TutorialTarget, "points at the Luck meter");
+            Assert.IsNull(ui.TutorialPrompt, "one card at a time");
+            Day0Driver.AssertExplainCoach(ui, "why lucky");
             Day0Driver.AssertCardsClear(ui, "why (wave 1)");
             yield return Day0Driver.Shot("ui_day0_why_lucky" + suffix, true);
+            yield return Day0Driver.Continue(ui, "why lucky");
+            Assert.AreEqual(1, score.LuckStreak, "one lucky moment so far");
+            Assert.IsTrue(ui.StreakVisible, "streak readout from 1");
             yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.NextWave, 60);
             Assert.AreEqual(TutorialView.Step.NextWave, ui.TutorialStep, "between waves");
             Assert.IsNull(ui.TutorialTarget);
+            Assert.IsFalse(ui.CoachVisible, "no freeze between waves: the next one has to come");
 
-            // ---- wave 2: three grandmas -> go down, OPEN, wait for all, CLOSE (3 = lucky), sauna
+            // ---- wave 2: three grandmas -> go down, OPEN, wait for all, CLOSE (3 = lucky), streak, sauna
             yield return Day0Driver.WaitForWave(ui, 2);
+            yield return UITestDriver.Frames(2);
             Assert.AreEqual(TutorialView.Step.GoTo, ui.TutorialStep, "car is at 3, guests at 1");
             Assert.AreEqual("Floor 1", ui.TutorialTarget);
             Day0Driver.AssertArrowOn(ui, ui.FloorButtonRect(0), "floor 1");
+            Day0Driver.AssertActionCoach(ui, ui.FloorButtonRect(0), "Floor 1", "go to floor 1");
             yield return Day0Driver.GoTo(ui, FloorIndex.Ground);
             Assert.AreEqual(TutorialView.Step.Board, ui.TutorialStep);
             if (en) StringAssert.Contains("3 guests", ui.TutorialPrompt);
@@ -221,6 +318,7 @@ namespace FloorF.Tests.PlayMode.UI
             yield return null;
             Assert.AreEqual(TutorialView.Step.Wait, ui.TutorialStep, "some still walking in: wait");
             Assert.IsNull(ui.TutorialTarget, "no CLOSE arrow while guests get in");
+            Assert.IsFalse(ui.CoachVisible, "waiting is not frozen");
             if (en) { StringAssert.Contains("Wait until everyone", ui.TutorialPrompt); StringAssert.Contains("lucky", ui.TutorialPrompt); }
             yield return Day0Driver.Shot("ui_day0_wait" + suffix, true);
             Time.captureDeltaTime = 0.05f;
@@ -235,12 +333,32 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(TutorialView.Step.Close, ui.TutorialStep);
             if (en) StringAssert.Contains("LUCKY head count", ui.TutorialPrompt);
             yield return Day0Driver.Close(ui);
-            Assert.IsNotNull(ui.TutorialWhy, "3 inside explained");
+            Assert.AreEqual(TutorialView.Step.Why, ui.TutorialStep, "3 inside explained");
             if (en) StringAssert.Contains("3 inside", ui.TutorialWhy);
+            yield return Day0Driver.Continue(ui, "why 3 inside");
+
+            // three lucky head counts at once: the streak card (once per lesson) points at the readout
+            Assert.AreEqual(TutorialView.Step.Streak, ui.TutorialStep, "streak explained after the why card");
+            Assert.GreaterOrEqual(score.LuckStreak, 2);
+            Assert.AreEqual("StreakBox", ui.TutorialTarget);
+            Assert.IsTrue(ui.StreakVisible);
+            StringAssert.Contains("x" + score.LuckStreak, ui.TutorialWhy);
+            StringAssert.Contains(UIFormat.Multiplier(score.StreakTipMultiplier), ui.TutorialWhy);
+            StringAssert.Contains(UIFormat.Multiplier(score.StreakTipMultiplier), ui.StreakText);
+            StringAssert.Contains(ko ? "연속 행운" : "Lucky streak", ui.StreakText);
+            Day0Driver.AssertExplainCoach(ui, "streak");
+            Day0Driver.AssertCardsClear(ui, "streak");
+            yield return Day0Driver.Shot("ui_day0_streak" + suffix, true);
+            yield return Day0Driver.Continue(ui, "streak");
+
             var sauna = FloorIndex.FromPhysicalNumber(5);
             Assert.AreEqual("Floor 5", ui.TutorialTarget);
             yield return Day0Driver.GoTo(ui, sauna);
             yield return Day0Driver.Open(ui);
+            var seen = new List<string>();
+            yield return Day0Driver.ContinueAll(ui, seen);
+            yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.NextWave || ui.CoachAwaitingContinue, 80);
+            yield return Day0Driver.ContinueAll(ui, seen);
             yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.NextWave, 80);
 
             // ---- wave 3: two riders, two stops; floor 4 is unlucky (stickers later)
@@ -251,6 +369,7 @@ namespace FloorF.Tests.PlayMode.UI
             yield return UITestDriver.Frames(2);
             Assert.AreEqual(TutorialView.Step.Close, ui.TutorialStep);
             yield return Day0Driver.Close(ui);
+            yield return Day0Driver.ContinueAll(ui, seen);
             Assert.AreEqual(TutorialView.Step.Floor, ui.TutorialStep);
             if (en) StringAssert.Contains("Two riders", ui.TutorialPrompt);
             yield return Day0Driver.Shot("ui_day0_two_stops" + suffix, true);
@@ -277,38 +396,60 @@ namespace FloorF.Tests.PlayMode.UI
                 yield return Day0Driver.Open(ui);
                 if (dest == karaoke)
                 {
-                    Assert.IsNotNull(ui.TutorialWhy, "unlucky 4 explained");
+                    Assert.AreEqual(TutorialView.Step.Why, ui.TutorialStep, "unlucky 4 explained");
                     StringAssert.Contains("4", ui.TutorialWhy);
                     StringAssert.Contains("F", ui.TutorialWhy, "stickers can relabel it (4 → F)");
                     if (en) { StringAssert.Contains("UNLUCKY", ui.TutorialWhy); StringAssert.Contains("sticker", ui.TutorialWhy); }
                     Day0Driver.AssertCardsClear(ui, "why (unlucky)");
+                    Day0Driver.AssertExplainCoach(ui, "why unlucky");
                     sawUnlucky = true;
                     yield return Day0Driver.Shot("ui_day0_why_unlucky" + suffix, true);
                 }
-                yield return UITestDriver.Until(() => e.Occupancy == 0 || ui.TutorialStep == TutorialView.Step.Close, 40);
+                yield return Day0Driver.ContinueAll(ui, seen);
+                yield return UITestDriver.Until(() => e.Occupancy == 0 || ui.TutorialStep == TutorialView.Step.Close || ui.CoachAwaitingContinue, 40);
+                yield return Day0Driver.ContinueAll(ui, seen);
                 if (e.Occupancy > 0)
                 {
+                    yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.Close, 40);
                     if (en) StringAssert.Contains("take the others on", ui.TutorialPrompt);
                     yield return Day0Driver.Close(ui);
+                    yield return Day0Driver.ContinueAll(ui, seen);
                 }
             }
             Assert.IsTrue(sawEveryone, "the two-rider stop says everyone judges");
             Assert.IsTrue(sawLeftColumn, "pointed at floor 4");
             Assert.IsTrue(sawUnlucky, "floor 4 was judged unlucky");
 
-            // ---- closing card, then the training summary
+            // ---- two closing pages (click each), then the training summary
+            yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.Closing || ui.CoachAwaitingContinue, 40);
+            yield return Day0Driver.ContinueAll(ui, seen);
             yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.Closing, 20);
-            Assert.AreEqual(TutorialView.Step.Closing, ui.TutorialStep, "closing card after the last wave");
+            Assert.AreEqual(TutorialView.Step.Closing, ui.TutorialStep, "closing page after the last wave");
             StringAssert.Contains(data.Rules.prosperousEndingLuck.ToString(), ui.TutorialPrompt);
-            if (en) { StringAssert.Contains("Haunted", ui.TutorialPrompt); StringAssert.Contains("reset", ui.TutorialPrompt); StringAssert.Contains("leave", ui.TutorialPrompt); }
-            Day0Driver.AssertCardsClear(ui, "closing");
+            if (en) StringAssert.Contains("Haunted", ui.TutorialPrompt);
+            Assert.AreEqual("LuckBox", ui.TutorialTarget, "page 1 points at the Luck meter");
+            Day0Driver.AssertExplainCoach(ui, "closing 1");
+            Day0Driver.AssertCardsClear(ui, "closing 1");
             yield return Day0Driver.Shot("ui_day0_closing" + suffix, true);
+            yield return Day0Driver.AssertStaysFrozen(ui, "closing 1");
+            Assert.AreEqual(DayPhase.Running, day.Phase, "the shift waits for the player to read");
+            yield return Day0Driver.Continue(ui, "closing 1");
+            Assert.AreEqual(TutorialView.Step.Closing, ui.TutorialStep, "page 2");
+            if (en) { StringAssert.Contains("reset", ui.TutorialPrompt); StringAssert.Contains("leave", ui.TutorialPrompt); }
+            Assert.AreEqual("DayBox", ui.TutorialTarget, "page 2 points at the clock");
+            Day0Driver.AssertExplainCoach(ui, "closing 2");
+            Day0Driver.AssertCardsClear(ui, "closing 2");
+            yield return Day0Driver.Shot("ui_day0_closing2" + suffix, true);
+            yield return Day0Driver.Continue(ui, "closing 2");
+            Assert.IsFalse(Day0Driver.Held, "read: released");
 
             yield return UITestDriver.Until(() => day.Phase == DayPhase.Summary, 100);
-            Assert.AreEqual(DayPhase.Summary, day.Phase, "the training shift ends once the last wave is delivered");
+            Assert.AreEqual(DayPhase.Summary, day.Phase, "the training shift ends once the last page is read");
             yield return UITestDriver.Frames(2);
             Assert.AreEqual(ko ? "수습 근무 끝" : "TRAINING SHIFT DONE", ui.FlowTitle);
-            if (en) { StringAssert.Contains("reset", ui.FlowBody); StringAssert.Contains("Haunted", ui.FlowExtra); }
+            if (en) { StringAssert.Contains("reset", ui.FlowBody); StringAssert.Contains("Haunted", ui.FlowExtra); StringAssert.Contains("Best lucky streak", ui.FlowExtra); }
+            Assert.IsFalse(ui.GradeStampVisible, "no grade on the training shift");
+            Assert.IsFalse(ui.CoachVisible);
             yield return Day0Driver.Shot("ui_day0_summary" + suffix, true);
 
             // ---- Day 1: real clock, /5, fresh Luck/tips, how-to recap, no lesson prompts

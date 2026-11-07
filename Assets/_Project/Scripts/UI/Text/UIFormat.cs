@@ -151,6 +151,37 @@ namespace FloorF.UI
             return string.Format(UIStrings.DayOf.Get(ko), N(displayDay), N(playableDays));
         }
 
+        /// <summary>Tip multiplier as shown next to the streak: "x1.15", "x1.1", "x1.0" (two decimals at most).</summary>
+        public static string Multiplier(float m) => "x" + ((float)System.Math.Round(m, 2)).ToString("0.0#", CultureInfo.InvariantCulture);
+
+        // ------------------------------------------------------------------ day grade (real-day summary stamp)
+        // Points (max 9), each from the DaySummary:
+        //   delivered share  delivered / (delivered + left):  >= 95% +3,  >= 80% +2,  >= 60% +1
+        //   unlucky moments  0 +2,  1-2 +1,  3+ 0
+        //   luck delta       >= +10 +2,  >= 0 +1,  negative 0
+        //   best streak      >= 5 +2,  >= 3 +1
+        // Grade: S >= 8, A >= 6, B >= 4, else C. Nobody delivered = C.
+        public const int GradeS = 8, GradeA = 6, GradeB = 4;
+
+        public static int GradePoints(DaySummary s)
+        {
+            int served = s.Delivered + s.Left;
+            float share = served > 0 ? (float)s.Delivered / served : 0f;
+            int p = share >= 0.95f ? 3 : share >= 0.8f ? 2 : share >= 0.6f ? 1 : 0;
+            p += s.UnluckyJudgements == 0 ? 2 : s.UnluckyJudgements <= 2 ? 1 : 0;
+            p += s.LuckDelta >= 10 ? 2 : s.LuckDelta >= 0 ? 1 : 0;
+            p += s.BestStreak >= 5 ? 2 : s.BestStreak >= 3 ? 1 : 0;
+            return p;
+        }
+
+        /// <summary>"S" / "A" / "B" / "C" for a real day's summary (see the thresholds above).</summary>
+        public static string DayGrade(DaySummary s)
+        {
+            if (s.Delivered <= 0) return "C";
+            int p = GradePoints(s);
+            return p >= GradeS ? "S" : p >= GradeA ? "A" : p >= GradeB ? "B" : "C";
+        }
+
         public static void Ending(EndingKind kind, bool ko, out string title, out string text)
         {
             switch (kind)

@@ -49,6 +49,8 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<GuestDelivered>(e => { if (built) tutorial.OnGuestDelivered(e); }));
             subs.Add(bus.Subscribe<GuestLeft>(e => { if (built) tutorial.OnGuestLeft(e); }));
             subs.Add(bus.Subscribe<PauseChanged>(e => { if (built) menu.Tick(); }));
+            subs.Add(bus.Subscribe<LuckStreakChanged>(e => { if (built && !OnTitle) { hud.OnLuckStreakChanged(e); tutorial.OnLuckStreakChanged(e); } }));
+            subs.Add(bus.Subscribe<TutorialHoldChanged>(e => { if (built) tutorial.OnTutorialHoldChanged(e); }));
         }
 
         void OnDisable() => subs.Clear();
@@ -72,8 +74,8 @@ namespace FloorF.UI
             hud = new HudView(ctx, rt, ToggleLanguage);
             shop = new ShopView(ctx, rt, panel);
             flow = new FlowScreensView(ctx, rt);
-            tutorial = new TutorialView(ctx, rt, panel, bubbles);
-            hud.BringLanguageToFront();
+            hud.BringLanguageToFront(); // above the modal flow cards, under the coach-mark overlay
+            tutorial = new TutorialView(ctx, rt, panel, bubbles, hud);
             menu = new MenuView(ctx, rt);
             menu.BringToFront();
             built = true;
@@ -176,6 +178,7 @@ namespace FloorF.UI
             if (e.Current == DayPhase.Ending) popups.ClearPopups(); // keep the last speech bubble behind the card
             else if (e.Current != DayPhase.Running) popups.Clear();
             if (e.Current == DayPhase.Intro) flow.LastSpecialLine = null;
+            if (e.Current == DayPhase.Intro || e.Current == DayPhase.Title) hud.ResetStreak(); // a new day starts at 0 silently
             // the attract demo replays a day behind the title: every tutorial day's lesson starts from wave 1
             tutorial.OnPhaseChanged(e);
             menu.Tick();
@@ -272,6 +275,40 @@ namespace FloorF.UI
         internal Rect TutorialWhyRect => tutorial.WhyRect;
         internal Rect TutorialTargetRect => tutorial.TargetRect;
         internal Rect TutorialArrowRect => tutorial.ArrowRect;
+        internal bool CoachVisible => tutorial.CoachVisible;
+        internal Rect CoachHoleRect => tutorial.CoachHoleRect;
+        internal bool CoachAwaitingContinue => tutorial.AwaitingContinue;
+        internal string CoachContinueHint => tutorial.ContinueHint;
+        internal void ClickCoachOverlay() => tutorial.ClickOverlay();
+        internal int TutorialQueuedExplains => tutorial.QueuedExplains;
+        internal System.Collections.Generic.List<TutorialView.CardSample> TutorialSampleCards() => tutorial.SampleCards();
+        internal Rect MeasureTutorialCard(TutorialView.CardSample s) => tutorial.MeasureCard(s);
+        internal Rect LuckBoxRect => UIBuild.CanvasRect(ctx.CanvasRect, hud.LuckBox);
+        internal Rect StreakBoxRect => UIBuild.CanvasRect(ctx.CanvasRect, hud.StreakBox);
+        internal bool StreakVisible => hud.StreakVisible;
+        internal string StreakText => hud.StreakText;
+        internal float StreakScale => hud.StreakScale;
+        internal bool GradeStampVisible => flow.StampVisible;
+        internal string GradeStampText => flow.StampGrade;
+        internal bool GradeStampLanded => flow.StampLanded;
+        internal Rect GradeStampRect => flow.StampRect(ctx.CanvasRect);
+        internal Rect FlowCardRect => flow.CardRect(ctx.CanvasRect);
+        internal Rect TitlePanelRect => menu.TitlePanelRect(ctx.CanvasRect);
+
+        /// <summary>Name of the topmost UI raycast target at canvas point <paramref name="p"/> (what a click there hits), or null.</summary>
+        internal string RaycastAt(Vector2 p)
+        {
+            var es = EventSystem.current;
+            if (es == null) return null;
+            var rt = ctx.CanvasRect;
+            var world = rt.TransformPoint(p + rt.rect.min);
+            var screen = RectTransformUtility.WorldToScreenPoint(canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera, world);
+            var data = new PointerEventData(es) { position = screen };
+            raycastHits.Clear();
+            es.RaycastAll(data, raycastHits);
+            return raycastHits.Count > 0 ? raycastHits[0].gameObject.name : null;
+        }
+        readonly System.Collections.Generic.List<RaycastResult> raycastHits = new System.Collections.Generic.List<RaycastResult>();
         internal Rect PanelRect => UIBuild.CanvasRect(ctx.CanvasRect, panel.Root);
         internal Rect FloorButtonRect(int floor) => UIBuild.CanvasRect(ctx.CanvasRect, panel.FloorButtonRect(new FloorIndex(floor)));
         internal Rect OpenButtonRect => UIBuild.CanvasRect(ctx.CanvasRect, panel.OpenRect);

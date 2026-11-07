@@ -215,5 +215,28 @@ namespace FloorF.UI
             "불길! {0}명은 이 손님의 불길한 숫자: 운이 내려가요(오른쪽 위 게이지).");
         public static readonly Loc TutWhySticker = new Loc("Later, stickers from the shop can relabel a floor (4 → F).",
             "나중에 상점 스티커로 층 번호를 바꿀 수 있어요 (4 → F).");
+
+        // ---- Day 0 coach marks (explain steps wait for a click; action steps for the highlighted button)
+        public static readonly Loc TutContinue = new Loc("Click to continue ▶", "클릭해서 계속 ▶");
+        /// <summary>{0} = streak, {1} = tip multiplier ("x1.3").</summary>
+        public static readonly Loc TutStreak = new Loc("LUCKY STREAK x{0}! Lucky moments in a row raise every tip (now {1}). One UNLUCKY moment breaks it.",
+            "연속 행운 x{0}! 행운이 이어질수록 팁이 늘어요(지금 {1}). 불길한 판정 한 번이면 끊겨요.");
+        /// <summary>Closing page 1 (points at the Luck meter). {0} = last day number, {1} = prosperous-ending Luck.</summary>
+        public static readonly Loc TutEndLuck = new Loc(
+            "• Luck 0 = the Haunted ending. Game over!\n" +
+            "• After Day {0}: Luck {1}+ = the prosperous ending.",
+            "• 운이 0이 되면 흉가 엔딩. 게임 오버!\n" +
+            "• {0}일차를 마쳤을 때 운 {1} 이상 = 번창 엔딩.");
+        /// <summary>Closing page 2 (points at the clock); the practice-reset line follows it.</summary>
+        public static readonly Loc TutEndClock = new Loc(
+            "• From Day 1 the clock runs - guests who wait too long leave.",
+            "• 1일차부터는 시간이 흐르고, 오래 기다린 손님은 떠나요.");
+
+        // ---- lucky streak (HUD readout under the tips) + day grade
+        /// <summary>{0} = streak, {1} = tip multiplier ("x1.3").</summary>
+        public static readonly Loc Streak = new Loc("Lucky streak x{0} · tips {1}", "연속 행운 x{0} · 팁 {1}");
+        public static readonly Loc StreakBroken = new Loc("Streak broken!", "연속 끊김!");
+        public static readonly Loc BestStreak = new Loc("Best lucky streak", "최고 연속 행운");
+        public static readonly Loc Grade = new Loc("GRADE", "등급");
     }
 }

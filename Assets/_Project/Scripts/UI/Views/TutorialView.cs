@@ -10,71 +10,115 @@ namespace FloorF.UI
     /// <summary>
     /// "Day 0" training-shift lesson (shown while IGameSettings.ShowTutorialHints &amp;&amp; IDayQuery.IsTutorial, Running,
     /// not paused; real days never show prompts). Guests come in waves (a wave = guests spawning while the hotel was
-    /// empty); one line at a time is chosen from the live state and the wave, with a pulsing outline + a ▼ right above
+    /// empty); one line at a time is chosen from the live state and the wave, with a pulsing outline + an arrow at
     /// the thing to press / look at:
-    ///   wave 1: OPEN where she waits (go there first) -> read the chip (gold lucky / red unlucky / icon = destination;
-    ///           a few seconds or until the player acts) -> CLOSE (head count) -> destination floor -> OPEN (floor number)
+    ///   wave 1: OPEN where she waits (go there first) -> read the chip (gold lucky / red unlucky / icon = destination)
+    ///           -> CLOSE (head count) -> destination floor -> OPEN (floor number)
     ///   wave 2: "N guests together: wait until all are in, then CLOSE (N = lucky)" -> deliver
     ///   wave 3: two riders, two stops: every door-open judges everyone inside
-    ///   after the last wave: closing card (Haunted / prosperous endings, impatient guests from Day 1, practice reset).
-    /// Every non-neutral LuckJudged on the tutorial day adds a "why" card (unlucky floor: + stickers can relabel it).
-    /// Cards sit in the empty right column under the HUD rule box - never over the building or the panel.
-    /// Never blocks clicks (no raycast targets).
+    ///   after the last wave: two closing pages (Luck: Haunted / prosperous endings; clock: impatient guests, reset).
+    /// Every non-neutral LuckJudged adds a "why" card (unlucky floor: + stickers can relabel it), the first streak of 2+
+    /// a streak card.
+    ///
+    /// COACH MARKS: each step freezes the game (IGameFlow.SetTutorialHold) under a dark overlay with a cut-out around
+    /// its target; only the cards, the outline and the arrow sit above it.
+    ///   action steps (OPEN / CLOSE / a floor): only the target is clickable through the cut-out, other clicks are
+    ///     absorbed. The player's accepted command releases the hold in Core (TutorialHoldChanged) -> overlay gone, the
+    ///     game runs until the next step. Keyboard commands work the same way.
+    ///   explain steps (chips, why cards, streak, closing pages): "Click to continue" - a click anywhere or Enter/Space.
+    /// The menu pause releases the hold (overlay hidden); it comes back after RESUME. If the hold is refused the
+    /// prompts show without the freeze and explain steps advance after a few seconds (the old timed lesson).
+    /// Cards sit in the empty right column under the HUD rule box - never over the building or the panel - one at a
+    /// time, short enough for a 720-high canvas (<see cref="MaxCardHeight"/>).
     /// </summary>
     sealed class TutorialView
     {
-        public enum Step { None = 0, GoTo, Board, Chips, Wait, Close, Floor, OpenThere, NotTheirStop, NextWave, Closing }
+        public enum Step { None = 0, GoTo, Board, Chips, Wait, Close, Floor, OpenThere, NotTheirStop, NextWave, Closing, Why, Streak }
 
-        /// <summary>Waves the lesson is written for (the last one ends with the closing card).</summary>
+        /// <summary>Waves the lesson is written for (the last one ends with the closing pages).</summary>
         public const int LessonWaves = 3;
-        /// <summary>Doors open, nobody boarded for this long -> CLOSE anyway (e.g. a guest who refuses this head count).</summary>
+        public const int ClosingPages = 2;
+        /// <summary>Doors open, nobody boarded for this long (game time) -> CLOSE anyway (e.g. a guest who refuses this head count).</summary>
         public const float CloseFallback = 4f;
-        /// <summary>How long the chip explanation stays before CLOSE is prompted (unless the player acts first).</summary>
-        public const float ChipsLife = 4.5f;
-        const float WhyLife = 7f, MergeWindow = 0.3f, Margin = 24f, Gap = 10f;
-        /// <summary>Right column under the HUD's rule box (HudView: rules end 262 px from the top).</summary>
-        public const float ColumnTop = 272f, ColumnW = 376f;
+        /// <summary>Only when the hold is refused: how long an explain step stays before the lesson moves on.</summary>
+        public const float ChipsLife = 4.5f, WhyLife = 7f, PageLife = 6f;
+        const float Margin = 24f, FadeSpeed = 8f;
+        /// <summary>Right column under the HUD's rule box.</summary>
+        public const float ColumnTop = HudView.RulesBottom + 10f, ColumnW = 376f;
+        /// <summary>Cards end this far above the bottom of a 720-high canvas (clear of the language / pause buttons).</summary>
+        public const float BottomClear = 60f;
+        public const float MaxCardHeight = UIStyle.RefHeight - ColumnTop - BottomClear;
+        /// <summary>Cut-out margin around the target (smaller than half the panel's button gap: neighbours stay covered).</summary>
+        public const float HolePad = 3f;
+        public static readonly Color DimColor = new Color(0.07f, 0.07f, 0.09f, 0.66f);
+
+        struct Explain
+        {
+            public int Id;
+            public Step Kind; // Why / Streak
+            public LuckSource Source;
+            public LuckVerdict Verdict;
+            public int Number;
+            public string Label;
+        }
 
         readonly UIContext ctx;
         readonly ElevatorPanelView panel;
         readonly GuestBubblesView bubbles;
-        readonly RectTransform canvas, layer, banner, why, highlight, arrow;
-        readonly CanvasGroup highlightGroup;
-        readonly TextMeshProUGUI stepText, promptText, whyCaption, whyText, whyNote;
+        readonly HudView hud;
+        readonly RectTransform canvas, layer, dim, banner, why, highlight, arrow;
+        readonly CanvasGroup highlightGroup, dimGroup;
+        readonly Image[] dimPieces = new Image[4];
+        readonly Image hole;
+        readonly TextMeshProUGUI stepText, promptText, bannerHint, whyCaption, whyText, whyNote, whyHint, arrowGlyph;
         readonly Image bannerEdge, whyEdge;
         readonly InlineIcon promptIcon;
         readonly List<GuestId> waiting = new List<GuestId>();
         readonly LuckProfile[] profiles = new LuckProfile[16];
+        readonly List<Explain> queue = new List<Explain>();
 
         // lesson state (reset when a tutorial day starts running)
-        int wave, spawned, resolved;
-        bool chipsDone, closedThisWave, departedWithRiders;
-        float chipsShown, sinceBoarded, whyTimer, whyAge;
-        LuckSource whySource;
-        LuckVerdict whyVerdict;
-        int whyNumber;
+        int wave, spawned, resolved, closingPage, nextId, streakValue;
+        float streakMultiplier = 1f;
+        bool chipsDone, closedThisWave, departedWithRiders, streakExplained;
+        float sinceBoarded;
 
-        // shown this frame
-        Step step;
-        string shownText, targetName;
+        // coach marks
+        string holdKey, actedKey, refusedKey, explainKey, shownKey;
+        bool holdExplain, shownExplain, coaching;
+        float explainAge, dimAlpha, nudge;
+        int lastAdvanceFrame = -1;
+
+        // composed this frame
+        Step step, whyStep;
+        string shownText, targetName, markKey;
+        bool markExplain, markWhy, hasTarget;
+        float markLife;
         Rect targetRect;
-        bool hasTarget;
         Sprite promptSprite;
         Color promptTint;
 
-        public TutorialView(UIContext ctx, RectTransform canvas, ElevatorPanelView panel, GuestBubblesView bubbles)
+        public TutorialView(UIContext ctx, RectTransform canvas, ElevatorPanelView panel, GuestBubblesView bubbles, HudView hud)
         {
             this.ctx = ctx;
             this.canvas = canvas;
             this.panel = panel;
             this.bubbles = bubbles;
+            this.hud = hud;
             layer = UIBuild.Stretch(UIBuild.Rect("Tutorial", canvas));
+
+            // overlay: four dark rects around the cut-out (+ a clear catcher in the hole on explain steps)
+            dim = UIBuild.Stretch(UIBuild.Rect("CoachDim", layer));
+            dimGroup = dim.gameObject.AddComponent<CanvasGroup>();
+            for (int i = 0; i < 4; i++) dimPieces[i] = Catcher("Dim" + i, DimColor);
+            hole = Catcher("Hole", Color.clear);
 
             bannerEdge = UIBuild.Framed("Prompt", layer, UIStyle.Card, UIStyle.Highlight, 3f);
             banner = bannerEdge.rectTransform;
             UIBuild.Place(banner, new Vector2(1f, 1f), new Vector2(-Margin, -ColumnTop), new Vector2(ColumnW, 92f));
             Card(banner, out stepText, out promptText, UIStyle.Highlight);
             promptIcon = new InlineIcon(promptText);
+            bannerHint = Hint(banner);
 
             whyEdge = UIBuild.Framed("Why", layer, UIStyle.Card, UIStyle.Lucky, 3f);
             why = whyEdge.rectTransform;
@@ -82,6 +126,7 @@ namespace FloorF.UI
             Card(why, out whyCaption, out whyText, UIStyle.Lucky);
             whyNote = UIBuild.Text("Note", why, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
             whyNote.lineSpacing = 6f;
+            whyHint = Hint(why);
 
             highlight = UIBuild.Rect("Highlight", layer);
             highlight.anchorMin = highlight.anchorMax = Vector2.zero;
@@ -92,19 +137,35 @@ namespace FloorF.UI
             highlightGroup.interactable = false;
 
             // ▼ straight above the target on a dark plate: it points DOWN at one button, never sideways across a row
+            // (HUD targets at the top of the screen get a ▶ / ◀ beside them instead)
             var plate = UIBuild.Framed("Arrow", layer, UIStyle.Dark, UIStyle.Highlight, 2f);
             arrow = plate.rectTransform;
             arrow.anchorMin = arrow.anchorMax = Vector2.zero;
             arrow.pivot = new Vector2(0.5f, 0f);
             arrow.sizeDelta = new Vector2(ArrowW, ArrowH);
-            var glyph = UIBuild.Text("Glyph", arrow, "▼", 24f, UIStyle.Highlight, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Stretch(glyph.rectTransform);
+            arrowGlyph = UIBuild.Text("Glyph", arrow, "▼", 24f, UIStyle.Highlight, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Stretch(arrowGlyph.rectTransform);
 
             Hide();
         }
 
         /// <summary>Arrow plate size; its bottom sits ArrowGap..ArrowGap+4 px above the target (clear of the 5 px outline).</summary>
         public const float ArrowW = 40f, ArrowH = 30f, ArrowGap = 8f;
+
+        Image Catcher(string name, Color color)
+        {
+            var img = UIBuild.Box(name, dim, color, raycast: true);
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = Vector2.zero;
+            rt.pivot = Vector2.zero;
+            var b = img.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None;
+            var nav = b.navigation;
+            nav.mode = Navigation.Mode.None;
+            b.navigation = nav;
+            b.onClick.AddListener(OnDimClick);
+            return img;
+        }
 
         static void Card(RectTransform card, out TextMeshProUGUI small, out TextMeshProUGUI big, Color smallColor)
         {
@@ -123,19 +184,32 @@ namespace FloorF.UI
             big.lineSpacing = 6f;
         }
 
+        static TextMeshProUGUI Hint(RectTransform card)
+        {
+            var t = UIBuild.Text("Continue", card, "", 24f, UIStyle.Highlight, TextAlignmentOptions.Right, bold: true);
+            t.gameObject.SetActive(false);
+            return t;
+        }
+
         bool TutorialDay => ctx.HasGame && ctx.Day.IsTutorial;
         bool HintsOn => ctx.Settings == null || ctx.Settings.ShowTutorialHints;
         bool Live => TutorialDay && ctx.Phase == DayPhase.Running;
+        bool CoreHeld => ctx.Flow != null && ctx.Flow.TutorialHold;
 
         // ------------------------------------------------------------------ events (UIRoot forwards them)
 
         public void Reset()
         {
-            wave = spawned = resolved = 0;
-            chipsDone = closedThisWave = departedWithRiders = false;
-            chipsShown = sinceBoarded = whyTimer = 0f;
-            whyAge = 99f;
-            step = Step.None;
+            wave = spawned = resolved = closingPage = 0;
+            streakValue = 0;
+            streakMultiplier = 1f;
+            chipsDone = closedThisWave = departedWithRiders = streakExplained = false;
+            sinceBoarded = 0f;
+            queue.Clear();
+            holdKey = actedKey = refusedKey = explainKey = shownKey = null; // Core releases its hold on every phase change
+            holdExplain = shownExplain = coaching = false;
+            explainAge = 0f;
+            step = whyStep = Step.None;
             shownText = null;
             Hide();
         }
@@ -188,84 +262,333 @@ namespace FloorF.UI
 
         public void OnLuckJudged(LuckJudged e)
         {
-            if (!Live || e.Verdict == LuckVerdict.Neutral) return;
+            if (!Live || !HintsOn || e.Verdict == LuckVerdict.Neutral) return;
             // riders judged together (three grandmas, one head count) are one card
-            if (whyTimer > 0f && whyAge <= MergeWindow && whySource == e.Source && whyNumber == e.Number && whyVerdict == e.Verdict) return;
-            whyTimer = WhyLife;
-            whyAge = 0f;
-            whySource = e.Source;
-            whyNumber = e.Number;
-            whyVerdict = e.Verdict;
-            bool lucky = e.Verdict == LuckVerdict.Lucky;
-            bool floor = e.Source != LuckSource.Occupancy;
-            string number = e.Number >= 0 ? e.Number.ToString(CultureInfo.InvariantCulture)
+            // (the streak card can sit between their verdicts: LuckJudged, LuckStreakChanged, LuckJudged, ...)
+            for (int i = queue.Count - 1; i >= 0; i--)
+            {
+                var q = queue[i];
+                if (q.Kind == Step.Why && q.Source == e.Source && q.Number == e.Number && q.Verdict == e.Verdict) return;
+            }
+            string label = e.Number >= 0 ? e.Number.ToString(CultureInfo.InvariantCulture)
                 : ctx.Building != null && e.Floor.IsValidFor(ctx.Building.FloorCount) ? ctx.Building.GetLabel(e.Floor).Text : "?";
-            var template = lucky ? (floor ? UIStrings.TutWhyLuckyFloor : UIStrings.TutWhyLuckyCount)
-                : (floor ? UIStrings.TutWhyUnluckyFloor : UIStrings.TutWhyUnluckyCount);
-            whyText.text = ctx.F(template, number);
-            var color = lucky ? UIStyle.Lucky : UIStyle.Unlucky;
-            whyText.color = whyCaption.color = whyEdge.color = color;
-            whyCaption.text = ctx.S(floor ? UIStrings.RuleOpen : UIStrings.RuleClose);
-            bool sticker = !lucky && floor;
-            whyNote.text = sticker ? ctx.S(UIStrings.TutWhySticker) : "";
-            whyNote.gameObject.SetActive(sticker);
+            queue.Add(new Explain { Id = ++nextId, Kind = Step.Why, Source = e.Source, Verdict = e.Verdict, Number = e.Number, Label = label });
+        }
+
+        public void OnLuckStreakChanged(LuckStreakChanged e)
+        {
+            streakValue = e.Streak;
+            streakMultiplier = e.TipMultiplier;
+            if (!Live || !HintsOn || streakExplained || e.Streak < 2) return;
+            streakExplained = true;
+            queue.Add(new Explain { Id = ++nextId, Kind = Step.Streak, Number = e.Streak });
+        }
+
+        /// <summary>Follows Core's hold at once (a command released it: no stale overlay for a frame).</summary>
+        public void OnTutorialHoldChanged(TutorialHoldChanged e)
+        {
+            if (e.Held) return;
+            coaching = false;
+            dimGroup.blocksRaycasts = false;
+            hole.raycastTarget = false;
         }
 
         // ------------------------------------------------------------------ tick
 
         public void Tick(float dt, float time)
         {
-            if (whyTimer > 0f) { whyTimer -= dt; whyAge += dt; }
-            if (Live) sinceBoarded += dt;
-            if (!(Live && HintsOn) || ctx.Paused) { Hide(); return; }
+            bool held = CoreHeld;
+            // our hold went away without us: the player's command went through (or the menu pause / day end took over)
+            if (holdKey != null && !held)
+            {
+                string k = holdKey;
+                bool explain = holdExplain;
+                holdKey = null;
+                if (Live && !ctx.Paused)
+                {
+                    if (explain) Advance(k);
+                    else { actedKey = k; step = Step.None; shownText = null; } // done: no stale "press X" line
+                }
+            }
+            if (Live && !held) sinceBoarded += dt; // game time: frozen while held
+            if (!(Live && HintsOn) || ctx.Paused) { ReleaseHold(); Hide(); return; }
 
+            Compose();
+
+            // one hold per coach mark: switch marks without letting the game run, release when there is none
+            string want = markKey;
+            if (actedKey != null && want != actedKey) actedKey = null;
+            if (refusedKey != null && want != refusedKey) refusedKey = null;
+            if (holdKey != null)
+            {
+                if (want == null) ReleaseHold();
+                else { holdKey = want; holdExplain = markExplain; }
+            }
+            else if (want != null && want != actedKey && want != refusedKey && ctx.Flow != null)
+            {
+                if (ctx.Flow.SetTutorialHold(true)) { holdKey = want; holdExplain = markExplain; }
+                else refusedKey = want; // not a tutorial day / paused / stubbed: the prompt shows without the freeze
+            }
+            coaching = holdKey != null && CoreHeld;
+
+            if (markExplain)
+            {
+                if (explainKey != markKey) { explainKey = markKey; explainAge = 0f; }
+                explainAge += dt;
+                if (ContinuePressed()) Advance(markKey);
+                else if (!coaching && explainAge >= markLife) Advance(markKey); // hold refused: the timed lesson
+            }
+            else explainKey = null;
+            shownKey = markKey;
+            shownExplain = markExplain;
+            Render(dt, time);
+        }
+
+        bool ContinuePressed()
+        {
+            if (Time.frameCount == lastAdvanceFrame) return false; // a click / command already moved on this frame
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            return kb != null && (kb.enterKey.wasPressedThisFrame || kb.numpadEnterKey.wasPressedThisFrame || kb.spaceKey.wasPressedThisFrame);
+        }
+
+        void ReleaseHold()
+        {
+            if (holdKey == null) return;
+            holdKey = null;
+            coaching = false;
+            if (ctx.Flow != null && ctx.Flow.TutorialHold) ctx.Flow.SetTutorialHold(false);
+        }
+
+        /// <summary>Dismisses the explain step <paramref name="key"/> (no-op when it is not the current one any more).</summary>
+        void Advance(string key)
+        {
+            if (string.IsNullOrEmpty(key)) return;
+            bool done = false;
+            if (key[0] == 'q')
+            {
+                int id = int.Parse(key.Substring(1), CultureInfo.InvariantCulture);
+                if (queue.Count > 0 && queue[0].Id == id) { queue.RemoveAt(0); done = true; }
+            }
+            else if (key.StartsWith("chips", System.StringComparison.Ordinal)) { done = !chipsDone; chipsDone = true; }
+            else if (key.StartsWith("closing", System.StringComparison.Ordinal))
+            {
+                int page = int.Parse(key.Substring(7), CultureInfo.InvariantCulture);
+                if (page == closingPage) { closingPage++; done = true; }
+            }
+            if (!done) return;
+            if (key[0] != 'q') { step = Step.None; shownText = null; } // read: no stale line while the game moves on
+            lastAdvanceFrame = Time.frameCount;
+            explainKey = null;
+            explainAge = 0f;
+        }
+
+        /// <summary>Any overlay click: continues an explain step; on an action step it is absorbed (the arrow nudges).</summary>
+        void OnDimClick()
+        {
+            if (!coaching) return;
+            if (shownExplain)
+            {
+                if (Time.frameCount == lastAdvanceFrame) return;
+                ctx.Sound(UiSoundKind.Click);
+                Advance(shownKey);
+            }
+            else
+            {
+                ctx.Sound(UiSoundKind.Error);
+                nudge = 0.5f;
+            }
+        }
+
+        /// <summary>The mark for this frame: queued explain card first, else the live lesson line.</summary>
+        void Compose()
+        {
             hasTarget = false;
             targetName = null;
             promptSprite = null;
-            Step s = Prompt(out string text, out bool hold);
+            markKey = null;
+            markExplain = markWhy = false;
+            markLife = 0f;
+            if (queue.Count > 0)
+            {
+                var q = queue[0];
+                markKey = "q" + q.Id.ToString(CultureInfo.InvariantCulture);
+                markExplain = markWhy = true;
+                markLife = WhyLife;
+                whyStep = q.Kind;
+                Target(q.Kind == Step.Streak ? hud.StreakBox : hud.LuckBox);
+                FillWhy(q);
+                return;
+            }
+            Step s = Prompt(out string text, out bool keep);
             if (text != null) { step = s; shownText = text; }
-            else if (!hold) { step = Step.None; shownText = null; }
-            // hold: car moving / doors animating / guests walking in - keep the last line, without a target
-            if (step == Step.Chips && text != null) chipsShown += dt;
-            if (chipsShown >= ChipsLife) chipsDone = true;
+            else if (!keep) { step = Step.None; shownText = null; }
+            if (text == null) return; // a transition (car moving, doors animating, guests walking): keep the line, no mark
+            switch (s)
+            {
+                case Step.Chips:
+                    markKey = "chips" + wave.ToString(CultureInfo.InvariantCulture);
+                    markExplain = true;
+                    markLife = ChipsLife;
+                    break;
+                case Step.Closing:
+                    markKey = "closing" + closingPage.ToString(CultureInfo.InvariantCulture);
+                    markExplain = true;
+                    markLife = PageLife;
+                    break;
+                case Step.GoTo: case Step.Board: case Step.Close: case Step.Floor: case Step.OpenThere: case Step.NotTheirStop:
+                    if (hasTarget) markKey = s + "|" + targetName + "|" + wave.ToString(CultureInfo.InvariantCulture);
+                    break;
+            }
+        }
 
-            bool showBanner = shownText != null;
+        void FillWhy(Explain q)
+        {
+            Color color;
+            if (q.Kind == Step.Streak)
+            {
+                int n = streakValue > 0 ? streakValue : q.Number;
+                UIBuild.Set(whyText, ctx.F(UIStrings.TutStreak, n, UIFormat.Multiplier(streakMultiplier)));
+                UIBuild.Set(whyCaption, ctx.S(UIStrings.Tips));
+                color = UIStyle.Lucky;
+                SetNote(null);
+            }
+            else
+            {
+                bool lucky = q.Verdict == LuckVerdict.Lucky;
+                bool floor = q.Source != LuckSource.Occupancy;
+                var template = lucky ? (floor ? UIStrings.TutWhyLuckyFloor : UIStrings.TutWhyLuckyCount)
+                    : (floor ? UIStrings.TutWhyUnluckyFloor : UIStrings.TutWhyUnluckyCount);
+                UIBuild.Set(whyText, ctx.F(template, q.Label));
+                UIBuild.Set(whyCaption, ctx.S(floor ? UIStrings.RuleOpen : UIStrings.RuleClose));
+                color = lucky ? UIStyle.Lucky : UIStyle.Unlucky;
+                SetNote(!lucky && floor ? ctx.S(UIStrings.TutWhySticker) : null);
+            }
+            whyText.color = whyCaption.color = whyEdge.color = color;
+        }
+
+        void SetNote(string note)
+        {
+            bool on = !string.IsNullOrEmpty(note);
+            if (on) UIBuild.Set(whyNote, note);
+            if (whyNote.gameObject.activeSelf != on) whyNote.gameObject.SetActive(on);
+        }
+
+        void Render(float dt, float time)
+        {
+            bool showBanner = !markWhy && shownText != null;
             Show(banner, showBanner);
             if (showBanner)
             {
                 UIBuild.Set(promptText, shownText);
-                if (text != null) promptIcon.Set(promptSprite, promptTint);
-                UIBuild.Set(stepText, step == Step.Closing ? ctx.S(UIStrings.TutDoneTitle)
+                promptIcon.Set(promptSprite, promptTint);
+                UIBuild.Set(stepText, step == Step.Closing
+                    ? ctx.S(UIStrings.TutDoneTitle) + "  " + Mathf.Min(closingPage + 1, ClosingPages) + "/" + ClosingPages
                     : string.Format(ctx.S(UIStrings.TutWave), Mathf.Clamp(wave, 1, LessonWaves), LessonWaves));
             }
             else promptIcon.Set(null, Color.white);
             promptIcon.Place();
+            Show(why, markWhy);
 
-            bool showWhy = whyTimer > 0f;
-            Show(why, showWhy);
-            if (showWhy)
+            bool hint = coaching && markExplain;
+            SetHint(bannerHint, hint && showBanner);
+            SetHint(whyHint, hint && markWhy);
+            if (hint)
             {
-                // right under the prompt (or in its place when there is no prompt)
-                float y = -ColumnTop - (showBanner ? banner.rect.height + Gap : 0f);
-                if (Mathf.Abs(why.anchoredPosition.y - y) > 0.5f) why.anchoredPosition = new Vector2(-Margin, y);
+                var h = markWhy ? whyHint : bannerHint;
+                UIBuild.Set(h, ctx.S(UIStrings.TutContinue));
+                h.alpha = 0.6f + 0.4f * Mathf.Sin(time * 5f);
             }
+
+            // overlay
+            dimAlpha = Mathf.MoveTowards(dimAlpha, coaching ? 1f : 0f, FadeSpeed * dt);
+            if (coaching && dimAlpha <= 0f) dimAlpha = 0.01f;
+            Show(dim, dimAlpha > 0f);
+            dimGroup.alpha = dimAlpha;
+            dimGroup.blocksRaycasts = coaching;
+            hole.raycastTarget = coaching && markExplain;
+            if (dimAlpha > 0f) LayoutDim();
 
             Show(highlight, hasTarget);
             Show(arrow, hasTarget);
+            if (nudge > 0f) nudge -= dt;
             if (hasTarget)
             {
                 highlight.anchoredPosition = targetRect.min;
                 highlight.sizeDelta = targetRect.size;
-                highlightGroup.alpha = 0.55f + 0.45f * Mathf.Sin(time * 7f);
-                float bob = 2f + 2f * Mathf.Sin(time * 7f); // bobs toward the target, never away from it
-                arrow.anchoredPosition = new Vector2(targetRect.center.x, targetRect.yMax + ArrowGap + bob);
+                highlightGroup.alpha = nudge > 0f ? 1f : 0.55f + 0.45f * Mathf.Sin(time * 7f);
+                float bob = 2f + 2f * Mathf.Sin(time * 7f) + (nudge > 0f ? 6f * Mathf.Abs(Mathf.Sin(nudge * 40f)) : 0f); // toward the target, never away
+                PlaceArrow(bob);
                 arrow.SetAsLastSibling();
             }
         }
 
+        static void SetHint(TextMeshProUGUI t, bool on)
+        {
+            if (t.gameObject.activeSelf != on) t.gameObject.SetActive(on);
+        }
+
+        /// <summary>▼ above the target when there is room; HUD targets in the right column / at the top get ▶ or ◀ beside them.</summary>
+        void PlaceArrow(float bob)
+        {
+            var size = canvas.rect.size;
+            // the right-hand HUD boxes (Luck, tips, streak - the streak box pops wider out of its right edge)
+            bool rightColumn = targetRect.xMax >= size.x - Margin - 8f && targetRect.yMin >= size.y - ColumnTop;
+            bool roomAbove = targetRect.yMax + ArrowGap + 4f + ArrowH <= size.y;
+            if (roomAbove && !rightColumn)
+            {
+                UIBuild.Set(arrowGlyph, "▼");
+                arrow.pivot = new Vector2(0.5f, 0f);
+                arrow.sizeDelta = new Vector2(ArrowW, ArrowH);
+                arrow.anchoredPosition = new Vector2(targetRect.center.x, targetRect.yMax + ArrowGap + bob);
+            }
+            else if (targetRect.xMin - ArrowGap - 4f - ArrowW >= 0f)
+            {
+                UIBuild.Set(arrowGlyph, "▶");
+                arrow.pivot = new Vector2(1f, 0.5f);
+                arrow.sizeDelta = new Vector2(ArrowH + 4f, ArrowW - 6f);
+                arrow.anchoredPosition = new Vector2(targetRect.xMin - ArrowGap - bob, targetRect.center.y);
+            }
+            else
+            {
+                UIBuild.Set(arrowGlyph, "◀");
+                arrow.pivot = new Vector2(0f, 0.5f);
+                arrow.sizeDelta = new Vector2(ArrowH + 4f, ArrowW - 6f);
+                arrow.anchoredPosition = new Vector2(targetRect.xMax + ArrowGap + bob, targetRect.center.y);
+            }
+        }
+
+        /// <summary>Four rects around the cut-out (the target + <see cref="HolePad"/>), the clear catcher inside it.</summary>
+        void LayoutDim()
+        {
+            var size = canvas.rect.size;
+            Rect h = hasTarget ? CoachHole : new Rect(0f, 0f, 0f, 0f);
+            Piece(dimPieces[0], 0f, 0f, size.x, h.yMin);           // below
+            Piece(dimPieces[1], 0f, h.yMax, size.x, size.y);       // above
+            Piece(dimPieces[2], 0f, h.yMin, h.xMin, h.yMax);       // left
+            Piece(dimPieces[3], h.xMax, h.yMin, size.x, h.yMax);   // right
+            Piece(hole, h.xMin, h.yMin, h.xMax, h.yMax);
+        }
+
+        Rect CoachHole
+        {
+            get
+            {
+                var size = canvas.rect.size;
+                return Rect.MinMaxRect(Mathf.Clamp(targetRect.xMin - HolePad, 0f, size.x), Mathf.Clamp(targetRect.yMin - HolePad, 0f, size.y),
+                    Mathf.Clamp(targetRect.xMax + HolePad, 0f, size.x), Mathf.Clamp(targetRect.yMax + HolePad, 0f, size.y));
+            }
+        }
+
+        static void Piece(Image img, float x0, float y0, float x1, float y1)
+        {
+            var rt = img.rectTransform;
+            rt.anchoredPosition = new Vector2(x0, y0);
+            rt.sizeDelta = new Vector2(Mathf.Max(0f, x1 - x0), Mathf.Max(0f, y1 - y0));
+        }
+
         void Target(RectTransform rt)
         {
-            if (rt == null) return;
+            if (rt == null || !rt.gameObject.activeInHierarchy) return;
             targetRect = UIBuild.CanvasRect(canvas, rt);
             targetName = rt.name;
             hasTarget = true;
@@ -284,7 +607,9 @@ namespace FloorF.UI
             {
                 if (wave >= LessonWaves || AllSpawned())
                 {
-                    text = Closing();
+                    if (closingPage >= ClosingPages) return Step.None; // read: the summary comes
+                    text = ClosingPage(closingPage);
+                    Target(closingPage == 0 ? hud.LuckBox : hud.DayBox);
                     return Step.Closing;
                 }
                 text = ctx.S(UIStrings.TutNextWave);
@@ -364,11 +689,16 @@ namespace FloorF.UI
             return Step.Floor;
         }
 
-        string Closing()
+        /// <summary>Closing page <paramref name="page"/>: 0 = Luck (endings), 1 = the clock + the practice reset.</summary>
+        string ClosingPage(int page)
         {
-            int lastDay = ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount;
-            int prosperous = ctx.Data != null ? ctx.Data.Rules.prosperousEndingLuck : 70;
-            return ctx.F(UIStrings.TutRules, lastDay, prosperous) + "\n" + ctx.S(UIStrings.PracticeReset);
+            if (page == 0)
+            {
+                int lastDay = ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount;
+                int prosperous = ctx.Data != null ? ctx.Data.Rules.prosperousEndingLuck : 70;
+                return ctx.F(UIStrings.TutEndLuck, lastDay, prosperous);
+            }
+            return ctx.S(UIStrings.TutEndClock) + "\n" + ctx.S(UIStrings.PracticeReset);
         }
 
         bool AllSpawned()
@@ -522,15 +852,21 @@ namespace FloorF.UI
             Show(why, false);
             Show(highlight, false);
             Show(arrow, false);
+            Show(dim, false);
+            dimAlpha = 0f;
+            dimGroup.blocksRaycasts = false;
+            coaching = false;
             hasTarget = false;
             targetName = null;
+            shownKey = null;
+            shownExplain = false;
         }
 
-        public void RefreshLanguage() { /* prompts are rebuilt every tick from ctx.S; the why card keeps its event text */ }
+        public void RefreshLanguage() { /* every card is rebuilt each tick from ctx.S / ctx.F */ }
 
         // ------------------------------------------------------------------ test hooks
 
-        public Step CurrentStep => banner.gameObject.activeSelf ? step : Step.None;
+        public Step CurrentStep => why.gameObject.activeSelf ? whyStep : banner.gameObject.activeSelf ? step : Step.None;
         public int Wave => wave;
         public string PromptText => banner.gameObject.activeSelf ? promptText.text : null;
         public string WhyText => why.gameObject.activeSelf ? whyText.text + (whyNote.gameObject.activeSelf ? "\n" + whyNote.text : "") : null;
@@ -543,5 +879,85 @@ namespace FloorF.UI
         public Rect WhyRect => why.gameObject.activeSelf ? UIBuild.CanvasRect(canvas, why) : default;
         public Rect TargetRect => highlight.gameObject.activeSelf ? targetRect : default;
         public Rect ArrowRect => arrow.gameObject.activeSelf ? UIBuild.CanvasRect(canvas, arrow) : default;
+
+        /// <summary>The coach overlay is up and absorbing clicks (the game is held).</summary>
+        public bool CoachVisible => dim.gameObject.activeSelf && coaching && dimGroup.blocksRaycasts;
+        public Rect CoachHoleRect => CoachVisible && hasTarget ? CoachHole : default;
+        /// <summary>An explain step waits for "click to continue" (hint shown).</summary>
+        public bool AwaitingContinue => CoachVisible && shownExplain;
+        public string ContinueHint => bannerHint.gameObject.activeInHierarchy ? bannerHint.text : whyHint.gameObject.activeInHierarchy ? whyHint.text : null;
+        /// <summary>A click on the overlay (outside any card), as the player would.</summary>
+        public void ClickOverlay() => dimPieces[1].GetComponent<Button>().onClick.Invoke();
+        public int QueuedExplains => queue.Count;
+
+        /// <summary>One sample card per lesson line (worst-case numbers/names), for the fits-the-screen test.</summary>
+        public sealed class CardSample
+        {
+            public bool Why;
+            public string Caption, Body, Note;
+            public override string ToString() => (Why ? "why: " : "prompt: ") + Body;
+        }
+
+        public List<CardSample> SampleCards()
+        {
+            var list = new List<CardSample>();
+            string label = "88";
+            int count = 8;
+            string place = "?";
+            if (ctx.Data != null)
+            {
+                string longest = null;
+                foreach (var d in ctx.Data.Destinations)
+                {
+                    string name = ctx.DestinationName(d.Id);
+                    if (longest == null || name.Length > longest.Length) { longest = name; place = InlineIcon.Markup(ctx, d.Id, out _, out _); }
+                }
+            }
+            string waveCaption = string.Format(ctx.S(UIStrings.TutWave), LessonWaves, LessonWaves);
+            void P(string body) => list.Add(new CardSample { Caption = waveCaption, Body = body });
+            P(ctx.F(UIStrings.TutBoardHereOne, label, 1));
+            P(ctx.F(UIStrings.TutBoardHereMany, label, count));
+            P(ctx.F(UIStrings.TutBoardGo, label));
+            P(ctx.F(UIStrings.TutChips, Join(NumberSet.Of(7, 8, 9), UIFormat.LuckyHex, false), Join(NumberSet.Of(4, 13), UIFormat.UnluckyHex, true)));
+            P(ctx.F(UIStrings.TutCloseNeutral, count));
+            P(ctx.F(UIStrings.TutCloseLucky, count));
+            P(ctx.F(UIStrings.TutCloseUnlucky, count));
+            P(ctx.S(UIStrings.TutCloseOn));
+            P(ctx.F(UIStrings.TutWaitAll, count));
+            P(ctx.F(UIStrings.TutWaitAllLucky, count));
+            P(ctx.F(UIStrings.TutFloor, label, place));
+            P(ctx.F(UIStrings.TutFloorTwo, label, place));
+            P(ctx.S(UIStrings.TutOpenThere));
+            P(ctx.F(UIStrings.TutOpenAll, label));
+            P(ctx.F(UIStrings.TutNotTheirStop, label, place));
+            P(ctx.S(UIStrings.TutNextWave));
+            string done = ctx.S(UIStrings.TutDoneTitle) + "  " + ClosingPages + "/" + ClosingPages;
+            for (int p = 0; p < ClosingPages; p++) list.Add(new CardSample { Caption = done, Body = ClosingPage(p) });
+            foreach (var t in new[] { UIStrings.TutWhyLuckyFloor, UIStrings.TutWhyLuckyCount, UIStrings.TutWhyUnluckyFloor, UIStrings.TutWhyUnluckyCount })
+                list.Add(new CardSample
+                {
+                    Why = true, Caption = ctx.S(UIStrings.RuleClose), Body = ctx.F(t, label),
+                    Note = t.En == UIStrings.TutWhyUnluckyFloor.En ? ctx.S(UIStrings.TutWhySticker) : null,
+                });
+            list.Add(new CardSample { Why = true, Caption = ctx.S(UIStrings.Tips), Body = ctx.F(UIStrings.TutStreak, 88, UIFormat.Multiplier(1.15f)) });
+            return list;
+        }
+
+        /// <summary>Lays <paramref name="s"/> out in its card (with the continue hint) and returns the card's canvas rect.</summary>
+        public Rect MeasureCard(CardSample s)
+        {
+            var card = s.Why ? why : banner;
+            Show(card, true);
+            if (s.Why) { whyCaption.text = s.Caption; whyText.text = s.Body; SetNote(s.Note); }
+            else { stepText.text = s.Caption; promptText.text = s.Body; }
+            var hint = s.Why ? whyHint : bannerHint;
+            hint.text = ctx.S(UIStrings.TutContinue);
+            SetHint(hint, true);
+            LayoutRebuilder.ForceRebuildLayoutImmediate(card);
+            var r = UIBuild.CanvasRect(canvas, card);
+            Show(card, false);
+            SetHint(hint, false);
+            return r;
+        }
     }
 }

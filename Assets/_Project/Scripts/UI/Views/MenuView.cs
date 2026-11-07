@@ -37,9 +37,10 @@ namespace FloorF.UI
             UIBuild.Stretch(backdrop.rectTransform);
             // translucent fill + hollow gold frame (a Framed box would tint the see-through fill gold)
             var panel = titlePanel = UIBuild.Box("TitlePanel", titleRoot, UIStyle.TitlePanel, raycast: true).rectTransform;
-            UIBuild.Place(panel, new Vector2(0.5f, 0.5f), new Vector2(0f, 20f), new Vector2(760f, 380f));
+            // compact, in the lower part of the screen: the lit hotel of the attract demo stays visible above it
+            UIBuild.Place(panel, new Vector2(0.5f, 0f), new Vector2(0f, 44f), new Vector2(720f, 300f));
             UIBuild.Outline("Frame", panel, UIStyle.CardEdge, 3f, 0f);
-            var v = Column(panel, new RectOffset(40, 40, 30, 30), 14f);
+            var v = Column(panel, new RectOffset(36, 36, 14, 20), 6f);
             gameName = UIBuild.Text("GameName", panel, UIStrings.GameName, 96f, UIStyle.Title, TextAlignmentOptions.Center, bold: true);
             gameName.textWrappingMode = TextWrappingModes.NoWrap;
             gameName.characterSpacing = 8f;
@@ -302,6 +303,7 @@ namespace FloorF.UI
                    && backdrop.transform.GetSiblingIndex() < titlePanel.GetSiblingIndex();
         }
         public bool PauseButtonVisible => pauseButton.Rect.gameObject.activeSelf;
+        public Rect TitlePanelRect(RectTransform canvas) => titlePanel.gameObject.activeInHierarchy ? UIBuild.CanvasRect(canvas, titlePanel) : default;
         public string TitleText => gameName.text + " | " + subtitle.text + " | " + start.Label.text;
         public void ClickStart() => start.Button.onClick.Invoke();
         public void ClickTitleLanguage() => titleLanguage.Button.onClick.Invoke();

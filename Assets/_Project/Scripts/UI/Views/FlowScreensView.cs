@@ -8,7 +8,8 @@ namespace FloorF.UI
 {
     /// <summary>
     /// Modal cards for the day flow (GDD 3): Intro (title, intro text, how-to on tutorial days, START -> IGameFlow.BeginDay),
-    /// Summary (DaySummary, CONTINUE -> ContinueFromSummary), Ending (EndingKind text, PLAY AGAIN -> RestartGame).
+    /// Summary (DaySummary, CONTINUE -> ContinueFromSummary; real days get a stamped S/A/B/C grade, UIFormat.DayGrade),
+    /// Ending (EndingKind text, PLAY AGAIN -> RestartGame).
     /// The Shop is <see cref="ShopView"/> (side card, the panel stays clickable).
     /// </summary>
     sealed class FlowScreensView
@@ -19,6 +20,13 @@ namespace FloorF.UI
         readonly UIBuild.ButtonParts action, toTitle, skip;
         DayPhase shown = (DayPhase)(-1);
         int shownDay = -1;
+        readonly RectTransform stamp;
+        readonly CanvasGroup stampGroup;
+        readonly TextMeshProUGUI stampLetter, stampCaption;
+        readonly Image[] stampEdges;
+        float stampAge = -1f;
+        /// <summary>The stamp lands this long after the summary card appears, in <see cref="StampSlam"/> seconds.</summary>
+        public const float StampDelay = 0.35f, StampSlam = 0.2f;
 
         public FlowScreensView(UIContext ctx, RectTransform canvas)
         {
@@ -63,6 +71,27 @@ namespace FloorF.UI
             skip.Label.color = UIStyle.Ink;
             skip.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 2f; // as wide as START: the label stays at 24px
             skip.Rect.gameObject.SetActive(false);
+
+            // grade stamp: top-right corner of the summary card, tilted, slams down (scale 2.4 -> 1)
+            stamp = UIBuild.Rect("GradeStamp", card);
+            stamp.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            stamp.anchorMin = stamp.anchorMax = new Vector2(1f, 1f);
+            stamp.pivot = new Vector2(0.5f, 0.5f);
+            stamp.anchoredPosition = new Vector2(-84f, -70f);
+            stamp.sizeDelta = new Vector2(124f, 124f);
+            stamp.localRotation = Quaternion.Euler(0f, 0f, -12f);
+            stampGroup = stamp.gameObject.AddComponent<CanvasGroup>();
+            stampGroup.blocksRaycasts = false;
+            stampGroup.interactable = false;
+            UIBuild.Stretch(UIBuild.Box("Plate", stamp, new Color(0f, 0f, 0f, 0.35f)).rectTransform);
+            var ring = UIBuild.Outline("Ring", stamp, UIStyle.Lucky, 6f, 0f);
+            stampEdges = ring.GetComponentsInChildren<Image>();
+            stampCaption = UIBuild.Text("Caption", stamp, "", 12f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(stampCaption.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(110f, 20f));
+            stampLetter = UIBuild.Text("Letter", stamp, "", 96f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(stampLetter.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -8f), new Vector2(120f, 100f));
+            stampLetter.textWrappingMode = TextWrappingModes.NoWrap;
+            stamp.gameObject.SetActive(false);
 
             dim.gameObject.SetActive(false);
         }
@@ -110,6 +139,7 @@ namespace FloorF.UI
 
         public void Tick()
         {
+            TickStamp();
             var phase = ctx.HasGame ? ctx.Day.Phase : DayPhase.None;
             if (SkipVisible && !(ctx.Paused) && TabPressed()) { OnSkip(); return; }
             int day = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
@@ -131,6 +161,14 @@ namespace FloorF.UI
             shownDay = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
             bool modal = phase == DayPhase.Intro || phase == DayPhase.Summary || phase == DayPhase.Ending;
             dim.gameObject.SetActive(modal);
+            bool graded = modal && phase == DayPhase.Summary && !ctx.Day.IsTutorial;
+            if (graded != stamp.gameObject.activeSelf)
+            {
+                stamp.gameObject.SetActive(graded);
+                stampAge = graded ? 0f : -1f;
+                stampGroup.alpha = 0f;
+                stamp.localScale = new Vector3(2.4f, 2.4f, 1f);
+            }
             if (!modal) return;
             bool ko = ctx.Korean;
             title.color = UIStyle.Lucky;
@@ -186,7 +224,9 @@ namespace FloorF.UI
                 Row(ctx.S(UIStrings.Left), N(s.Left)) + "\n" +
                 Row(ctx.S(UIStrings.TipsEarned), "<color=#5BE37D>+$" + N(s.TipsEarned) + "</color>") + "\n" +
                 Row(ctx.S(UIStrings.LuckLine), N(s.LuckAtStart) + " → " + N(s.LuckAtEnd) + "  <color=" + luckColor + ">(" + UIFormat.Signed(s.LuckDelta) + ")</color>") + "\n" +
-                Row(ctx.S(UIStrings.Judgements), "<color=" + UIFormat.LuckyHex + ">" + N(s.LuckyJudgements) + "</color> / <color=" + UIFormat.UnluckyHex + ">" + N(s.UnluckyJudgements) + "</color>");
+                Row(ctx.S(UIStrings.Judgements), "<color=" + UIFormat.LuckyHex + ">" + N(s.LuckyJudgements) + "</color> / <color=" + UIFormat.UnluckyHex + ">" + N(s.UnluckyJudgements) + "</color>") + "\n" +
+                Row(ctx.S(UIStrings.BestStreak), (s.BestStreak > 0 ? "<color=" + UIFormat.LuckyHex + ">x" : "<color=#F4EEDC>x") + N(s.BestStreak) + "</color>");
+            if (!tutorial) FillStamp(UIFormat.DayGrade(s));
             if (tutorial)
             {
                 int lastDay = ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount;
@@ -216,6 +256,37 @@ namespace FloorF.UI
                 Row(ctx.S(UIStrings.EndTips), "<color=#5BE37D>$" + N(tips) + "</color>");
             action.Label.text = ctx.S(UIStrings.PlayAgain);
         }
+
+        void FillStamp(string grade)
+        {
+            var c = GradeColor(grade);
+            stampLetter.text = grade;
+            stampLetter.color = stampCaption.color = c;
+            stampCaption.text = ctx.S(UIStrings.Grade);
+            foreach (var e in stampEdges) e.color = c;
+        }
+
+        public static Color GradeColor(string grade) =>
+            grade == "S" ? UIStyle.Lucky : grade == "A" ? UIStyle.Good : grade == "B" ? UIStyle.Ink : UIStyle.Unlucky;
+
+        void TickStamp()
+        {
+            if (!stamp.gameObject.activeInHierarchy || stampAge < 0f) return;
+            stampAge += Time.deltaTime;
+            float t = (stampAge - StampDelay) / StampSlam;
+            if (t < 0f) { stampGroup.alpha = 0f; return; }
+            float k = Mathf.Clamp01(t);
+            stampGroup.alpha = k;
+            float scale = Mathf.Lerp(2.4f, 1f, k * k); // accelerates into the card
+            if (t > 1f && t < 1.6f) scale = 1f + 0.06f * Mathf.Sin((t - 1f) / 0.6f * Mathf.PI); // a small bounce on impact
+            stamp.localScale = new Vector3(scale, scale, 1f);
+        }
+
+        public bool StampVisible => stamp.gameObject.activeInHierarchy;
+        public string StampGrade => StampVisible ? stampLetter.text : null;
+        public bool StampLanded => StampVisible && stampGroup.alpha >= 0.99f && Mathf.Abs(stamp.localScale.x - 1f) < 0.08f;
+        public Rect StampRect(RectTransform canvas) => StampVisible ? UIBuild.CanvasRect(canvas, stamp) : default;
+        public Rect CardRect(RectTransform canvas) => dim.gameObject.activeSelf ? UIBuild.CanvasRect(canvas, card) : default;
 
         static string Row(string caption, string value) => caption + "<pos=62%><b>" + value + "</b>";
         static string N(int v) => v.ToString(CultureInfo.InvariantCulture);
