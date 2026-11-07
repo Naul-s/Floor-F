@@ -1,0 +1,9 @@
+Freesound.org sounds, all Creative Commons 0 (CC0 1.0) as shown on each sound page (checked 2026-11-07).
+Downloaded by the project owner (Freesound requires login).
+
+459349__lilmati__elevator-ping-01.wav            https://freesound.org/people/LilMati/sounds/459349/       arrival ding
+562714__pagdev__elevator_door_opening.wav        https://freesound.org/people/PagDev/sounds/562714/        doors open
+639429__laurenponder__crystal-twinkle.wav        https://freesound.org/people/LaurenPonder/sounds/639429/  lucky sparkle
+536757__egomassive__gaspm.ogg                    https://freesound.org/people/egomassive/sounds/536757/    unlucky gasp
+665215__danlucaz__mystery-loop-3.wav             https://freesound.org/people/danlucaz/sounds/665215/      4th-floor ending loop
+659889__blondpanda__short-elevator-music-loop.wav https://freesound.org/people/BlondPanda/sounds/659889/    alt elevator music loop (CC0)

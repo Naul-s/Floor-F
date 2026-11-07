@@ -63,5 +63,56 @@ namespace FloorF.EditorTools
             importer.SaveAndReimport();
             Debug.Log("[ProjectSetupTool] reimported " + GalmuriTtf + " (includeFontData=true)");
         }
+
+        const string ThirdParty = "Assets/_Project/ThirdParty";
+
+        /// <summary>
+        /// WebGL-friendly import settings for the approved third-party assets (icons as sprites, mono Vorbis audio,
+        /// point-filtered colormaps). Idempotent; re-run after adding files under ThirdParty.
+        /// Batch: tools/unity-batch.ps1 -Mode method -Method FloorF.EditorTools.ProjectSetupTool.ConfigureThirdPartyImporters
+        /// </summary>
+        [MenuItem("Floor F/Setup/Configure Third-Party Importers")]
+        public static void ConfigureThirdPartyImporters()
+        {
+            int n = 0;
+            foreach (var guid in AssetDatabase.FindAssets("t:Texture2D", new[] { ThirdParty + "/MaterialSymbols" }))
+            {
+                var ti = AssetImporter.GetAtPath(AssetDatabase.GUIDToAssetPath(guid)) as TextureImporter;
+                if (ti == null) continue;
+                ti.textureType = TextureImporterType.Sprite;
+                ti.spriteImportMode = SpriteImportMode.Single;
+                ti.alphaIsTransparency = true;
+                ti.mipmapEnabled = false;
+                ti.maxTextureSize = 128;
+                ti.filterMode = FilterMode.Bilinear;
+                ti.textureCompression = TextureImporterCompression.Uncompressed;
+                ti.SaveAndReimport(); n++;
+            }
+            foreach (var guid in AssetDatabase.FindAssets("t:Texture2D", new[] { ThirdParty + "/Kenney" }))
+            {
+                var ti = AssetImporter.GetAtPath(AssetDatabase.GUIDToAssetPath(guid)) as TextureImporter;
+                if (ti == null) continue;
+                ti.filterMode = FilterMode.Point;
+                ti.mipmapEnabled = false;
+                ti.maxTextureSize = 512;
+                ti.SaveAndReimport(); n++;
+            }
+            foreach (var guid in AssetDatabase.FindAssets("t:AudioClip", new[] { ThirdParty }))
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var ai = AssetImporter.GetAtPath(path) as AudioImporter;
+                if (ai == null) continue;
+                bool music = path.Contains("/KevinMacLeod/") || path.ToLowerInvariant().Contains("loop");
+                ai.forceToMono = true;
+                ai.loadInBackground = music;
+                var s = ai.defaultSampleSettings;
+                s.compressionFormat = AudioCompressionFormat.Vorbis;
+                s.quality = music ? 0.45f : 0.6f;
+                s.loadType = music ? AudioClipLoadType.CompressedInMemory : AudioClipLoadType.DecompressOnLoad;
+                ai.defaultSampleSettings = s;
+                ai.SaveAndReimport(); n++;
+            }
+            Debug.Log("[ProjectSetupTool] configured " + n + " third-party importers");
+        }
     }
 }
