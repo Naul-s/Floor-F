@@ -149,9 +149,12 @@ namespace FloorF.Tests.EditMode.UI
                 Assert.IsNotEmpty(l.Ko, f.Name + " ko");
                 for (int i = 0; i < 3; i++)
                 {
-                    string ph = "{" + i + "}";
-                    Assert.AreEqual(l.En.Contains(ph), l.Ko.Contains(ph), f.Name + " placeholder " + ph);
+                    // "{0}" or a Korean particle specifier "{0:은}"
+                    var ph = new System.Text.RegularExpressions.Regex(@"\{" + i + @"(:[^}]*)?\}");
+                    Assert.AreEqual(ph.IsMatch(l.En), ph.IsMatch(l.Ko), f.Name + " placeholder {" + i + "}");
                 }
+                foreach (var bad in new[] { "은(는)", "는(은)", "이(가)", "가(이)", "을(를)", "를(을)", "과(와)", "와(과)", "(으)로" })
+                    StringAssert.DoesNotContain(bad, l.Ko, f.Name + ": particle placeholder - use {n:은} (KoreanParticles)");
                 Assert.AreEqual(l.Ko, l.Get(true));
                 Assert.AreEqual(l.En, l.Get(false));
             }

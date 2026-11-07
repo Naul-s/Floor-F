@@ -276,6 +276,25 @@ namespace FloorF.UI
         internal void ClickEndingTitle() => flow.ClickTitle();
         internal string FlowActionText => flow.ActionText;
 
+        // credits / title backdrop
+        internal bool CreditsVisible => menu.CreditsVisible;
+        internal bool TitlePanelVisible => menu.TitlePanelVisible;
+        internal void ClickCredits() => menu.ClickCredits();
+        internal void ClickCreditsBack() => menu.ClickCreditsBack();
+        internal string CreditsText => menu.CreditsText;
+        internal bool TitleBackdropCovers(out float alpha) => menu.BackdropCoversCanvas(ctx.CanvasRect, out alpha);
+        internal void SetTitleBackdrop(bool on) => menu.SetBackdropForTests(on);
+        internal bool CreditsFitOnScreen => menu.CreditsFitIn(ctx.CanvasRect);
+
+        // destination icons
+        internal bool BadgeShowsIcon(int floor) => panel.BadgeShowsIcon(floor);
+        internal Sprite BadgeSprite(int floor) => panel.BadgeSprite(floor);
+        internal Color BadgeIconColor(int floor) => panel.BadgeIconColor(floor);
+        internal void ChipBadgeStats(out int count, out int icons, out int names, out int textOnly) => bubbles.BadgeStats(out count, out icons, out names, out textOnly);
+        internal bool TutorialIconVisible => tutorial.PromptIconVisible;
+        internal bool ShopResultIconVisible => shop.ResultIconVisible;
+        internal Color DestinationColor(int floor) => UIStyle.Destination(ctx.DestinationIndex(ctx.Building.GetDestination(new FloorIndex(floor))));
+
         // layout
         internal float BadgeFontSize(int floor) => panel.BadgeFontSize(floor);
         internal string BadgeText(int floor) => panel.BadgeText(floor);

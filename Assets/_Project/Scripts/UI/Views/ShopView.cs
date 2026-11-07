@@ -28,6 +28,7 @@ namespace FloorF.UI
         readonly RectTransform card, offersRoot;
         readonly TextMeshProUGUI title, tips, hint, result;
         readonly UIBuild.ButtonParts done;
+        readonly InlineIcon resultIcon;
         readonly List<OfferButton> offers = new List<OfferButton>();
         bool open;
         StickerId selected;
@@ -62,7 +63,9 @@ namespace FloorF.UI
             ov.childForceExpandWidth = true;
             ov.childForceExpandHeight = false;
             result = UIBuild.Text("Result", card, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            done = UIBuild.Button("Done", card, "", 24f, UIStyle.Action, () => ctx.Flow?.FinishShopping());
+            resultIcon = new InlineIcon(result);
+            done = UIBuild.Button("Done", card, "", 24f, UIStyle.Action,
+                () => ctx.Sound(ctx.Flow != null && ctx.Flow.FinishShopping() ? UiSoundKind.Confirm : UiSoundKind.Error));
             done.Label.color = UIStyle.Ink;
             done.Rect.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
 
@@ -100,9 +103,16 @@ namespace FloorF.UI
         {
             if (!open) return;
             selected = selected == id ? default : id;
+            ctx.Sound(selected.IsEmpty ? UiSoundKind.Click : UiSoundKind.Confirm); // picked = confirm, un-picked = click
             panel.SelectedSticker = selected;
-            result.text = selected.IsEmpty ? "" : ctx.S(UIStrings.ShopPickFloor);
-            result.color = UIStyle.Ink;
+            SetResult(selected.IsEmpty ? "" : ctx.S(UIStrings.ShopPickFloor), UIStyle.Ink);
+        }
+
+        void SetResult(string text, Color color, Sprite icon = null, Color iconTint = default)
+        {
+            result.text = text;
+            result.color = color;
+            resultIcon.Set(icon, iconTint);
         }
 
         bool OnFloorClicked(FloorIndex floor)
@@ -110,15 +120,18 @@ namespace FloorF.UI
             if (ctx.Day == null || ctx.Day.Phase != DayPhase.Shop || ctx.Shop == null) return false;
             if (selected.IsEmpty)
             {
-                result.text = ctx.S(UIStrings.ShopHint);
-                result.color = UIStyle.Ink;
+                SetResult(ctx.S(UIStrings.ShopHint), UIStyle.Ink);
+                ctx.Sound(UiSoundKind.Error); // no sticker picked yet
                 return true;
             }
             string before = ctx.Building.GetLabel(floor).Text;
             var r = ctx.Shop.TryBuyAndApply(selected, floor);
+            ctx.Sound(r == StickerApplyResult.Applied ? UiSoundKind.Confirm : UiSoundKind.Error);
             string after = ctx.Building.GetLabel(floor).Text;
-            result.text = UIFormat.ApplyResult(r, before, after, ctx.Korean);
-            result.color = r == StickerApplyResult.Applied ? UIStyle.Lucky : UIStyle.Unlucky;
+            // the venue keeps its icon whatever the label says (GDD 4): "Floor 4 ([icon] Karaoke) is now F!"
+            string venue = InlineIcon.Markup(ctx, ctx.Building.GetDestination(floor), out var icon, out var tint);
+            SetResult(UIFormat.ApplyResult(r, before, after, ctx.Korean, venue), r == StickerApplyResult.Applied ? UIStyle.Lucky : UIStyle.Unlucky,
+                r == StickerApplyResult.Applied ? icon : null, tint);
             if (r == StickerApplyResult.Applied)
             {
                 // keep the selection only while that sticker is still for sale
@@ -140,7 +153,7 @@ namespace FloorF.UI
             open = true;
             selected = default;
             panel.SelectedSticker = selected;
-            result.text = "";
+            SetResult("", UIStyle.Ink);
             card.gameObject.SetActive(true);
             RefreshLanguage();
         }
@@ -206,6 +219,7 @@ namespace FloorF.UI
             bool shouldOpen = ctx.HasGame && ctx.Day.Phase == DayPhase.Shop;
             if (shouldOpen != open) { if (shouldOpen) Open(); else Close(); }
             if (!open) return;
+            resultIcon.Place();
             int t = ctx.Score != null ? ctx.Score.Tips : 0;
             if (t != shownTips)
             {
@@ -223,6 +237,7 @@ namespace FloorF.UI
         }
 
         public void ClickOffer(int index) { if (index >= 0 && index < offers.Count) offers[index].Parts.Button.onClick.Invoke(); }
+        public bool ResultIconVisible => resultIcon.Visible;
         public void ClickDone() => done.Button.onClick.Invoke();
     }
 }
