@@ -21,12 +21,17 @@ namespace FloorF.Audio
     /// SFX pool (2D, random pitch, per-cue spam guard) + two music sources (crossfade) whose level/pitch follow the phase,
     /// the unlucky pitch dip, pause / Day 0 coach-mark ducking, the lucky-streak ladder, the last-seconds clock ticks,
     /// MasterVolume and the WebGL gesture lock. All timing uses unscaled time (the clock ticks follow the day clock).
+    /// Door cues have their own voice pair (never stacked: a new door cue fades the previous one out in
+    /// <see cref="AudioLibrary.doorCutFadeSeconds"/>) and are played lower right after the arrival ding.
     /// The AudioListener is on the scene's Main Camera.
     /// </summary>
     sealed class AudioRoot : MonoBehaviour
     {
         internal const string RootName = "[Audio]";
+        /// <summary>Pooled SFX voices (round-robin); the door voices come after them in <see cref="SfxSources"/>.</summary>
         internal const int SfxVoices = 12;
+        /// <summary>Door voice pair: the new door cue starts on one while the cut previous one fades out on the other.</summary>
+        internal const int DoorVoices = 2;
         internal const int MaxRecords = 128;
 
         sealed class MusicChannel
@@ -49,7 +54,15 @@ namespace FloorF.Audio
         AudioLibrary lib;
         AudioSource[] sfx;
         float[] sfxBaseVolume;
+        /// <summary>Per voice: 1, or the remaining gain while a cut voice fades out (sfxCut).</summary>
+        float[] sfxFade;
+        bool[] sfxCut;
         int nextVoice;
+        /// <summary>Index (in sfx) of the door voice that played last, -1 before the first door cue.</summary>
+        int doorVoice = -1;
+        /// <summary>Unscaled time the last door cue's clip ends (length / pitch): "still sounding" even without an audio device.</summary>
+        float doorEndsAt = float.NegativeInfinity;
+        float lastDingTime = float.NegativeInfinity;
         int activeMusic;
         MusicSpec spec = new MusicSpec(MusicTrack.None, 0f, 1f);
         float basePitch = 1f;
@@ -80,7 +93,20 @@ namespace FloorF.Audio
         internal bool TutorialHeld => held;
         internal bool DipActive => dip.Active;
         internal IReadOnlyList<AudioSource> SfxSources => sfx;
-        internal void ClearRecords() { played.Clear(); SuppressedCount = 0; throttle.Clear(); pendingStreak = 0; }
+        /// <summary>The door voice holding the latest door cue (null before the first).</summary>
+        internal AudioSource DoorSource => doorVoice >= 0 ? sfx[doorVoice] : null;
+        /// <summary>Door cues that cut a still-sounding previous door cue (since the last ClearRecords).</summary>
+        internal int DoorCutCount { get; private set; }
+        internal bool IsCutFading(AudioSource s)
+        {
+            int i = System.Array.IndexOf(sfx, s);
+            return i >= 0 && sfxCut[i];
+        }
+        internal void ClearRecords()
+        {
+            played.Clear(); SuppressedCount = 0; throttle.Clear(); pendingStreak = 0;
+            DoorCutCount = 0; lastDingTime = float.NegativeInfinity;
+        }
 
         internal bool TryGetLastPlayed(AudioCue cue, out CueRecord record)
         {
@@ -104,11 +130,15 @@ namespace FloorF.Audio
 
             var sfxRoot = new GameObject("SFX").transform;
             sfxRoot.SetParent(transform, false);
-            sfx = new AudioSource[SfxVoices];
-            sfxBaseVolume = new float[SfxVoices];
-            for (int i = 0; i < SfxVoices; i++)
+            int voices = SfxVoices + DoorVoices;
+            sfx = new AudioSource[voices];
+            sfxBaseVolume = new float[voices];
+            sfxFade = new float[voices];
+            sfxCut = new bool[voices];
+            for (int i = 0; i < voices; i++)
             {
-                var go = new GameObject("Voice " + i);
+                sfxFade[i] = 1f;
+                var go = new GameObject(i < SfxVoices ? "Voice " + i : "Door Voice " + (i - SfxVoices));
                 go.transform.SetParent(sfxRoot, false);
                 sfx[i] = MakeSource(go, loop: false, priority: 128);
             }
@@ -169,6 +199,7 @@ namespace FloorF.Audio
             if (unlock.Poll()) OnUnlocked();
             if (GameServices.TryGet<IDayQuery>(out var day)) TickCountdown(day.Phase, day.IsTutorial, day.RemainingSeconds);
             UpdateMusic(Time.unscaledTime, Time.unscaledDeltaTime);
+            StepCutFades(Time.unscaledDeltaTime);
         }
 
         /// <summary>After every Update (Core ticks in Gameplay's Update): one StreakUp note for this frame's increases.</summary>
@@ -235,14 +266,15 @@ namespace FloorF.Audio
             Unlock(); // pausing is always the player's doing
             paused = e.Paused;
             if (!paused) return;
-            foreach (var s in sfx) s.Stop();
+            for (int i = 0; i < sfx.Length; i++) { sfx[i].Stop(); sfxCut[i] = false; sfxFade[i] = 1f; }
+            doorEndsAt = float.NegativeInfinity;
             dip.Clear();
         }
 
         void SetMaster(float v)
         {
             master = Mathf.Clamp01(v);
-            for (int i = 0; i < sfx.Length; i++) sfx[i].volume = sfxBaseVolume[i] * master;
+            for (int i = 0; i < sfx.Length; i++) sfx[i].volume = sfxBaseVolume[i] * sfxFade[i] * master;
             UpdateMusic(Time.unscaledTime, 0f);
         }
 
@@ -274,7 +306,13 @@ namespace FloorF.Audio
             if (clip == null) return;
             float pitch = exactPitch > 0f ? def.pitch * exactPitch : AudioRules.PickPitch(def.pitch, def.pitchJitter, rng);
             float vol = def.volume * scale * (phase == DayPhase.Title ? lib.titleSfxScale : 1f);
-            PlayVoice(clip, vol, pitch);
+            if (cue == AudioCue.Ding) lastDingTime = now;
+            if (AudioRules.IsDoorCue(cue))
+            {
+                vol *= AudioRules.DoorGainAfterDing(now - lastDingTime, lib.dingGuardSeconds, lib.doorUnderDingDb);
+                PlayDoor(clip, vol, pitch, now);
+            }
+            else PlayVoice(clip, vol, pitch);
             if (def.layer != null) PlayVoice(def.layer, vol * def.layerVolume, pitch);
             if (played.Count >= MaxRecords) played.RemoveAt(0);
             played.Add(new CueRecord(cue, clip, pitch, vol * master, now));
@@ -283,20 +321,60 @@ namespace FloorF.Audio
         void PlayVoice(AudioClip clip, float volume, float pitch)
         {
             int pick = -1;
-            for (int k = 0; k < sfx.Length; k++)
+            for (int k = 0; k < SfxVoices; k++)
             {
-                int i = (nextVoice + k) % sfx.Length;
+                int i = (nextVoice + k) % SfxVoices;
                 if (!sfx[i].isPlaying) { pick = i; break; }
             }
             if (pick < 0) pick = nextVoice;
-            nextVoice = (pick + 1) % sfx.Length;
-            var s = sfx[pick];
+            nextVoice = (pick + 1) % SfxVoices;
+            StartVoice(pick, clip, volume, pitch);
+        }
+
+        /// <summary>
+        /// One door sound at a time: if the previous door cue is still sounding it is cut (fades out on its voice) while
+        /// the new one starts on the other door voice.
+        /// </summary>
+        void PlayDoor(AudioClip clip, float volume, float pitch, float now)
+        {
+            int prev = doorVoice;
+            int next = prev == SfxVoices ? SfxVoices + 1 : SfxVoices;
+            if (prev >= 0 && now < doorEndsAt)
+            {
+                sfxCut[prev] = true;
+                DoorCutCount++;
+            }
+            StartVoice(next, clip, volume, pitch);
+            doorVoice = next;
+            doorEndsAt = now + clip.length / Mathf.Max(0.01f, pitch);
+        }
+
+        void StartVoice(int i, AudioClip clip, float volume, float pitch)
+        {
+            var s = sfx[i];
             s.Stop();
             s.clip = clip;
             s.pitch = pitch;
-            sfxBaseVolume[pick] = volume;
+            sfxBaseVolume[i] = volume;
+            sfxFade[i] = 1f;
+            sfxCut[i] = false;
             s.volume = volume * master;
             s.Play();
+        }
+
+        /// <summary>Cut voices glide to 0 over doorCutFadeSeconds, then stop (no click, no stacking).</summary>
+        internal void StepCutFades(float dt)
+        {
+            for (int i = 0; i < sfx.Length; i++)
+            {
+                if (!sfxCut[i]) continue;
+                sfxFade[i] = AudioRules.StepCutFade(sfxFade[i], dt, lib.doorCutFadeSeconds);
+                sfx[i].volume = sfxBaseVolume[i] * sfxFade[i] * master;
+                if (sfxFade[i] > 0f) continue;
+                sfx[i].Stop();
+                sfxCut[i] = false;
+                sfxFade[i] = 1f;
+            }
         }
 
         // ------------------------------------------------------------------ music

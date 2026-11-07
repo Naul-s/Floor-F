@@ -48,14 +48,17 @@ namespace FloorF.EditorTools
                 };
             }
 
-            const string door = FS + "562714__pagdev__elevator_door_opening.wav";
+            // only the latch clunk of PagDev's door recording (0-568 ms; the motor/machinery run after it is cut off by
+            // DoorClipTrimmer). Door cues share one voice (AudioRoot: a new one cuts the previous) and play
+            // doorUnderDingDb lower inside dingGuardSeconds after the arrival ding.
+            const string door = DoorClipTrimmer.ClunkPath;
             lib.cues = new[]
             {
                 // the ping is mastered near 0 dBFS (~20 dB hotter than the other cues): keep it low
                 Cue(AudioCue.Ding, new[] { FS + "459349__lilmati__elevator-ping-01.wav" }, 0.15f, 1f, 0.05f, 0.25f),
-                Cue(AudioCue.DoorsOpen, new[] { door }, 0.55f, 1f, 0.06f, 0.3f),
-                // no closing sample: the same door slid lower and quieter reads as "heavier, shutting"
-                Cue(AudioCue.DoorsClose, new[] { door }, 0.45f, 0.8f, 0.06f, 0.3f),
+                Cue(AudioCue.DoorsOpen, new[] { door }, 0.45f, 1f, 0.06f, 0.3f),
+                // no closing sample: the same clunk slid lower and quieter reads as "heavier, shutting"
+                Cue(AudioCue.DoorsClose, new[] { door }, 0.37f, 0.8f, 0.06f, 0.3f),
                 Cue(AudioCue.Lucky, new[] { FS + "639429__laurenponder__crystal-twinkle.wav" }, 0.7f, 1f, 0.08f, 0.12f,
                     layer: UI + "glass_001.ogg", layerVolume: 0.3f),
                 Cue(AudioCue.Unlucky, new[] { FS + "536757__egomassive__gaspm.ogg" }, 0.85f, 1f, 0.10f, 0.2f),
@@ -105,6 +108,11 @@ namespace FloorF.EditorTools
             lib.streakMaxSemitones = 7f;
             lib.clockTickSeconds = 10;
             lib.clockTickRise = 0.2f;
+            lib.doorCutFadeSeconds = 0.03f;
+            // the ping holds full level ~0.4 s and is ~-20 dB by 0.8 s; doors finish opening >= doorSeconds (0.35 s)
+            // after arrival, i.e. inside that sustain: -6 dB keeps the clunk under the ding there
+            lib.dingGuardSeconds = 0.6f;
+            lib.doorUnderDingDb = -6f;
 
             if (missing.Count > 0)
                 throw new FileNotFoundException("[AudioLibraryBuilder] missing clips:\n" + string.Join("\n", missing));
