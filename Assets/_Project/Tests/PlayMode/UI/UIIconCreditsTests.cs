@@ -78,10 +78,15 @@ namespace FloorF.Tests.PlayMode.UI
             for (int f = 0; f < ui.FloorButtonCount; f++)
             {
                 Assert.IsTrue(data.TryGetDestination(building.GetDestination(new FloorIndex(f)), out var d), "floor " + f + " destination");
-                Assert.IsTrue(ui.BadgeShowsIcon(f), "floor " + f + " badge shows an icon");
-                Assert.IsNotNull(ui.BadgeSprite(f));
-                StringAssert.StartsWith(d.IconKey, ui.BadgeSprite(f).name, "floor " + f + " sprite = Icons/" + d.IconKey);
-                Assert.AreEqual(ui.DestinationColor(f), ui.BadgeIconColor(f), "icon tinted with the destination colour");
+                // a curated name too wide beside the icon ("Karaoke") takes the whole badge instead of being cut
+                bool wideName = ui.BadgeText(f) == UIFormat.DestinationShortName(d.Id.Value, false);
+                Assert.IsTrue(ui.BadgeShowsIcon(f) || wideName, "floor " + f + " badge shows an icon (or a whole curated name): " + ui.BadgeText(f));
+                if (ui.BadgeShowsIcon(f))
+                {
+                    Assert.IsNotNull(ui.BadgeSprite(f));
+                    StringAssert.StartsWith(d.IconKey, ui.BadgeSprite(f).name, "floor " + f + " sprite = Icons/" + d.IconKey);
+                    Assert.AreEqual(ui.DestinationColor(f), ui.BadgeIconColor(f), "icon tinted with the destination colour");
+                }
                 Assert.GreaterOrEqual(ui.BadgeText(f).Length, 1, "short name next to the icon: " + ui.BadgeText(f));
                 Assert.GreaterOrEqual(ui.BadgeFontSize(f), 24f);
             }

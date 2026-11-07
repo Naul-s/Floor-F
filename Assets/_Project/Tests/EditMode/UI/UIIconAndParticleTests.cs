@@ -104,7 +104,7 @@ namespace FloorF.Tests.EditMode.UI
             {
                 string all = UIStrings.CreditsSound.Get(ko) + UIStrings.CreditsArt.Get(ko) + UIStrings.CreditsAi.Get(ko);
                 foreach (var who in new[] { "LilMati", "PagDev", "LaurenPonder", "egomassive", "danlucaz", "BlondPanda", "Freesound",
-                             "Kenney", "CC0", "Galmuri11", "SIL Open Font License 1.1", "Material Symbols", "Apache License 2.0", "Claude (Anthropic)" })
+                             "Kenney", "CC0", "Galmuri11", "SIL Open Font License 1.1", "Material Symbols", "Apache License 2.0", "Claude", "Anthropic" })
                     StringAssert.Contains(who, all, (ko ? "ko" : "en") + ": " + who);
             }
         }

@@ -18,7 +18,7 @@ namespace FloorF.UI
     {
         public const int MaxSpeech = 3;
         public const float SpeechLife = 2.5f;
-        const float PopupLife = 1.8f, MergeWindow = 0.3f, SpeechMaxW = 240f, ShaftMargin = 6f, PopupGap = 4f, LeaderMin = 60f;
+        const float PopupLife = 1.8f, MergeWindow = 0.3f, SpeechMaxW = 240f, ShaftMargin = 6f, LeaderMin = 60f;
 
         sealed class Popup
         {
@@ -117,6 +117,10 @@ namespace FloorF.UI
             origin.x += e.Verdict == LuckVerdict.Lucky ? -40f : 40f;
             origin.y += popups.Count * 30f;
             origin.y = Mathf.Min(origin.y, layer.rect.height - 120f);
+            // never over the floor-sign plates (left of the shaft): the player reads the next floor's number there
+            float half = pop.Rect.sizeDelta.x * 1.25f * 0.5f; // punch scale included
+            if (ctx.SignColumn(4f, out _, out float signMax)) origin.x = Mathf.Max(origin.x, signMax + half);
+            origin.x = Mathf.Clamp(origin.x, half + 8f, layer.rect.width - half - 8f);
             pop.Origin = origin;
             popups.Add(pop);
             pop.Rect.SetAsLastSibling();
@@ -273,42 +277,21 @@ namespace FloorF.UI
         }
 
         /// <summary>
-        /// Base positions -> out of the centre column (floor signs + shaft) -> unstack upward -> out of luck popups ->
-        /// on screen. A bubble that still covers the column goes to the other side, else to the screen edge; any bubble
-        /// far from its guest gets a leader line.
+        /// Base positions -> out of the centre column (floor signs + shaft) to the guest's side -> on screen (a bubble
+        /// with no room on its side goes to the other side, else to the screen edge) -> then each bubble, oldest first,
+        /// settles at the nearest on-screen spot clear of the column, every luck popup (its whole rise) and every bubble
+        /// already settled. De-overlap runs LAST so no later pass can stack bubbles again. Any bubble far from its guest
+        /// gets a leader line.
         /// </summary>
         void LayoutSpeech()
         {
             if (speeches.Count == 0) return;
             foreach (var s in speeches) PlaceSpeech(s);
 
-            bool haveColumn = ctx.CenterColumn(ShaftMargin, out float colMin, out float colMax);
-            if (haveColumn) foreach (var s in speeches) PushOutOfColumn(s, colMin, colMax);
-
-            Unstack();
-
+            haveColumn = ctx.CenterColumn(ShaftMargin, out colMin, out colMax);
             foreach (var s in speeches)
             {
-                for (int guard = 0; guard < 4; guard++)
-                {
-                    bool moved = false;
-                    foreach (var p in popups)
-                    {
-                        if (p.Group.alpha <= 0.01f) continue;
-                        var pr = PopupBox(p);
-                        var sr = SpeechBox(s);
-                        if (!sr.Overlaps(pr)) continue;
-                        var pos = s.Rect.anchoredPosition;
-                        pos.x = s.Side < 0f ? pr.xMin - PopupGap - sr.width * 0.5f : pr.xMax + PopupGap + sr.width * 0.5f;
-                        s.Rect.anchoredPosition = pos;
-                        moved = true;
-                    }
-                    if (!moved) break;
-                }
-            }
-
-            foreach (var s in speeches)
-            {
+                if (haveColumn) PushOutOfColumn(s, colMin, colMax);
                 Clamp(s);
                 if (haveColumn && InColumn(s, colMin, colMax))
                 {
@@ -324,8 +307,102 @@ namespace FloorF.UI
                         s.Rect.anchoredPosition = pos;
                     }
                 }
+            }
+
+            blockers.Clear();
+            if (haveColumn) blockers.Add(Rect.MinMaxRect(colMin, -ColumnReach, colMax, ColumnReach));
+            foreach (var p in popups) if (p.Group.alpha > 0.01f) blockers.Add(PopupPath(p));
+            foreach (var s in speeches)
+            {
+                Settle(s);
+                blockers.Add(SpeechBox(s));
                 UpdateLeader(s);
             }
+        }
+
+        const float ColumnReach = 100000f, SettleGap = 4f, WrongSidePenalty = 400f;
+        const int SettleDepth = 3, MaxCandidates = 160;
+        readonly List<Rect> blockers = new List<Rect>();
+        readonly List<Vector3> candidates = new List<Vector3>(); // x, y, depth
+        bool haveColumn;
+        float colMin, colMax;
+
+        /// <summary>A luck popup's box over its whole life (it rises 40 px and punches to 1.25x) - bubbles never chase it.</summary>
+        static Rect PopupPath(Popup p)
+        {
+            float w = p.Rect.sizeDelta.x * 1.25f, h = p.Rect.sizeDelta.y * 1.25f;
+            float y0 = Mathf.Min(p.Rect.anchoredPosition.y, p.Origin.y);
+            float y1 = p.Origin.y + 40f + h;
+            float x = p.Rect.anchoredPosition.x;
+            return Rect.MinMaxRect(x - w * 0.5f - 4f, y0, x + w * 0.5f + 4f, y1);
+        }
+
+        int FirstBlocker(Vector2 pos, Vector2 size)
+        {
+            var r = new Rect(pos.x - size.x * 0.5f, pos.y, size.x, size.y);
+            for (int i = 0; i < blockers.Count; i++)
+            {
+                var b = blockers[i];
+                if (r.xMax > b.xMin + 0.5f && r.xMin < b.xMax - 0.5f && r.yMax > b.yMin + 0.5f && r.yMin < b.yMax - 0.5f) return i;
+            }
+            return -1;
+        }
+
+        Vector2 ClampPos(Vector2 pos, Vector2 size)
+        {
+            pos.x = Mathf.Clamp(pos.x, size.x * 0.5f + 8f, layer.rect.width - size.x * 0.5f - 8f);
+            pos.y = Mathf.Clamp(pos.y, 8f, layer.rect.height - size.y - 8f);
+            return pos;
+        }
+
+        void AddCandidate(float x, float y, Vector2 size, int depth)
+        {
+            var p = ClampPos(new Vector2(x, y), size);
+            for (int i = 0; i < candidates.Count; i++)
+                if (Mathf.Abs(candidates[i].x - p.x) < 1f && Mathf.Abs(candidates[i].y - p.y) < 1f) return;
+            candidates.Add(new Vector3(p.x, p.y, depth));
+        }
+
+        /// <summary>
+        /// Nearest spot (search tree: next to whatever blocks - above, below, left, right - up to 3 hops) that is on
+        /// screen and clear of every blocker; the guest's side of the column is preferred. Nothing clear -> stays put.
+        /// </summary>
+        void Settle(Speech s)
+        {
+            var size = s.Rect.sizeDelta;
+            var start = s.Rect.anchoredPosition;
+            if (FirstBlocker(start, size) < 0) return;
+            float mid = haveColumn ? (colMin + colMax) * 0.5f : 0f;
+            bool startLeft = start.x < mid;
+            candidates.Clear();
+            candidates.Add(new Vector3(start.x, start.y, 0f));
+            var best = start;
+            float bestCost = float.MaxValue;
+            for (int i = 0; i < candidates.Count && candidates.Count < MaxCandidates; i++)
+            {
+                var c = candidates[i];
+                var p = new Vector2(c.x, c.y);
+                int hit = FirstBlocker(p, size);
+                if (hit < 0)
+                {
+                    float cost = Mathf.Abs(p.x - start.x) + Mathf.Abs(p.y - start.y);
+                    if (haveColumn && (p.x < mid) != startLeft) cost += WrongSidePenalty;
+                    if (cost < bestCost) { bestCost = cost; best = p; }
+                    continue;
+                }
+                int depth = (int)c.z;
+                if (depth >= SettleDepth) continue;
+                var o = blockers[hit];
+                if (o.height < ColumnReach)
+                {
+                    AddCandidate(p.x, o.yMax + SettleGap, size, depth + 1);
+                    AddCandidate(p.x, o.yMin - SettleGap - size.y, size, depth + 1);
+                }
+                AddCandidate(o.xMin - SettleGap - size.x * 0.5f, p.y, size, depth + 1);
+                AddCandidate(o.xMax + SettleGap + size.x * 0.5f, p.y, size, depth + 1);
+            }
+            s.Rect.anchoredPosition = best;
+            if (haveColumn) s.Side = best.x < mid ? -1f : 1f;
         }
 
         void Clamp(Speech s)
@@ -363,29 +440,6 @@ namespace FloorF.UI
             var pos = s.Rect.anchoredPosition;
             pos.x = s.Side < 0f ? colMin - r.width * 0.5f : colMax + r.width * 0.5f;
             s.Rect.anchoredPosition = pos;
-        }
-
-        /// <summary>Older bubbles first; a bubble overlapping an earlier one moves above it.</summary>
-        void Unstack()
-        {
-            for (int i = 0; i < speeches.Count; i++)
-            {
-                var a = speeches[i].Rect;
-                for (int guard = 0; guard < 8; guard++)
-                {
-                    bool moved = false;
-                    for (int j = 0; j < i; j++)
-                    {
-                        var b = speeches[j].Rect;
-                        var pa = a.anchoredPosition; var pb = b.anchoredPosition;
-                        var sa = a.sizeDelta; var sb2 = b.sizeDelta;
-                        bool overlapX = Mathf.Abs(pa.x - pb.x) < (sa.x + sb2.x) * 0.5f + 2f;
-                        bool overlapY = pa.y < pb.y + sb2.y + 2f && pb.y < pa.y + sa.y + 2f;
-                        if (overlapX && overlapY) { a.anchoredPosition = new Vector2(pa.x, pb.y + sb2.y + 4f); moved = true; }
-                    }
-                    if (!moved) break;
-                }
-            }
         }
 
         // ------------------------------------------------------------------ tick
@@ -446,6 +500,31 @@ namespace FloorF.UI
                 if (r.xMax > minX + 0.5f && r.xMin < maxX - 0.5f)
                     return "'" + s.Text.text + "' x " + r.xMin.ToString("0") + ".." + r.xMax.ToString("0") + " vs " + minX.ToString("0") + ".." + maxX.ToString("0");
             }
+            return null;
+        }
+
+        /// <summary>First visible luck popup (largest box) crossing the canvas x-range, or null.</summary>
+        public string FirstPopupOverlapX(float minX, float maxX)
+        {
+            foreach (var p in popups)
+            {
+                var r = PopupBox(p);
+                if (r.xMax > minX + 0.5f && r.xMin < maxX - 0.5f)
+                    return "popup '" + p.Number.text + " " + p.Caption.text + "' x " + r.xMin.ToString("0") + ".." + r.xMax.ToString("0") + " vs " + minX.ToString("0") + ".." + maxX.ToString("0");
+            }
+            return null;
+        }
+
+        /// <summary>First pair of visible speech bubbles whose boxes overlap, or null.</summary>
+        public string FirstSpeechOverlap()
+        {
+            for (int i = 0; i < speeches.Count; i++)
+                for (int j = 0; j < i; j++)
+                {
+                    var a = SpeechBox(speeches[i]); var b = SpeechBox(speeches[j]);
+                    if (a.xMax > b.xMin + 0.5f && a.xMin < b.xMax - 0.5f && a.yMax > b.yMin + 0.5f && a.yMin < b.yMax - 0.5f)
+                        return "'" + speeches[i].Text.text + "' " + a + " vs '" + speeches[j].Text.text + "' " + b;
+                }
             return null;
         }
 

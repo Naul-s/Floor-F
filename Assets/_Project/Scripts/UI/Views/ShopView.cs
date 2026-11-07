@@ -14,12 +14,16 @@ namespace FloorF.UI
     /// </summary>
     sealed class ShopView
     {
-        const float CardW = 400f, OfferH = 124f;
+        /// <summary>Offer card: [headline 36px | price + need, right] on top, then the name (if it adds anything), then
+        /// the description at 24px across the full width (pure black on the gold selected card, white otherwise).</summary>
+        const float CardW = 440f, InnerW = CardW - 40f, OfferPad = 8f, TopRowH = 44f, NameH = 30f, DescSize = 24f;
+        const float DescW = InnerW - 2f * OfferPad;
 
         sealed class OfferButton
         {
             public UIBuild.ButtonParts Parts;
             public TextMeshProUGUI Headline, Name, Description, Price, Need;
+            public LayoutElement Layout;
             public StickerId Id;
         }
 
@@ -81,22 +85,41 @@ namespace FloorF.UI
             var o = new OfferButton();
             o.Parts = UIBuild.Button("Offer", offersRoot, "", 12f, UIStyle.Btn, null);
             o.Parts.Label.gameObject.SetActive(false);
-            o.Parts.Rect.gameObject.AddComponent<LayoutElement>().preferredHeight = OfferH;
-            o.Headline = UIBuild.Text("Headline", o.Parts.Rect, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(o.Headline.rectTransform, new Vector2(0f, 0.5f), new Vector2(8f, 0f), new Vector2(110f, OfferH));
+            o.Layout = o.Parts.Rect.gameObject.AddComponent<LayoutElement>();
+            o.Layout.preferredHeight = TopRowH + 2f * OfferPad;
+            var top = new Vector2(0f, 1f);
+            o.Headline = UIBuild.Text("Headline", o.Parts.Rect, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Left, bold: true);
+            UIBuild.Place(o.Headline.rectTransform, top, new Vector2(OfferPad, -OfferPad + 2f), new Vector2(200f, TopRowH));
             o.Headline.textWrappingMode = TextWrappingModes.NoWrap;
-            o.Need = UIBuild.Text("Need", o.Parts.Rect, "", 12f, UIStyle.Unlucky, TextAlignmentOptions.Center);
-            UIBuild.Place(o.Need.rectTransform, new Vector2(0f, 0f), new Vector2(8f, 6f), new Vector2(110f, 16f));
+            o.Price = UIBuild.Text("Price", o.Parts.Rect, "", 24f, UIStyle.Good, TextAlignmentOptions.TopRight, bold: true);
+            UIBuild.Place(o.Price.rectTransform, new Vector2(1f, 1f), new Vector2(-OfferPad, -OfferPad), new Vector2(DescW - 200f, 28f));
+            o.Price.textWrappingMode = TextWrappingModes.NoWrap;
+            o.Need = UIBuild.Text("Need", o.Parts.Rect, "", 12f, UIStyle.Unlucky, TextAlignmentOptions.TopRight);
+            UIBuild.Place(o.Need.rectTransform, new Vector2(1f, 1f), new Vector2(-OfferPad, -OfferPad - 28f), new Vector2(DescW - 200f, 16f));
             o.Need.textWrappingMode = TextWrappingModes.NoWrap;
             o.Name = UIBuild.Text("Name", o.Parts.Rect, "", 24f, UIStyle.Ink, TextAlignmentOptions.TopLeft, bold: true);
-            UIBuild.Place(o.Name.rectTransform, new Vector2(0f, 1f), new Vector2(124f, -6f), new Vector2(CardW - 40f - 130f, 30f));
-            o.Description = UIBuild.Text("Description", o.Parts.Rect, "", 12f, UIStyle.InkDim, TextAlignmentOptions.TopLeft);
-            UIBuild.Place(o.Description.rectTransform, new Vector2(0f, 1f), new Vector2(124f, -38f), new Vector2(CardW - 40f - 130f, 34f));
-            o.Price = UIBuild.Text("Price", o.Parts.Rect, "", 24f, UIStyle.Good, TextAlignmentOptions.BottomLeft, bold: true);
-            UIBuild.Place(o.Price.rectTransform, new Vector2(0f, 0f), new Vector2(124f, 4f), new Vector2(CardW - 40f - 130f, 30f));
+            UIBuild.Place(o.Name.rectTransform, top, new Vector2(OfferPad, -OfferPad - TopRowH), new Vector2(DescW, NameH));
+            o.Name.textWrappingMode = TextWrappingModes.NoWrap;
+            o.Description = UIBuild.Text("Description", o.Parts.Rect, "", DescSize, Color.white, TextAlignmentOptions.TopLeft);
+            UIBuild.Place(o.Description.rectTransform, top, new Vector2(OfferPad, -OfferPad - TopRowH), new Vector2(DescW, 30f));
             var self = o;
             o.Parts.Button.onClick.AddListener(() => Select(self.Id));
             return o;
+        }
+
+        /// <summary>Description under the top row (and the name when shown); the card grows to fit every line.</summary>
+        void LayoutOffer(OfferButton o)
+        {
+            bool named = !string.IsNullOrEmpty(o.Name.text);
+            o.Name.gameObject.SetActive(named);
+            float y = OfferPad + TopRowH + (named ? NameH : 0f);
+            string text = o.Description.text;
+            if (o.Description.font != null && !string.IsNullOrEmpty(text)) o.Description.font.TryAddCharacters(text);
+            float h = string.IsNullOrEmpty(text) ? 0f : Mathf.Ceil(o.Description.GetPreferredValues(text, DescW, float.PositiveInfinity).y) + 2f;
+            var rt = o.Description.rectTransform;
+            rt.anchoredPosition = new Vector2(OfferPad, -y);
+            rt.sizeDelta = new Vector2(DescW, h);
+            o.Layout.preferredHeight = y + h + OfferPad;
         }
 
         void Select(StickerId id)
@@ -207,9 +230,10 @@ namespace FloorF.UI
                 o.Need.color = isSel ? UIStyle.Dark : UIStyle.Unlucky;
                 o.Parts.Background.color = isSel ? UIStyle.BtnTarget : soldOut ? UIStyle.BtnBlocked : UIStyle.Btn;
                 o.Name.color = isSel ? UIStyle.Dark : UIStyle.Ink;
-                o.Description.color = isSel ? new Color(0.06f, 0.06f, 0.09f, 0.8f) : UIStyle.InkDim;
+                o.Description.color = isSel ? Color.black : Color.white; // max contrast on gold / on the dark card
                 o.Headline.color = isSel ? UIStyle.Dark : broke ? new Color(UIStyle.Lucky.r, UIStyle.Lucky.g, UIStyle.Lucky.b, 0.45f) : UIStyle.Lucky;
                 o.Parts.Button.interactable = !soldOut;
+                LayoutOffer(o);
             }
             LayoutRebuilder.ForceRebuildLayoutImmediate(card);
         }
@@ -234,6 +258,37 @@ namespace FloorF.UI
                 var want = isSel ? UIStyle.BtnTarget : ctx.Shop.Offers[i].Remaining == 0 ? UIStyle.BtnBlocked : UIStyle.Btn;
                 if (offers[i].Parts.Background.color != want) RefreshOffers();
             }
+        }
+
+        // ------------------------------------------------------------------ test hooks
+
+        public float DescriptionFontSize(int i) => i >= 0 && i < offers.Count ? offers[i].Description.fontSize : 0f;
+
+        /// <summary>WCAG contrast ratio of the description ink on its offer card.</summary>
+        public float DescriptionContrast(int i)
+        {
+            if (i < 0 || i >= offers.Count) return 0f;
+            return UIStyle.ContrastRatio(offers[i].Description.color, offers[i].Parts.Background.color);
+        }
+
+        /// <summary>null when every visible description fits its rect and every offer + the card stay on the canvas, else why not.</summary>
+        public string FirstDescriptionProblem(RectTransform canvas)
+        {
+            var c = canvas.rect;
+            var cr = UIBuild.CanvasRect(canvas, card);
+            if (cr.yMin < -0.5f || cr.yMax > c.height + 0.5f || cr.xMin < -0.5f || cr.xMax > c.width + 0.5f) return "shop card off screen " + cr;
+            for (int i = 0; i < offers.Count; i++)
+            {
+                var o = offers[i];
+                if (!o.Parts.Rect.gameObject.activeSelf) continue;
+                var d = o.Description;
+                float need = d.GetPreferredValues(d.text, d.rectTransform.rect.width, float.PositiveInfinity).y;
+                if (need > d.rectTransform.rect.height + 0.5f) return "offer " + i + " description needs " + need + " > " + d.rectTransform.rect.height;
+                var dr = UIBuild.CanvasRect(canvas, d.rectTransform);
+                var orc = UIBuild.CanvasRect(canvas, o.Parts.Rect);
+                if (dr.yMin < orc.yMin - 0.5f || dr.xMax > orc.xMax + 0.5f) return "offer " + i + " description spills out of its card " + dr + " vs " + orc;
+            }
+            return null;
         }
 
         public void ClickOffer(int index) { if (index >= 0 && index < offers.Count) offers[index].Parts.Button.onClick.Invoke(); }

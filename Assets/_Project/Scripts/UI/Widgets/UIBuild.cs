@@ -191,18 +191,35 @@ namespace FloorF.UI
         }
 
         /// <summary>Canvas-local (bottom-left origin) rect of any RectTransform under <paramref name="canvas"/>.</summary>
+        /// <summary>First of <paramref name="names"/> (trimmed, empties skipped) that fits <paramref name="width"/> on one line at t's size, or null.</summary>
+        public static string FirstThatFits(TextMeshProUGUI t, float width, params string[] names)
+        {
+            foreach (var n in names)
+            {
+                if (string.IsNullOrEmpty(n)) continue;
+                string s = n.Trim();
+                if (t.font != null) t.font.TryAddCharacters(s); // dynamic atlas: glyphs must exist before measuring
+                if (width <= 0f || t.GetPreferredValues(s, float.PositiveInfinity, float.PositiveInfinity).x <= width) return s;
+            }
+            return null;
+        }
+
         /// <summary>
-        /// Keeps <paramref name="size"/> (a grid size) and shortens <paramref name="name"/> ("Restaurant" -> "Resta.")
-        /// until it fits the rect width on one line - names stay big instead of shrinking to 12px.
+        /// Keeps <paramref name="size"/> (a grid size): the full <paramref name="name"/> if it fits the rect width on one
+        /// line, else the curated <paramref name="shortName"/> ("Guest Rooms" -> "Rooms"), else that one (or the name when
+        /// there is no curated one) cut until it fits ("Observatory" -> "Obser.") - names stay big instead of shrinking.
         /// </summary>
-        public static void FitName(TextMeshProUGUI t, string name, float size)
+        public static void FitName(TextMeshProUGUI t, string name, float size, string shortName = null)
         {
             if (t == null) return;
             t.enableAutoSizing = false;
             t.fontSize = UIFonts.Px(size);
             name = string.IsNullOrEmpty(name) ? "?" : name.Trim();
             float width = t.rectTransform.rect.width;
-            if (t.font != null) t.font.TryAddCharacters(name); // dynamic atlas: glyphs must exist before measuring
+            string whole = FirstThatFits(t, width, name, shortName);
+            if (whole != null) { Set(t, whole); return; }
+            if (!string.IsNullOrEmpty(shortName)) name = shortName.Trim();
+            if (t.font != null) t.font.TryAddCharacters(name);
             string s = name;
             for (int max = name.Length; max >= 3; max--)
             {

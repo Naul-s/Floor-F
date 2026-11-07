@@ -9,7 +9,10 @@ namespace FloorF.UI
     /// Destination tag (panel floor buttons, guest chips): [icon tinted with the destination colour] + short name on a
     /// dark fill sunk in that colour. Without a sprite it falls back to the Phase-2 text badge (destination-colour fill,
     /// black/white name). The caller places <see cref="Rect"/>.
-    /// <para>Name rule: <see cref="NameMode.Truncate"/> keeps the name, shortened until it fits ("Resta.");
+    /// <para>Name rule: the full name when it fits, else the curated short name (UIFormat.DestinationShortName:
+    /// "Guest Rooms" -> "Rooms", "Restaurant" -> "Dining"); truncation ("Obser.") only for ids without one.
+    /// <see cref="NameMode.Truncate"/> (panel) always names the venue - a curated name too wide to sit beside the icon
+    /// ("Karaoke") takes the whole badge instead of being cut;
     /// <see cref="NameMode.FullOrNone"/> (chips) shows the name only when it fits WHOLE beside the icon, else the icon
     /// alone, centred - a clipped "Resta." adds noise next to an icon that already says it. The text fallback always
     /// shows a (shortened) name.</para>
@@ -18,7 +21,7 @@ namespace FloorF.UI
     {
         public enum NameMode { Truncate, FullOrNone }
 
-        const float Pad = 2f, IconGap = 3f;
+        const float Pad = 2f, IconGap = 1f;
 
         public readonly Image Back;
         public readonly Image Icon;
@@ -53,6 +56,7 @@ namespace FloorF.UI
         {
             var color = UIStyle.Destination(ctx.DestinationIndex(id));
             string name = ctx.DestinationName(id);
+            string shortName = ctx.DestinationShortName(id);
             var sprite = UIIcons.For(ctx.Destination(id));
             var nrt = Name.rectTransform;
             if (sprite == null)
@@ -64,7 +68,7 @@ namespace FloorF.UI
                 nrt.offsetMax = new Vector2(-Pad, 0f);
                 Name.alignment = TextAlignmentOptions.Center;
                 Name.color = UIStyle.ContrastInk(color);
-                UIBuild.FitName(Name, name, fontSize);
+                UIBuild.FitName(Name, name, fontSize, shortName);
                 return;
             }
 
@@ -79,17 +83,27 @@ namespace FloorF.UI
             Name.color = UIIcons.NameInk(color);
             Name.alignment = TextAlignmentOptions.Center;
             nrt.offsetMin = new Vector2(Pad + icon + IconGap, 0f);
-            nrt.offsetMax = new Vector2(-Pad, 0f);
+            nrt.offsetMax = new Vector2(-1f, 0f);
 
-            bool showName = true;
-            if (mode == NameMode.FullOrNone)
+            Name.enableAutoSizing = false;
+            Name.fontSize = UIFonts.Px(fontSize);
+            string whole = UIBuild.FirstThatFits(Name, nrt.rect.width, name, shortName);
+            bool showName = whole != null;
+            if (showName) UIBuild.Set(Name, whole);
+            else if (mode == NameMode.Truncate)
             {
-                Name.fontSize = UIFonts.Px(fontSize);
-                if (Name.font != null) Name.font.TryAddCharacters(name);
-                showName = Name.GetPreferredValues(name, float.PositiveInfinity, float.PositiveInfinity).x <= nrt.rect.width;
-                if (showName) UIBuild.Set(Name, name.Trim());
+                showName = true;
+                float full = Rect.rect.width - 2f * Pad;
+                if (!string.IsNullOrEmpty(shortName) && UIBuild.FirstThatFits(Name, full, shortName) != null)
+                {
+                    // curated name too wide beside the icon: the name takes the whole badge (in the venue's colour)
+                    Icon.gameObject.SetActive(false);
+                    nrt.offsetMin = new Vector2(Pad, 0f);
+                    nrt.offsetMax = new Vector2(-Pad, 0f);
+                    UIBuild.Set(Name, shortName.Trim());
+                }
+                else UIBuild.FitName(Name, name, fontSize, shortName);
             }
-            else UIBuild.FitName(Name, name, fontSize);
 
             Name.gameObject.SetActive(showName);
             // icon alone: centred in the badge; with a name: left, name fills the rest

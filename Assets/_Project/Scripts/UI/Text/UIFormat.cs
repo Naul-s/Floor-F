@@ -87,7 +87,29 @@ namespace FloorF.UI
             return lucky ? LuckVerdict.Lucky : LuckVerdict.Neutral;
         }
 
-        /// <summary>Short destination tag for bubbles ("Sauna", "Restaurant" -> "Restau.").</summary>
+        /// <summary>Hand-picked short names per hotel.json destination id (en, ko) - never a cut-off word.</summary>
+        static readonly System.Collections.Generic.Dictionary<string, string[]> shortNames =
+            new System.Collections.Generic.Dictionary<string, string[]>(System.StringComparer.OrdinalIgnoreCase)
+            {
+                { "lobby", new[] { "Lobby", "로비" } },
+                { "restaurant", new[] { "Dining", "식당" } },
+                { "gym", new[] { "Gym", "헬스" } },
+                { "karaoke", new[] { "Karaoke", "노래방" } },
+                { "sauna", new[] { "Sauna", "사우나" } },
+                { "rooms", new[] { "Rooms", "객실" } },
+                { "bar", new[] { "Bar", "바" } },
+                { "casino", new[] { "Casino", "카지노" } },
+                { "rooftop", new[] { "Roof", "옥상" } },
+            };
+
+        /// <summary>Curated short name for <paramref name="destinationId"/> ("rooms" -> "Rooms" / "객실"), or null when there is none.</summary>
+        public static string DestinationShortName(string destinationId, bool ko)
+        {
+            if (string.IsNullOrEmpty(destinationId) || !shortNames.TryGetValue(destinationId.Trim(), out var n)) return null;
+            return ko ? n[1] : n[0];
+        }
+
+        /// <summary>Truncated tag for a name without a curated short name ("Restaurant" -> "Restau.").</summary>
         public static string ShortName(string name, int max = 7)
         {
             if (string.IsNullOrEmpty(name)) return "?";
