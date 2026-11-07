@@ -102,6 +102,80 @@ namespace FloorF.Tests.PlayMode.Audio
             Assert.Less(root.Library.Find(AudioCue.DoorsClose).pitch, 1f, "doors close = door sample pitched down");
         }
 
+        [UnityTest]
+        public IEnumerator DoorCues_NeverStack_ANewOneCutsThePrevious()
+        {
+            yield return LoadMain();
+            var root = Root();
+            yield return new WaitForSecondsRealtime(0.3f);
+            root.ClearRecords();
+            var bus = GameServices.Events;
+            var label = new FloorLabel("4");
+            var clunk = root.Library.Find(AudioCue.DoorsOpen).clips[0];
+
+            bus.Publish(new DoorsOpened(Floor4, label, 0));
+            var first = root.DoorSource;
+            Assert.IsNotNull(first, "door voice used");
+            Assert.AreSame(clunk, first.clip);
+            for (int i = 0; i < AudioRoot.SfxVoices; i++)
+                Assert.AreNotSame(clunk, root.SfxSources[i].clip, "door cues stay off the shared pool");
+            Assert.AreEqual(0, root.DoorCutCount);
+
+            yield return new WaitForSecondsRealtime(0.1f);
+            bus.Publish(new DoorsClosed(Floor4, label, 0)); // quick open -> close while the clunk still rings
+            var second = root.DoorSource;
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.DoorsClose, out _), "close played");
+            Assert.AreNotSame(first, second, "new door cue on the other door voice");
+            Assert.AreEqual(1, root.DoorCutCount, "previous door cue cut");
+            Assert.IsTrue(root.IsCutFading(first), "previous door voice fading out");
+            Assert.IsFalse(root.IsCutFading(second));
+
+            yield return new WaitForSecondsRealtime(root.Library.doorCutFadeSeconds + 0.1f);
+            Assert.IsFalse(root.IsCutFading(first), "fade finished");
+            Assert.IsFalse(first.isPlaying, "cut voice stopped: only one door sound at a time");
+            Assert.AreSame(second, root.DoorSource);
+
+            // a door cue after the previous one has finished is not a cut
+            yield return new WaitForSecondsRealtime(clunk.length / 0.75f);
+            bus.Publish(new DoorsOpened(Floor4, label, 0));
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.DoorsOpen, out _));
+            Assert.AreEqual(1, root.DoorCutCount, "nothing left to cut");
+        }
+
+        [UnityTest]
+        public IEnumerator DoorClunk_RightAfterTheDing_IsKeptUnderIt()
+        {
+            yield return LoadMain();
+            var root = Root();
+            yield return new WaitForSecondsRealtime(0.3f);
+            root.ClearRecords();
+            var bus = GameServices.Events;
+            var label = new FloorLabel("4");
+            var lib = root.Library;
+
+            bus.Publish(new DoorsOpened(Floor4, label, 0));
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.DoorsOpen, out var alone));
+            Assert.AreEqual(lib.Find(AudioCue.DoorsOpen).volume, alone.Volume, 1e-4f, "no ding yet: full level");
+            yield return new WaitForSecondsRealtime(lib.Find(AudioCue.DoorsOpen).minInterval + 0.05f);
+
+            bus.Publish(new ElevatorArrived(Floor4, label));
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.Ding, out var ding));
+            yield return new WaitForSecondsRealtime(0.2f);
+            bus.Publish(new DoorsOpened(Floor4, label, 0));
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.DoorsOpen, out var underDing));
+            Assert.Greater(underDing.Time, alone.Time);
+            Assert.AreEqual(alone.Volume * AudioRules.DbToLinear(lib.doorUnderDingDb), underDing.Volume, 1e-4f,
+                "door clunk ducked inside the ding guard");
+            bool dingHeld = false;
+            for (int i = 0; i < AudioRoot.SfxVoices; i++) dingHeld |= root.SfxSources[i].clip == ding.Clip;
+            Assert.IsTrue(dingHeld, "the ding keeps its pool voice (door cues never take it)");
+
+            yield return new WaitForSecondsRealtime(lib.dingGuardSeconds + 0.1f);
+            bus.Publish(new DoorsClosed(Floor4, label, 0));
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.DoorsClose, out var later));
+            Assert.AreEqual(lib.Find(AudioCue.DoorsClose).volume, later.Volume, 1e-4f, "full level after the guard");
+        }
+
         static int CountOf(AudioRoot root, AudioCue cue)
         {
             int n = 0;

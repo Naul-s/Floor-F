@@ -24,19 +24,19 @@ MonoBehaviour:
     minInterval: 0.25
   - cue: 2
     clips:
-    - {fileID: 8300000, guid: ef234b6184384c4a88c46bde88f07fcf, type: 3}
+    - {fileID: 8300000, guid: a9659e375828b904486a345a0c8c5f96, type: 3}
     layer: {fileID: 0}
     layerVolume: 0.4
-    volume: 0.55
+    volume: 0.45
     pitch: 1
     pitchJitter: 0.06
     minInterval: 0.3
   - cue: 3
     clips:
-    - {fileID: 8300000, guid: ef234b6184384c4a88c46bde88f07fcf, type: 3}
+    - {fileID: 8300000, guid: a9659e375828b904486a345a0c8c5f96, type: 3}
     layer: {fileID: 0}
     layerVolume: 0.4
-    volume: 0.45
+    volume: 0.37
     pitch: 0.8
     pitchJitter: 0.06
     minInterval: 0.3
@@ -176,3 +176,6 @@ MonoBehaviour:
   streakMaxSemitones: 7
   clockTickSeconds: 10
   clockTickRise: 0.2
+  doorCutFadeSeconds: 0.03
+  dingGuardSeconds: 0.6
+  doorUnderDingDb: -6

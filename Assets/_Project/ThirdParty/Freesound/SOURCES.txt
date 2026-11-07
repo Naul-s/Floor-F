@@ -2,7 +2,10 @@ Freesound.org sounds, all Creative Commons 0 (CC0 1.0) as shown on each sound pa
 Downloaded by the project owner (Freesound requires login).
 
 459349__lilmati__elevator-ping-01.wav            https://freesound.org/people/LilMati/sounds/459349/       arrival ding
-562714__pagdev__elevator_door_opening.wav        https://freesound.org/people/PagDev/sounds/562714/        doors open
+562714__pagdev__elevator_door_opening.wav        https://freesound.org/people/PagDev/sounds/562714/        source of the clunk below (not played)
+562714__pagdev__elevator_door_clunk.wav          derived from 562714 (CC0): first 568 ms only (the latch clunk, the motor run
+                                                 after it removed), 3 ms / 16 ms fades, 16-bit. Made by
+                                                 Scripts/Editor/Audio/DoorClipTrimmer.cs. Doors open/close.
 639429__laurenponder__crystal-twinkle.wav        https://freesound.org/people/LaurenPonder/sounds/639429/  lucky sparkle
 536757__egomassive__gaspm.ogg                    https://freesound.org/people/egomassive/sounds/536757/    unlucky gasp
 665215__danlucaz__mystery-loop-3.wav             https://freesound.org/people/danlucaz/sounds/665215/      4th-floor ending loop

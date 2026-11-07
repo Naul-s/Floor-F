@@ -45,8 +45,11 @@ namespace FloorF.EditorTools
             if (!TryMeasure(path, out var l) && !TryMeasureImported(clip, out l))
             { sb.AppendLine(name + ": " + path + " (could not decode)"); return; }
             float g = 20f * Mathf.Log10(Mathf.Max(1e-6f, gain));
-            sb.AppendFormat("{0,-22} {1,6:0.0} / {2,6:0.0} / {3,6:0.0}  -> {4,6:0.0} / {5,6:0.0}  (x{6:0.###}, {7:0.0}s) {8}\n",
-                name, l.PeakDb, l.Max100msDb, l.RmsDb, l.Max100msDb + g, l.RmsDb + g, gain, l.Seconds, Path.GetFileName(path));
+            // the imported clip may differ from the file: forceToMono + normalize scales the downmix to full scale
+            string imported = TryMeasureImported(clip, out var im)
+                ? string.Format("  imported max100ms {0:0.0} -> played {1:0.0}", im.Max100msDb, im.Max100msDb + g) : "";
+            sb.AppendFormat("{0,-22} {1,6:0.0} / {2,6:0.0} / {3,6:0.0}  -> {4,6:0.0} / {5,6:0.0}  (x{6:0.###}, {7:0.0}s) {8}{9}\n",
+                name, l.PeakDb, l.Max100msDb, l.RmsDb, l.Max100msDb + g, l.RmsDb + g, gain, l.Seconds, Path.GetFileName(path), imported);
         }
 
         /// <summary>Decodes the source file (not the imported/compressed clip) and measures it.</summary>
