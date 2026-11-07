@@ -1,0 +1,16 @@
+<linker>
+  <!-- FloorF.Audio.InputProbe reads these by reflection (WebGL audio unlock on first input). -->
+  <assembly fullname="Unity.InputSystem">
+    <type fullname="UnityEngine.InputSystem.Keyboard">
+      <property name="current" />
+      <property name="anyKey" />
+    </type>
+    <type fullname="UnityEngine.InputSystem.Pointer">
+      <property name="current" />
+      <property name="press" />
+    </type>
+    <type fullname="UnityEngine.InputSystem.Controls.ButtonControl">
+      <property name="isPressed" />
+    </type>
+  </assembly>
+</linker>

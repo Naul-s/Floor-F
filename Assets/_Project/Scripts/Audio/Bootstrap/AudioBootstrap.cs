@@ -32,31 +32,4 @@ namespace FloorF.Audio
             root = go.AddComponent<AudioRoot>();
         }
     }
-
-    /// <summary>
-    /// Audio module root - EXAMPLE to extend (audio-dev owns it). AudioSources live under this object;
-    /// the AudioListener is on the scene's Main Camera. Clips go in Resources/Audio/.
-    /// </summary>
-    sealed class AudioRoot : MonoBehaviour
-    {
-        readonly Subscriptions subs = new Subscriptions();
-
-        void OnEnable()
-        {
-            subs.Add(GameServices.Events.Subscribe<ElevatorArrived>(OnArrived));
-            subs.Add(GameServices.Events.Subscribe<LuckJudged>(OnLuckJudged));
-        }
-
-        void OnDisable() => subs.Clear();
-
-        void OnArrived(ElevatorArrived e)
-        {
-            // e.g. play the "ding"
-        }
-
-        void OnLuckJudged(LuckJudged e)
-        {
-            // e.g. sparkle on Lucky, scream + music pitch dip on Unlucky
-        }
-    }
 }
