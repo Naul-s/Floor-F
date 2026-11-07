@@ -51,7 +51,8 @@ namespace FloorF.EditorTools
             const string door = FS + "562714__pagdev__elevator_door_opening.wav";
             lib.cues = new[]
             {
-                Cue(AudioCue.Ding, new[] { FS + "459349__lilmati__elevator-ping-01.wav" }, 0.8f, 1f, 0.05f, 0.25f),
+                // the ping is mastered near 0 dBFS (~20 dB hotter than the other cues): keep it low
+                Cue(AudioCue.Ding, new[] { FS + "459349__lilmati__elevator-ping-01.wav" }, 0.15f, 1f, 0.05f, 0.25f),
                 Cue(AudioCue.DoorsOpen, new[] { door }, 0.55f, 1f, 0.06f, 0.3f),
                 // no closing sample: the same door slid lower and quieter reads as "heavier, shutting"
                 Cue(AudioCue.DoorsClose, new[] { door }, 0.45f, 0.8f, 0.06f, 0.3f),
