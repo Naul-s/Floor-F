@@ -129,7 +129,7 @@ namespace FloorF.Tests.EditMode.Audio
                 Assert.Greater(AudioRules.ClockTickPitch(s - 1, 10, 0.2f), AudioRules.ClockTickPitch(s, 10, 0.2f), "rising");
             var lib = LoadLibrary();
             Assert.AreEqual(10, lib.clockTickSeconds);
-            Assert.That(lib.Find(AudioCue.ClockTick).volume, Is.InRange(0.1f, 0.4f), "soft tick");
+            Assert.That(lib.Find(AudioCue.ClockTick).volume, Is.InRange(0.5f, 0.9f), "soft tick (quiet sample)");
         }
 
         /// <summary>Simulates a 60 fps clock from <paramref name="from"/> to <paramref name="to"/> seconds left.</summary>

@@ -70,13 +70,14 @@ namespace FloorF.EditorTools
                 Cue(AudioCue.UiClick, new[] { UI + "click_002.ogg" }, 0.5f, 1f, 0.07f, 0.05f),
                 // streak ladder: a tonal pluck (+ a little glass) on top of the Lucky twinkle; played at an exact pitch
                 // (semitone steps), the jitter value here is not used for it
-                Cue(AudioCue.StreakUp, new[] { UI + "pluck_001.ogg" }, 0.5f, 1f, 0.05f, 0.1f,
+                Cue(AudioCue.StreakUp, new[] { UI + "pluck_001.ogg" }, 0.6f, 1f, 0.05f, 0.1f,
                     layer: UI + "glass_002.ogg", layerVolume: 0.35f),
                 // streak lost: falling "minimize" swoosh slid lower + the chip stack scattering
-                Cue(AudioCue.StreakBroken, new[] { UI + "minimize_001.ogg" }, 0.5f, 0.8f, 0.05f, 0.4f,
-                    layer: Casino + "chips-collide-1.ogg", layerVolume: 0.4f),
-                // last 10 s of a real day: soft click, pitch 0.9 rising to 0.9 x 1.2 (exact pitch, no jitter)
-                Cue(AudioCue.ClockTick, new[] { UI + "click_001.ogg" }, 0.3f, 0.9f, 0.05f, 0.25f),
+                Cue(AudioCue.StreakBroken, new[] { UI + "minimize_001.ogg" }, 0.3f, 0.8f, 0.05f, 0.4f,
+                    layer: Casino + "chips-collide-1.ogg", layerVolume: 1f),
+                // last 10 s of a real day: soft click (quiet sample: 0.8 plays ~-28 dBFS/100 ms, a short transient over the
+                // music), pitch 0.9 rising to 0.9 x 1.2 (exact pitch, no jitter)
+                Cue(AudioCue.ClockTick, new[] { UI + "click_001.ogg" }, 0.8f, 0.9f, 0.05f, 0.25f),
             };
             lib.tracks = new[]
             {
