@@ -88,6 +88,14 @@ namespace FloorF.Core
         public float streakTipBonusPerStep = 0.05f;
         public float streakMaxTipMultiplier = 1.15f;
 
+        // rule 3: floors travelled since boarding, judged when the guest steps out at their destination
+        public float luckyDistanceTipMultiplier = 1.5f;
+        public int luckyDistanceLuckBonus = 2;
+        public int unluckyDistanceLuckPenalty = 6;
+
+        // "Friday the 13th" event day
+        public float friday13PenaltyMultiplier = 1.5f;
+
         // endings
         /// <summary>Luck at the end of the last day needed for the Prosperous ending (else Modest).</summary>
         public int prosperousEndingLuck = 70;
@@ -232,6 +240,8 @@ namespace FloorF.Core
         public string introKo = "";
         public float durationSeconds = 90f;
         public bool tutorial;
+        /// <summary>"Friday the 13th" event day (see IDayQuery.IsFriday13).</summary>
+        public bool friday13;
         /// <summary>Sticker ids offered in the shop AFTER this day.</summary>
         public string[] shopStickers = Array.Empty<string>();
         public SpawnDef[] spawns = Array.Empty<SpawnDef>();

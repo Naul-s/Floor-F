@@ -101,13 +101,19 @@ namespace FloorF.Core
         public readonly LuckProfile Luck;
         /// <summary>Mystery guest: show "?" instead of the numbers.</summary>
         public readonly bool HideNumbers;
+        /// <summary>Floors travelled since boarding (rule 3, <see cref="LuckSource.RideDistance"/>); 0 while waiting.</summary>
+        public readonly int FloorsTravelled;
 
         public GuestInfo(GuestId id, GuestArchetypeId archetype, PartyId party, GuestState state, GuestMood mood, FloorIndex floor,
             DestinationId destination, FloorIndex destinationFloor, float patience01, LuckProfile luck, bool hideNumbers)
+            : this(id, archetype, party, state, mood, floor, destination, destinationFloor, patience01, luck, hideNumbers, 0) { }
+
+        public GuestInfo(GuestId id, GuestArchetypeId archetype, PartyId party, GuestState state, GuestMood mood, FloorIndex floor,
+            DestinationId destination, FloorIndex destinationFloor, float patience01, LuckProfile luck, bool hideNumbers, int floorsTravelled)
         {
             Id = id; Archetype = archetype; Party = party; State = state; Mood = mood; Floor = floor;
             Destination = destination; DestinationFloor = destinationFloor; Patience01 = patience01;
-            Luck = luck ?? LuckProfile.None; HideNumbers = hideNumbers;
+            Luck = luck ?? LuckProfile.None; HideNumbers = hideNumbers; FloorsTravelled = floorsTravelled;
         }
     }
 
@@ -151,6 +157,11 @@ namespace FloorF.Core
         /// go back to the run's start values when the player leaves its summary; no shop after it.
         /// </summary>
         bool IsTutorial { get; }
+        /// <summary>
+        /// "Friday the 13th" event day (DayDef.friday13): every Unlucky Luck penalty x rules.friday13PenaltyMultiplier,
+        /// and a ride distance of 13 is Unlucky for EVERY guest (on top of their own numbers; their own lucky 13 loses).
+        /// </summary>
+        bool IsFriday13 { get; }
         float DurationSeconds { get; }
         float ElapsedSeconds { get; }
         float RemainingSeconds { get; }
