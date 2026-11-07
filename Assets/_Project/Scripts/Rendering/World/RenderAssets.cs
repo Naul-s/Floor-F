@@ -31,6 +31,9 @@ namespace FloorF.Rendering
         public Mesh Cube { get; }
         public Mesh Quad { get; }
         public bool UsingBuiltTemplates { get; }
+        /// <summary>Kenney model catalog (Resources/Rendering/Kenney); null = greybox fallback everywhere.</summary>
+        public KenneyCatalog Kenney { get; }
+        readonly Dictionary<string, Mesh> swatchCubes = new Dictionary<string, Mesh>();
 
         public RenderAssets()
         {
@@ -41,6 +44,8 @@ namespace FloorF.Rendering
             UsingBuiltTemplates = lit != null && unlit != null;
             litTemplate = lit != null ? lit : Own(FromShader(LitShader, "Universal Render Pipeline/Lit"));
             unlitTemplate = unlit != null ? unlit : Own(FromShader(UnlitShader, LitShader));
+            Kenney = Resources.Load<KenneyCatalog>(KenneyCatalog.ResourcePath);
+            if (Kenney != null && Kenney.Material == null) Kenney = null;
             if (!UsingBuiltTemplates)
                 Debug.LogWarning("[Rendering] material templates missing under Resources/" + LitTemplatePath +
                                  " - run FloorF.EditorTools.RenderingAssetBuilder.Build (falling back to Shader.Find; WebGL builds may lose the shader)");
@@ -52,6 +57,20 @@ namespace FloorF.Rendering
             if (shader == null) shader = Shader.Find(fallback);
             if (shader == null) shader = Shader.Find("Hidden/InternalErrorShader");
             return new Material(shader) { name = name };
+        }
+
+        /// <summary>Unit cube whose UVs all point at Kenney atlas swatch <paramref name="swatch"/> (shares the atlas material).</summary>
+        public Mesh SwatchCube(string swatch)
+        {
+            if (Kenney == null || !Kenney.TryGetSwatch(swatch, out var uv)) return null;
+            if (swatchCubes.TryGetValue(swatch, out var m)) return m;
+            m = Own(Object.Instantiate(Cube));
+            m.name = "Swatch Cube " + swatch;
+            var uvs = new Vector2[m.vertexCount];
+            for (int i = 0; i < uvs.Length; i++) uvs[i] = uv;
+            m.uv = uvs;
+            swatchCubes[swatch] = m;
+            return m;
         }
 
         public T Own<T>(T obj) where T : Object
@@ -135,6 +154,7 @@ namespace FloorF.Rendering
             owned.Clear();
             litCache.Clear();
             unlitCache.Clear();
+            swatchCubes.Clear();
         }
     }
 

@@ -6,7 +6,7 @@ using UnityEngine;
 namespace FloorF.Rendering
 {
     /// <summary>
-    /// Blocky guest proxies (<see cref="GuestFigure"/>: silhouette + accessory per guests.json, vivid colour) that follow
+    /// Guest proxies (<see cref="GuestFigure"/>: Kenney character tinted per guests.json + accessory, blocky fallback) that follow
     /// the gameplay positions and pose from IGuestQuery mood (breathing bob, impatient stomping, angry hopping, scared
     /// trembling) plus a startled jump on unlucky judgements.
     /// Created on GuestSpawned (or when IGuestQuery lists a guest we have not seen), removed on GuestLeft /
@@ -80,7 +80,8 @@ namespace FloorF.Rendering
         {
             if (id.IsNone || proxies.ContainsKey(id)) return;
             Describe(data, archetype, out var color, out var accessory);
-            var fig = GuestFigure.Build(root, assets, "Guest " + id.Value + " " + archetype.Value, color, accessory);
+            // couples (partySize 2) alternate their two characters by id
+            var fig = GuestFigure.Build(root, assets, "Guest " + id.Value + " " + archetype.Value, color, accessory, assets.Kenney, Mathf.Abs(id.Value) % 2);
             var p = new Proxy
             {
                 Id = id, Figure = fig, SpawnFloor = floor, SpawnSlot = Mathf.Max(0, slot), SeenFrame = frame,
@@ -123,7 +124,7 @@ namespace FloorF.Rendering
             {
                 var def = defs[i];
                 var fig = GuestFigure.Build(root, assets, "Lineup " + floor.PhysicalNumber + " " + def.id,
-                    CoreUnityExtensions.ParseColor(def.color), def.accessory);
+                    CoreUnityExtensions.ParseColor(def.color), def.accessory, assets.Kenney, 0);
                 fig.Root.localPosition = layout.GetWaitingSlot(floor, i).ToVector3();
                 extras.Add(new Extra { Figure = fig, Mood = mood, Seed = i * 0.37f + floor.Value * 0.11f });
                 result.Add(fig);
@@ -168,17 +169,19 @@ namespace FloorF.Rendering
             {
                 var p = kv.Value;
                 var target = TargetOf(p, guestQuery, locator, elevator);
-                if (!p.Placed) { p.Root.localPosition = target; p.Placed = true; }
+                var before = p.Root.localPosition;
+                if (!p.Placed) { p.Root.localPosition = target; p.Placed = true; before = target; }
                 else p.Root.localPosition = Vector3.Lerp(p.Root.localPosition, target, k);
+                p.Figure.SetMotion(dt > 0f ? (p.Root.localPosition.x - before.x) / dt : 0f, juiceDt);
 
                 if (guestQuery != null && guestQuery.TryGet(p.Id, out var gi)) p.Mood = gi.Mood;
                 if (p.JumpAge < GuestPose.JumpSeconds) p.JumpAge += juiceDt;
-                p.Figure.Apply(GuestPose.Evaluate(p.Mood, juiceTime, p.Seed, p.JumpAge, pixel));
+                p.Figure.Apply(GuestPose.Evaluate(p.Mood, juiceTime, p.Seed, p.JumpAge, pixel), juiceTime + p.Seed * 3f);
             }
             for (int i = 0; i < extras.Count; i++)
             {
                 var e = extras[i];
-                if (e.Figure.Root != null) e.Figure.Apply(GuestPose.Evaluate(e.Mood, juiceTime, e.Seed, float.MaxValue, pixel));
+                if (e.Figure.Root != null) e.Figure.Apply(GuestPose.Evaluate(e.Mood, juiceTime, e.Seed, float.MaxValue, pixel), juiceTime + e.Seed * 3f);
             }
         }
 
