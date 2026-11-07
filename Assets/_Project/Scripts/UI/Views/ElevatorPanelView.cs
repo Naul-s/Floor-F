@@ -92,9 +92,9 @@ namespace FloorF.UI
             y -= rows * BtnH + (rows - 1) * Gap + 14f;
 
             // doors
-            openButton = UIBuild.Button("Open", root, "", 24f, UIStyle.Btn, () => ctx.Control?.OpenDoors());
+            openButton = UIBuild.Button("Open", root, "", 24f, UIStyle.Btn, () => ctx.Sound(ctx.Control != null && ctx.Control.OpenDoors()));
             UIBuild.Place(openButton.Rect, new Vector2(0.5f, 1f), new Vector2(-(BtnW + Gap) / 2f, y), new Vector2(BtnW, 44f));
-            closeButton = UIBuild.Button("Close", root, "", 24f, UIStyle.Btn, () => ctx.Control?.CloseDoors());
+            closeButton = UIBuild.Button("Close", root, "", 24f, UIStyle.Btn, () => ctx.Sound(ctx.Control != null && ctx.Control.CloseDoors()));
             UIBuild.Place(closeButton.Rect, new Vector2(0.5f, 1f), new Vector2((BtnW + Gap) / 2f, y), new Vector2(BtnW, 44f));
             y -= 44f + 10f;
 
@@ -136,8 +136,8 @@ namespace FloorF.UI
 
         void OnFloorClicked(FloorIndex floor)
         {
-            if (FloorClickInterceptor != null && FloorClickInterceptor(floor)) return;
-            ctx.Control?.RequestFloor(floor);
+            if (FloorClickInterceptor != null && FloorClickInterceptor(floor)) return; // the shop publishes its own sound
+            ctx.Sound(ctx.Control != null && ctx.Control.RequestFloor(floor));
         }
 
         // ------------------------------------------------------------------ refresh

@@ -64,7 +64,8 @@ namespace FloorF.UI
             ov.childForceExpandHeight = false;
             result = UIBuild.Text("Result", card, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
             resultIcon = new InlineIcon(result);
-            done = UIBuild.Button("Done", card, "", 24f, UIStyle.Action, () => ctx.Flow?.FinishShopping());
+            done = UIBuild.Button("Done", card, "", 24f, UIStyle.Action,
+                () => ctx.Sound(ctx.Flow != null && ctx.Flow.FinishShopping() ? UiSoundKind.Confirm : UiSoundKind.Error));
             done.Label.color = UIStyle.Ink;
             done.Rect.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
 
@@ -102,6 +103,7 @@ namespace FloorF.UI
         {
             if (!open) return;
             selected = selected == id ? default : id;
+            ctx.Sound(selected.IsEmpty ? UiSoundKind.Click : UiSoundKind.Confirm); // picked = confirm, un-picked = click
             panel.SelectedSticker = selected;
             SetResult(selected.IsEmpty ? "" : ctx.S(UIStrings.ShopPickFloor), UIStyle.Ink);
         }
@@ -119,10 +121,12 @@ namespace FloorF.UI
             if (selected.IsEmpty)
             {
                 SetResult(ctx.S(UIStrings.ShopHint), UIStyle.Ink);
+                ctx.Sound(UiSoundKind.Error); // no sticker picked yet
                 return true;
             }
             string before = ctx.Building.GetLabel(floor).Text;
             var r = ctx.Shop.TryBuyAndApply(selected, floor);
+            ctx.Sound(r == StickerApplyResult.Applied ? UiSoundKind.Confirm : UiSoundKind.Error);
             string after = ctx.Building.GetLabel(floor).Text;
             // the venue keeps its icon whatever the label says (GDD 4): "Floor 4 ([icon] Karaoke) is now F!"
             string venue = InlineIcon.Markup(ctx, ctx.Building.GetDestination(floor), out var icon, out var tint);

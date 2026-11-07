@@ -21,6 +21,54 @@ namespace FloorF.Tests.PlayMode.UI
         }
 
         [UnityTest]
+        public IEnumerator UiButtons_PublishUiSound()
+        {
+            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var day = GameServices.Get<IDayQuery>();
+            var heard = new System.Collections.Generic.List<UiSoundKind>();
+            using (GameServices.Events.Subscribe<UiSound>(e => heard.Add(e.Kind)))
+            {
+                void Expect(System.Action click, UiSoundKind kind, string what)
+                {
+                    int before = heard.Count;
+                    click();
+                    Assert.AreEqual(before + 1, heard.Count, what + ": exactly one UiSound per click");
+                    Assert.AreEqual(kind, heard[heard.Count - 1], what);
+                }
+
+                Expect(ui.ClickFlowButton, UiSoundKind.Confirm, "START");
+                Assert.AreEqual(DayPhase.Running, day.Phase);
+                Expect(() => ui.ClickFloor(5), UiSoundKind.Click, "floor button (accepted)");
+                yield return UITestDriver.Frames(2);
+                Expect(ui.ClickLanguage, UiSoundKind.Click, "language toggle");
+                Expect(ui.ClickLanguage, UiSoundKind.Click, "language toggle back");
+                Expect(ui.ClickPauseButton, UiSoundKind.Click, "pause");
+                yield return null;
+                Expect(ui.ClickHintsToggle, UiSoundKind.Click, "hints toggle");
+                Expect(ui.ClickHintsToggle, UiSoundKind.Click, "hints toggle back");
+                Expect(ui.ClickResume, UiSoundKind.Click, "resume");
+                yield return null;
+
+                var s = UITestDriver.Session();
+                s.Score.AddTips(100, earned: true);
+                s.EndDayNow();
+                yield return null;
+                Expect(ui.ClickFlowButton, UiSoundKind.Confirm, "CONTINUE");
+                Assert.AreEqual(DayPhase.Shop, day.Phase);
+                yield return null;
+                Expect(() => ui.ClickFloor(0), UiSoundKind.Error, "shop floor without a sticker");
+                Expect(() => ui.ClickShopOffer(0), UiSoundKind.Confirm, "sticker picked");
+                Expect(() => ui.ClickFloor(0), UiSoundKind.Error, "sticker refused on floor 1 (not Applied)");
+                Expect(() => ui.ClickFloor(FloorIndex.FromPhysicalNumber(4).Value), UiSoundKind.Confirm, "sticker applied");
+                yield return null;
+                Expect(ui.ClickShopDone, UiSoundKind.Confirm, "NEXT DAY");
+                Assert.AreEqual(DayPhase.Intro, day.Phase);
+            }
+        }
+
+        [UnityTest]
         public IEnumerator PanelBadges_ShowIcons()
         {
             yield return UITestDriver.LoadMain();

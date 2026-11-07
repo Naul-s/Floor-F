@@ -49,7 +49,7 @@ namespace FloorF.UI
             start = UIBuild.Button("Start", row, "", 36f, UIStyle.Action, OnStart);
             start.Label.color = UIStyle.Ink;
             start.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 2f;
-            titleCredits = UIBuild.Button("Credits", row, "", 24f, UIStyle.Btn, () => SetCredits(true));
+            titleCredits = UIBuild.Button("Credits", row, "", 24f, UIStyle.Btn, () => { ctx.Sound(UiSoundKind.Click); SetCredits(true); });
             titleCredits.Label.color = UIStyle.Ink;
             titleCredits.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
             titleLanguage = UIBuild.Button("Language", row, "", 24f, UIStyle.Btn, () => ctx.ToggleLanguage());
@@ -72,7 +72,7 @@ namespace FloorF.UI
             jamLine = UIBuild.Text("Jam", creditsCard, "", 12f, UIStyle.InkDim, TextAlignmentOptions.Center);
             var brow = Row(creditsCard, 52f);
             brow.GetComponent<HorizontalLayoutGroup>().padding = new RectOffset(320, 320, 6, 0);
-            back = UIBuild.Button("Back", brow, "", 24f, UIStyle.Action, () => SetCredits(false));
+            back = UIBuild.Button("Back", brow, "", 24f, UIStyle.Action, () => { ctx.Sound(UiSoundKind.Click); SetCredits(false); });
             back.Label.color = UIStyle.Ink;
             creditsCard.gameObject.SetActive(false);
 
@@ -169,7 +169,7 @@ namespace FloorF.UI
 
         // ------------------------------------------------------------------ commands (IMenuFlow / IGameSettings only)
 
-        void OnStart() => ctx.Menu?.StartGameFromTitle();
+        void OnStart() => ctx.Sound(ctx.Menu != null && ctx.Menu.StartGameFromTitle() ? UiSoundKind.Confirm : UiSoundKind.Error);
 
         void SetCredits(bool show)
         {
@@ -178,12 +178,18 @@ namespace FloorF.UI
             titlePanel.gameObject.SetActive(!creditsOpen);
             if (creditsOpen) { RefreshLanguage(); LayoutRebuilder.ForceRebuildLayoutImmediate(creditsCard); }
         }
-        void OnPause() => ctx.Menu?.SetPaused(true);
-        void OnResume() => ctx.Menu?.SetPaused(false);
-        void OnQuit() => ctx.Menu?.ReturnToTitle();
+        void OnPause() => ctx.Sound(ctx.Menu != null && ctx.Menu.SetPaused(true));
+        void OnResume() => ctx.Sound(ctx.Menu != null && ctx.Menu.SetPaused(false));
+
+        void OnQuit()
+        {
+            ctx.Sound(UiSoundKind.Click);
+            ctx.Menu?.ReturnToTitle();
+        }
 
         void OnHints()
         {
+            ctx.Sound(ctx.Settings != null);
             if (ctx.Settings != null) ctx.Settings.ShowTutorialHints = !ctx.Settings.ShowTutorialHints;
             RefreshLanguage();
         }

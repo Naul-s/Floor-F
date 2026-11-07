@@ -68,16 +68,23 @@ namespace FloorF.UI
 
         void OnAction()
         {
-            if (ctx.Flow == null || ctx.Day == null) return;
+            if (ctx.Flow == null || ctx.Day == null) { ctx.Sound(UiSoundKind.Error); return; }
+            bool ok;
             switch (ctx.Day.Phase)
             {
-                case DayPhase.Intro: ctx.Flow.BeginDay(); break;
-                case DayPhase.Summary: ctx.Flow.ContinueFromSummary(); break;
-                case DayPhase.Ending: ctx.Flow.RestartGame(); break;
+                case DayPhase.Intro: ok = ctx.Flow.BeginDay(); break;
+                case DayPhase.Summary: ok = ctx.Flow.ContinueFromSummary(); break;
+                case DayPhase.Ending: ctx.Flow.RestartGame(); ok = true; break;
+                default: ok = false; break;
             }
+            ctx.Sound(ok ? UiSoundKind.Confirm : UiSoundKind.Error);
         }
 
-        void OnTitle() => ctx.Menu?.ReturnToTitle();
+        void OnTitle()
+        {
+            ctx.Sound(UiSoundKind.Click);
+            ctx.Menu?.ReturnToTitle();
+        }
 
         public void Click() => action.Button.onClick.Invoke();
         public void ClickTitle() => toTitle.Button.onClick.Invoke();
