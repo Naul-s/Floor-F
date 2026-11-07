@@ -68,21 +68,43 @@ namespace FloorF.EditorTools
                 Cue(AudioCue.DayStart, new[] { UI + "confirmation_002.ogg" }, 0.6f, 1f, 0.05f, 0.5f),
                 Cue(AudioCue.Error, new[] { UI + "error_001.ogg" }, 0.6f, 1f, 0.05f, 0.2f),
                 Cue(AudioCue.UiClick, new[] { UI + "click_002.ogg" }, 0.5f, 1f, 0.07f, 0.05f),
+                // streak ladder: a tonal pluck (+ a little glass) on top of the Lucky twinkle; played at an exact pitch
+                // (semitone steps), the jitter value here is not used for it
+                Cue(AudioCue.StreakUp, new[] { UI + "pluck_001.ogg" }, 0.6f, 1f, 0.05f, 0.1f,
+                    layer: UI + "glass_002.ogg", layerVolume: 0.35f),
+                // streak lost: falling "minimize" swoosh slid lower + the chip stack scattering
+                Cue(AudioCue.StreakBroken, new[] { UI + "minimize_001.ogg" }, 0.3f, 0.8f, 0.05f, 0.4f,
+                    layer: Casino + "chips-collide-1.ogg", layerVolume: 1f),
+                // last 10 s of a real day: soft click (quiet sample: 0.8 plays ~-28 dBFS/100 ms, a short transient over the
+                // music), pitch 0.9 rising to 0.9 x 1.2 (exact pitch, no jitter)
+                Cue(AudioCue.ClockTick, new[] { UI + "click_001.ogg" }, 0.8f, 0.9f, 0.05f, 0.25f),
             };
             lib.tracks = new[]
             {
+                // Levels (AudioLevelProbe, dBFS as played = clip x musicVolume x track volume, before phase level/master):
+                // BlondPanda loop is dense (rms -17.6, loudest 100 ms -13.3). At 0.45 it plays at rms -31.5 / max100ms
+                // -27.2: ~9 dB under the ping (-17.8) and the doors (-18.4), a few dB under the lucky twinkle / gasp
+                // (~-24.5) - about where the old main song sat (MacLeod rms -33.2). Its loop seam is a sample step
+                // (0.22 vs a largest natural step of 0.07 = click) inside sustained music: a short 0.12 s fade each side
+                // removes the click without the long dip the mp3 needs.
+                new TrackDef { track = MusicTrack.Elevator, clip = C(FS + "659889__blondpanda__short-elevator-music-loop.wav"), volume = 0.45f, seamFade = 0.12f },
                 // mp3 -> Vorbis keeps the encoder padding at the loop point: fade 0.3 s each side to hide the click/gap
-                new TrackDef { track = MusicTrack.Elevator, clip = C(KM + "Local Forecast - Elevator.mp3"), volume = 1f, seamFade = 0.3f },
-                new TrackDef { track = MusicTrack.ShopLoop, clip = C(FS + "659889__blondpanda__short-elevator-music-loop.wav"), volume = 0.9f, seamFade = 0f },
-                new TrackDef { track = MusicTrack.Mystery, clip = C(FS + "665215__danlucaz__mystery-loop-3.wav"), volume = 1f, seamFade = 0f },
+                new TrackDef { track = MusicTrack.ShopLoop, clip = C(KM + "Local Forecast - Elevator.mp3"), volume = 1f, seamFade = 0.3f },
+                // mystery loop is ~10 dB hotter than the rest (rms -14.3): 0.6 -> rms -25.6, a step up for the ending, not a jump
+                new TrackDef { track = MusicTrack.Mystery, clip = C(FS + "665215__danlucaz__mystery-loop-3.wav"), volume = 0.6f, seamFade = 0f },
             };
             lib.musicVolume = 0.45f;
             lib.pauseDuckDb = -12f;
+            lib.holdDuckDb = -6f;
             lib.crossfadeSeconds = 1.2f;
             lib.titleSfxScale = 0.35f;
             lib.dipPitch = 0.75f;
             lib.dipDownSeconds = 0.15f;
             lib.dipUpSeconds = 0.6f;
+            lib.streakSemitoneStep = 1f;
+            lib.streakMaxSemitones = 7f;
+            lib.clockTickSeconds = 10;
+            lib.clockTickRise = 0.2f;
 
             if (missing.Count > 0)
                 throw new FileNotFoundException("[AudioLibraryBuilder] missing clips:\n" + string.Join("\n", missing));

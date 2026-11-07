@@ -124,23 +124,55 @@ MonoBehaviour:
     pitch: 1
     pitchJitter: 0.07
     minInterval: 0.05
+  - cue: 13
+    clips:
+    - {fileID: 8300000, guid: ab4dbef6025b47729d1f9d1078f04f47, type: 3}
+    layer: {fileID: 8300000, guid: 37a18ebc48db49babad6bd2061b57544, type: 3}
+    layerVolume: 0.35
+    volume: 0.6
+    pitch: 1
+    pitchJitter: 0.05
+    minInterval: 0.1
+  - cue: 14
+    clips:
+    - {fileID: 8300000, guid: c10523ab257f432899a4ff8244514ef4, type: 3}
+    layer: {fileID: 8300000, guid: 412af403e4fe4641bd7ec56bb8c4f559, type: 3}
+    layerVolume: 1
+    volume: 0.3
+    pitch: 0.8
+    pitchJitter: 0.05
+    minInterval: 0.4
+  - cue: 15
+    clips:
+    - {fileID: 8300000, guid: 5cffb4a204e94165b59e7c3229ca2469, type: 3}
+    layer: {fileID: 0}
+    layerVolume: 0.4
+    volume: 0.8
+    pitch: 0.9
+    pitchJitter: 0.05
+    minInterval: 0.25
   tracks:
   - track: 1
+    clip: {fileID: 8300000, guid: 954a44d2f1424a70babf33d36ef7f40c, type: 3}
+    volume: 0.45
+    seamFade: 0.12
+  - track: 2
     clip: {fileID: 8300000, guid: 6a65fa59a6744f7db2e8464182273d07, type: 3}
     volume: 1
     seamFade: 0.3
-  - track: 2
-    clip: {fileID: 8300000, guid: 954a44d2f1424a70babf33d36ef7f40c, type: 3}
-    volume: 0.9
-    seamFade: 0
   - track: 3
     clip: {fileID: 8300000, guid: a5217015b78f465a85fb7c5c2f466244, type: 3}
-    volume: 1
+    volume: 0.6
     seamFade: 0
   musicVolume: 0.45
   pauseDuckDb: -12
+  holdDuckDb: -6
   crossfadeSeconds: 1.2
   titleSfxScale: 0.35
   dipPitch: 0.75
   dipDownSeconds: 0.15
   dipUpSeconds: 0.6
+  streakSemitoneStep: 1
+  streakMaxSemitones: 7
+  clockTickSeconds: 10
+  clockTickRise: 0.2

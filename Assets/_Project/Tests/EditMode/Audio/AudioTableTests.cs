@@ -3,6 +3,7 @@ using System.Linq;
 using FloorF.Audio;
 using FloorF.Core;
 using NUnit.Framework;
+using UnityEngine;
 
 namespace FloorF.Tests.EditMode.Audio
 {
@@ -45,6 +46,112 @@ namespace FloorF.Tests.EditMode.Audio
                 Assert.IsNotNull(lib.Find(t)?.clip, t + " music clip");
             }
             Assert.AreEqual(-12f, lib.pauseDuckDb, 0.01f, "pause duck -12 dB");
+            Assert.AreEqual(-6f, lib.holdDuckDb, 0.01f, "coach-mark hold duck -6 dB");
+        }
+
+        [Test]
+        public void MusicTracks_MainIsBlondPandaLoop_ShopIsMacLeod()
+        {
+            var lib = LoadLibrary();
+            var main = lib.Find(MusicTrack.Elevator);
+            StringAssert.Contains("blondpanda__short-elevator-music-loop", main.clip.name, "main BGM = BlondPanda loop");
+            Assert.That(main.seamFade, Is.InRange(0.05f, 0.2f), "short fade hides the loop's sample step without a long dip");
+            Assert.That(main.volume, Is.InRange(0.3f, 0.6f), "dense loop sits under the SFX");
+            var shop = lib.Find(MusicTrack.ShopLoop);
+            StringAssert.Contains("Local Forecast - Elevator", shop.clip.name, "shop = Kevin MacLeod");
+            Assert.AreEqual(0.3f, shop.seamFade, 1e-4f, "mp3 encoder gap still faded");
+            Assert.AreNotEqual(main.clip, shop.clip, "shop sounds different from the days");
+            // the moments that use the main BGM
+            foreach (var phase in new[] { DayPhase.Title, DayPhase.Intro, DayPhase.Running, DayPhase.Summary })
+                Assert.AreEqual(MusicTrack.Elevator, AudioRules.MusicFor(phase, EndingKind.None).Track, phase.ToString());
+            Assert.AreEqual(MusicTrack.Elevator, AudioRules.MusicFor(DayPhase.Ending, EndingKind.Prosperous).Track);
+            Assert.AreEqual(MusicTrack.Elevator, AudioRules.MusicFor(DayPhase.Ending, EndingKind.Modest).Track);
+            Assert.AreEqual(MusicTrack.ShopLoop, AudioRules.MusicFor(DayPhase.Shop, EndingKind.None).Track);
+        }
+
+        [Test]
+        public void Streak_PitchClimbsOneSemitonePerStep_Capped()
+        {
+            var lib = LoadLibrary();
+            Assert.AreEqual(1f, lib.streakSemitoneStep, 1e-4f);
+            Assert.AreEqual(7f, lib.streakMaxSemitones, 1e-4f);
+            float semitone = Mathf.Pow(2f, 1f / 12f);
+            Assert.AreEqual(1f, AudioRules.StreakPitch(1, 1f, 7f), 1e-4f, "first lucky = base pitch");
+            for (int s = 2; s <= 8; s++)
+                Assert.AreEqual(AudioRules.StreakPitch(s - 1, 1f, 7f) * semitone, AudioRules.StreakPitch(s, 1f, 7f), 1e-4f, "step " + s);
+            Assert.AreEqual(Mathf.Pow(2f, 7f / 12f), AudioRules.StreakPitch(8, 1f, 7f), 1e-4f, "+7 semitones at streak 8");
+            Assert.AreEqual(AudioRules.StreakPitch(8, 1f, 7f), AudioRules.StreakPitch(20, 1f, 7f), 1e-4f, "capped");
+            Assert.AreEqual(1f, AudioRules.StreakPitch(0, 1f, 7f), 1e-4f, "never below base");
+        }
+
+        [Test]
+        public void Streak_EventsMapToUpAndBroken()
+        {
+            Assert.AreEqual(AudioCue.StreakUp, AudioEventMap.For(new LuckStreakChanged(1, 0, 1.1f)));
+            Assert.AreEqual(AudioCue.StreakUp, AudioEventMap.For(new LuckStreakChanged(5, 4, 1.5f)));
+            Assert.AreEqual(AudioCue.StreakBroken, AudioEventMap.For(new LuckStreakChanged(0, 3, 1f)));
+            Assert.AreEqual(AudioCue.None, AudioEventMap.For(new LuckStreakChanged(0, 0, 1f)), "0 -> 0 is not a break");
+            Assert.AreEqual(AudioCue.None, AudioEventMap.For(new LuckStreakChanged(2, 3, 1.2f)), "a drop that is not a break is silent");
+        }
+
+        [Test]
+        public void Countdown_TicksEachOfTheLastTenSecondsOnce()
+        {
+            var t = new CountdownTicker();
+            var ticks = Run(t, 15f, 0f, running: true, silentFrom: -1f, silentTo: -1f);
+            CollectionAssert.AreEqual(new[] { 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 }, ticks, "10..1, once each");
+
+            t.Reset();
+            CollectionAssert.IsEmpty(Run(t, 15f, 0f, running: false, silentFrom: -1f, silentTo: -1f), "not Running (title demo / summary)");
+
+            t.Reset();
+            CollectionAssert.IsEmpty(Run(t, 60f, 11f, running: true, silentFrom: -1f, silentTo: -1f), "outside the window");
+
+            t.Reset();
+            var paused = Run(t, 15f, 0f, running: true, silentFrom: 7.5f, silentTo: 4.5f);
+            CollectionAssert.AreEqual(new[] { 10, 9, 8, 4, 3, 2, 1 }, paused, "silent seconds skipped, not played late");
+
+            // next day re-arms
+            t.Reset();
+            Run(t, 15f, 0f, running: true, silentFrom: -1f, silentTo: -1f);
+            Assert.AreEqual(0, t.Step(false, false, 75f, 10), "summary/intro");
+            CollectionAssert.AreEqual(new[] { 10, 9, 8, 7, 6, 5, 4, 3, 2, 1 }, Run(t, 12f, 0f, true, -1f, -1f), "day 2 ticks again");
+
+            // a frame that jumps several seconds ticks once
+            t.Reset();
+            Assert.AreEqual(0, t.Step(true, false, 12f, 10));
+            Assert.AreEqual(6, t.Step(true, false, 5.5f, 10));
+            Assert.AreEqual(0, t.Step(true, false, 5.1f, 10));
+
+            Assert.AreEqual(1f, AudioRules.ClockTickPitch(10, 10, 0.2f), 1e-4f, "first tick at base");
+            Assert.AreEqual(1.2f, AudioRules.ClockTickPitch(1, 10, 0.2f), 1e-4f, "last tick +20%");
+            for (int s = 10; s > 1; s--)
+                Assert.Greater(AudioRules.ClockTickPitch(s - 1, 10, 0.2f), AudioRules.ClockTickPitch(s, 10, 0.2f), "rising");
+            var lib = LoadLibrary();
+            Assert.AreEqual(10, lib.clockTickSeconds);
+            Assert.That(lib.Find(AudioCue.ClockTick).volume, Is.InRange(0.5f, 0.9f), "soft tick (quiet sample)");
+        }
+
+        /// <summary>Simulates a 60 fps clock from <paramref name="from"/> to <paramref name="to"/> seconds left.</summary>
+        static System.Collections.Generic.List<int> Run(CountdownTicker t, float from, float to, bool running, float silentFrom, float silentTo)
+        {
+            var ticks = new System.Collections.Generic.List<int>();
+            for (float r = from; r > to; r -= 1f / 60f)
+            {
+                bool silent = r <= silentFrom && r > silentTo;
+                int s = t.Step(running, silent, r, 10);
+                if (s > 0) ticks.Add(s);
+            }
+            return ticks;
+        }
+
+        [Test]
+        public void Duck_PauseBeatsTheLighterCoachMarkHold()
+        {
+            Assert.AreEqual(1f, AudioRules.DuckTarget(false, false, -12f, -6f), 1e-4f);
+            Assert.AreEqual(0.501f, AudioRules.DuckTarget(false, true, -12f, -6f), 0.002f, "hold -6 dB");
+            Assert.AreEqual(0.251f, AudioRules.DuckTarget(true, false, -12f, -6f), 0.002f, "pause -12 dB");
+            Assert.AreEqual(0.251f, AudioRules.DuckTarget(true, true, -12f, -6f), 0.002f, "pause wins");
         }
 
         [Test]

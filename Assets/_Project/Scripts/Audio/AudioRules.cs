@@ -31,7 +31,13 @@ namespace FloorF.Audio
             new Entry(typeof(GuestLeft), AudioCue.GuestLeft),
             new Entry(typeof(GuestMoodChanged), AudioCue.Impatient),
             new Entry(typeof(DayStarted), AudioCue.DayStart),
+            new Entry(typeof(LuckStreakChanged), AudioCue.StreakUp),
+            new Entry(typeof(LuckStreakChanged), AudioCue.StreakBroken),
         };
+
+        /// <summary>Streak went up -> StreakUp, broken (back to 0 from above 0) -> StreakBroken, anything else silent.</summary>
+        public static AudioCue For(in LuckStreakChanged e)
+            => e.Broken ? AudioCue.StreakBroken : e.Streak > e.Previous && e.Streak > 0 ? AudioCue.StreakUp : AudioCue.None;
 
         public static AudioCue For(in LuckJudged e)
             => e.Verdict == LuckVerdict.Lucky ? AudioCue.Lucky : e.Verdict == LuckVerdict.Unlucky ? AudioCue.Unlucky : AudioCue.None;
@@ -68,6 +74,23 @@ namespace FloorF.Audio
         }
 
         public static float DbToLinear(float db) => Mathf.Pow(10f, db / 20f);
+
+        public static float SemitonesToPitch(float semitones) => Mathf.Pow(2f, semitones / 12f);
+
+        /// <summary>StreakUp pitch: streak 1 = base, +<paramref name="step"/> semitones per step after that, capped at <paramref name="maxSemitones"/>.</summary>
+        public static float StreakPitch(int streak, float step, float maxSemitones)
+            => SemitonesToPitch(Mathf.Clamp((streak - 1) * step, 0f, Mathf.Max(0f, maxSemitones)));
+
+        /// <summary>ClockTick pitch for the tick at <paramref name="second"/> s left: 1 at the window start, 1 + rise at 1 s left.</summary>
+        public static float ClockTickPitch(int second, int window, float rise)
+        {
+            if (window <= 1) return 1f + rise;
+            return 1f + rise * Mathf.Clamp01((window - second) / (float)(window - 1));
+        }
+
+        /// <summary>Music duck target: menu pause wins over the lighter Day 0 coach-mark hold.</summary>
+        public static float DuckTarget(bool paused, bool held, float pauseDb, float holdDb)
+            => paused ? DbToLinear(pauseDb) : held ? DbToLinear(holdDb) : 1f;
 
         /// <summary>0..1 gain that fades the first and last <paramref name="fade"/> seconds of a looping clip (hides the seam).</summary>
         public static float SeamGain(float time, float length, float fade)
@@ -141,6 +164,28 @@ namespace FloorF.Audio
             if (now - last[i] < minInterval) return false;
             last[i] = now;
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Last-seconds countdown: reports each whole second (N..1) once as the day clock crosses it, only while the visible
+    /// phase is Running. A second crossed while silent (paused / tutorial) is skipped, never played late. Re-arms when the
+    /// clock is outside the window or the phase is not Running (next day).
+    /// </summary>
+    sealed class CountdownTicker
+    {
+        int last = int.MaxValue;
+
+        public void Reset() => last = int.MaxValue;
+
+        /// <summary>The second to tick now (1..<paramref name="window"/>), or 0.</summary>
+        public int Step(bool running, bool silent, float remaining, int window)
+        {
+            if (!running || window <= 0 || remaining > window) { last = int.MaxValue; return 0; }
+            int sec = Mathf.CeilToInt(remaining);
+            if (sec < 1 || sec >= last) return 0;
+            last = sec; // a second crossed while silent is used up, not played late
+            return silent ? 0 : sec;
         }
     }
 

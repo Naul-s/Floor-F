@@ -31,14 +31,27 @@ namespace FloorF.Audio
         Error = 11,
         /// <summary>UiSound(Click).</summary>
         UiClick = 12,
+        /// <summary>
+        /// LuckStreakChanged increase: short pluck layered on the Lucky chime, one semitone higher per streak step
+        /// (<see cref="AudioLibrary.streakSemitoneStep"/>, capped at <see cref="AudioLibrary.streakMaxSemitones"/>) and
+        /// without random jitter, so a streak audibly climbs. Same-frame increases collapse into one note (the highest).
+        /// </summary>
+        StreakUp = 13,
+        /// <summary>LuckStreakChanged.Broken: short deflating "lost it" sound (on top of the Unlucky gasp).</summary>
+        StreakBroken = 14,
+        /// <summary>Soft clock tick once per second over the last <see cref="AudioLibrary.clockTickSeconds"/> s of a real day (rising pitch).</summary>
+        ClockTick = 15,
     }
 
     public enum MusicTrack
     {
         None = 0,
-        /// <summary>Kevin MacLeod "Local Forecast - Elevator" (title, days, summary, prosperous/modest endings).</summary>
+        /// <summary>
+        /// Main background music (title, days, summary, prosperous/modest endings): BlondPanda "short elevator music loop"
+        /// (Freesound 659889, CC0).
+        /// </summary>
         Elevator = 1,
-        /// <summary>BlondPanda short elevator loop (sticker shop).</summary>
+        /// <summary>Sticker shop: Kevin MacLeod "Local Forecast - Elevator" (CC-BY), so the shop sounds different from the days.</summary>
         ShopLoop = 2,
         /// <summary>danlucaz mystery loop (4th-floor / haunted endings).</summary>
         Mystery = 3,
@@ -84,6 +97,8 @@ namespace FloorF.Audio
         /// <summary>Music bus level under MasterVolume (SFX are at 1).</summary>
         public float musicVolume = 0.45f;
         public float pauseDuckDb = -12f;
+        /// <summary>Lighter music duck while the Day 0 coach marks hold the game (TutorialHoldChanged).</summary>
+        public float holdDuckDb = -6f;
         public float crossfadeSeconds = 1.2f;
         /// <summary>SFX level while the title's attract demo plays behind the menu.</summary>
         public float titleSfxScale = 0.35f;
@@ -91,6 +106,12 @@ namespace FloorF.Audio
         public float dipPitch = 0.75f;
         public float dipDownSeconds = 0.15f;
         public float dipUpSeconds = 0.6f;
+        /// <summary>StreakUp: semitones added per streak step above 1, and the cap.</summary>
+        public float streakSemitoneStep = 1f;
+        public float streakMaxSemitones = 7f;
+        /// <summary>ClockTick: ticks over the last N whole seconds of a real day; pitch rises to 1 + rise on the last one.</summary>
+        public int clockTickSeconds = 10;
+        public float clockTickRise = 0.2f;
 
         public CueDef Find(AudioCue cue)
         {
