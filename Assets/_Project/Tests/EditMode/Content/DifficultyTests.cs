@@ -68,6 +68,7 @@ namespace FloorF.Tests.EditMode.Content
                 switch (s.Phase)
                 {
                     case DayPhase.Intro:
+                        if (s.IsTutorial) { Assert.IsTrue(s.SkipTutorial()); break; } // the bot never plays Day 0
                         if (s.CurrentDay.Number > lastDay) return new RunResult(ending, s.CurrentDay.Number - 1, s.Score.Luck, luckAfterDay.ToArray());
                         pilot = new AutoPilot(s.Elevator, s, s.Guests, s.Building, strategy) { Data = data };
                         s.BeginDay();
@@ -162,13 +163,15 @@ namespace FloorF.Tests.EditMode.Content
             }
         }
 
+        /// <summary>Day 1 = the first real day (the internal day after the Day 0 training shift, which the bot skips).</summary>
         [Test]
         public void LuckBlindBot_SurvivesDay1()
         {
             var r0 = data.Rules;
+            var firstReal = new DayId(data.TutorialDayCount + 1);
             foreach (var seed in Seeds)
             {
-                var r = Run(seed, ShopPolicy.None, lastDay: 1);
+                var r = Run(seed, ShopPolicy.None, lastDay: firstReal.Number);
                 TestContext.WriteLine("seed " + seed + ": " + r);
                 Assert.AreEqual(EndingKind.None, r.Ending, "seed " + seed + ": the tutorial ended the game - " + r);
                 Assert.AreEqual(1, r.LuckAfterDay.Length, "seed " + seed + ": day 1 did not finish");
@@ -177,7 +180,7 @@ namespace FloorF.Tests.EditMode.Content
 
             // Worst case on paper: every tutorial guest suffers every unlucky label once and every reachable unlucky
             // headcount once (or walks out) - the hotel must still stand.
-            var day1 = data.GetDay(DayId.First);
+            var day1 = data.GetDay(firstReal);
             int people = day1.spawns.Sum(sp => data.GetGuest(sp.Guest).partySize);
             int worst = 0;
             foreach (var sp in day1.spawns)
@@ -195,14 +198,14 @@ namespace FloorF.Tests.EditMode.Content
         }
 
         [Test]
-        public void Tutorial_Day1_StillThreeGuests()
+        public void Tutorial_Day0_IsScripted()
         {
-            var day1 = data.GetDay(DayId.First);
-            Assert.IsTrue(day1.tutorial, "day 1 is the tutorial");
-            Assert.AreEqual(3, day1.spawns.Length, "GDD 3: 3-guest tutorial");
-            Assert.AreEqual(3, day1.spawns.Sum(sp => data.GetGuest(sp.Guest).partySize), "3 people, not 3 parties");
-            Assert.IsTrue(day1.spawns.All(sp => !string.IsNullOrWhiteSpace(sp.destination) || sp.HasDestinationFloor),
+            var day0 = data.GetDay(DayId.First);
+            Assert.IsTrue(day0.tutorial, "internal day 1 is the Day 0 training shift");
+            Assert.AreEqual(1, data.TutorialDayCount);
+            Assert.IsTrue(day0.spawns.All(sp => !string.IsNullOrWhiteSpace(sp.destination) || sp.HasDestinationFloor),
                 "tutorial destinations are scripted, not random");
+            Assert.IsTrue(day0.spawns.All(sp => data.GetGuest(sp.Guest).partySize == 1), "one person per entry: head-counts stay readable");
         }
     }
 }

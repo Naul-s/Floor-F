@@ -64,7 +64,8 @@ namespace FloorF.Tests.EditMode.Core
             {
                 days = new[]
                 {
-                    new DayDef { day = 1, durationSeconds = 1000f, tutorial = true, shopStickers = new[] { "four_to_f", "any_to_8" } },
+                    // real days (no tutorial): rule tests need the clock, patience and Haunted. See WithTutorial.
+                    new DayDef { day = 1, durationSeconds = 1000f, shopStickers = new[] { "four_to_f", "any_to_8" } },
                     new DayDef { day = 2, durationSeconds = 1000f, shopStickers = new string[0] },
                 },
             };
@@ -84,6 +85,24 @@ namespace FloorF.Tests.EditMode.Core
             var d = Defaults();
             tweak?.Invoke(d);
             return GameData.Create(d.Hotel, d.Guests, d.Days, d.Stickers);
+        }
+
+        /// <summary>
+        /// Prepends a "Day 0" tutorial day (internal day 1, no shop) with these spawns (wave-clock times); the default
+        /// real days become days 2 and 3. <paramref name="tweak"/> runs after the insert.
+        /// </summary>
+        public static GameData WithTutorial(SpawnDef[] spawns, Action<Defs> tweak = null)
+        {
+            return Create(d =>
+            {
+                var days = new List<DayDef>
+                {
+                    new DayDef { day = 1, title = "Day 0", durationSeconds = 30f, tutorial = true, shopStickers = new string[0], spawns = spawns ?? new SpawnDef[0] },
+                };
+                foreach (var real in d.Days.days) { real.day = days.Count + 1; days.Add(real); }
+                d.Days.days = days.ToArray();
+                tweak?.Invoke(d);
+            });
         }
     }
 

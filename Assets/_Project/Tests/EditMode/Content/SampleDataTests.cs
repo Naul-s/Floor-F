@@ -42,11 +42,15 @@ namespace FloorF.Tests.EditMode.Content
         }
 
         [Test]
-        public void FiveDays_Day1IsTutorial()
+        public void FiveDays_PlusDay0Tutorial()
         {
-            Assert.AreEqual(5, data.DayCount);
+            Assert.AreEqual(6, data.DayCount, "Day 0 training shift + 5 real days");
+            Assert.AreEqual(1, data.TutorialDayCount);
+            Assert.AreEqual(5, data.PlayableDayCount);
             Assert.IsTrue(data.GetDay(DayId.First).tutorial);
-            Assert.AreEqual(3, data.GetDay(DayId.First).spawns.Length, "GDD 3: day 1 is a 3-guest tutorial");
+            Assert.AreEqual(0, data.DisplayDayNumber(DayId.First), "internal day 1 reads Day 0");
+            Assert.IsFalse(data.GetDay(DayId.First.Next).tutorial, "the first real day has a clock");
+            Assert.AreEqual(1, data.DisplayDayNumber(DayId.First.Next));
         }
 
         [Test]

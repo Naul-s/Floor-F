@@ -37,6 +37,7 @@ namespace FloorF.Tests.PlayMode.Rendering
         /// <summary>
         /// Loads Main straight into Day 1 Intro (GameplayRoot.SkipTitleForTests, cleared again by Unfreeze) and waits
         /// until rendering built the world. Should the title still show, presses Start like the player does.
+        /// Skips the "Day 0" training shift (no clock, waves, no shop) so tests run on the first real day.
         /// </summary>
         public static IEnumerator LoadMain()
         {
@@ -51,6 +52,9 @@ namespace FloorF.Tests.PlayMode.Rendering
                 for (int i = 0; i < 2; i++) yield return null;
             }
             Assert.AreEqual(DayPhase.Intro, GameServices.Get<IDayQuery>().Phase, "game started");
+            if (GameServices.Get<IDayQuery>().IsTutorial)
+                Assert.IsTrue(GameServices.Get<IGameFlow>().SkipTutorial(), "skip the Day 0 training shift");
+            Assert.IsFalse(GameServices.Get<IDayQuery>().IsTutorial, "on the first real day");
             Assert.IsTrue(Rendering().IsBuilt, "rendering built");
         }
 

@@ -3,7 +3,8 @@ namespace FloorF.Core
     /// <summary>
     /// <see cref="IMenuFlow"/>: title screen with an attract-mode demo, and pause.
     ///
-    /// Title: the visible phase is <see cref="DayPhase.Title"/>. Behind it the session really plays Day 1 with a
+    /// Title: the visible phase is <see cref="DayPhase.Title"/>. Behind it the session really plays the first REAL day
+    /// (never the "Day 0" tutorial shift: it has no clock and would never loop) with a
     /// LuckAware <see cref="AutoPilot"/> (fresh run state; it loops when the demo day ends). Player input is refused
     /// (<see cref="AcceptsInput"/> false, every IElevatorControl/IGameFlow command returns false). Gameplay events
     /// (guests, elevator, luck, tips, speech) are published so presentation can show the demo; FLOW events
@@ -79,6 +80,11 @@ namespace FloorF.Core
             if (demoPilot == null)
                 demoPilot = new AutoPilot(Elevator, new DemoControl(this), Guests, Building, AutoPilotStrategy.LuckAware) { Data = data };
             demoPilot.Reset();
+            if (TryFirstRealDayFrom(day, out var real) && real != day)
+            {
+                day = real;
+                dayDef = data.GetDay(day);
+            }
             BeginDayCore();
         }
 

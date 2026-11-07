@@ -434,7 +434,7 @@ namespace FloorF.Tests.EditMode.Core
             sim.S.StartNewGame();
             sim.AssertOrder(typeof(GameStarted), typeof(DayPhaseChanged));
             Assert.AreEqual(DayPhase.Intro, sim.S.Phase);
-            Assert.IsTrue(sim.S.IsTutorial);
+            Assert.IsFalse(sim.S.IsTutorial, "the rule fixture has no tutorial day (TutorialShiftTests cover it)");
             Assert.IsFalse(sim.S.ContinueFromSummary());
 
             Assert.IsTrue(sim.S.BeginDay());

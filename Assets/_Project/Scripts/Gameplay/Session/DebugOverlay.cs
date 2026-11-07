@@ -47,7 +47,7 @@ namespace FloorF.Gameplay
             var e = session.Elevator;
             var b = session.Building;
             sb.Clear();
-            sb.Append("Day ").Append(session.CurrentDay.Number).Append('/').Append(session.DayCount)
+            sb.Append("Day ").Append(session.DisplayDay).Append('/').Append(session.PlayableDayCount)
               .Append("  ").Append(session.Phase).Append("  t=").Append(session.RemainingSeconds.ToString("0")).Append("s\n");
             sb.Append("Luck ").Append(session.Score.Luck).Append('/').Append(session.Score.MaxLuck)
               .Append("  Tips ").Append(session.Score.Tips).Append(" (+").Append(session.Score.TipsEarnedToday).Append(")\n");
@@ -71,7 +71,7 @@ namespace FloorF.Gameplay
             switch (session.Phase)
             {
                 case DayPhase.Intro: sb.Append(session.CurrentDayDef.title).Append("\n[Enter] start"); break;
-                case DayPhase.Running: sb.Append("[W/S] floor  [Space] doors"); break;
+                case DayPhase.Running: sb.Append(session.IsTutorial ? "(training shift - no clock)\n" : "").Append("[W/S] floor  [Space] doors"); break;
                 case DayPhase.Summary:
                     var s = session.LastSummary;
                     sb.Append("Delivered ").Append(s.Delivered).Append("  Left ").Append(s.Left).Append("  Tips +").Append(s.TipsEarned)

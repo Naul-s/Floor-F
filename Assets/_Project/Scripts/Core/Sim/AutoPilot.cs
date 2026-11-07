@@ -68,9 +68,14 @@ namespace FloorF.Core
         /// <summary>Optional (LuckAware): lets the bot see guest traits (honest guests vs stickered floors). Null = numbers only.</summary>
         public GameData Data { get; set; }
 
+        /// <summary>
+        /// One decision. Never plays the "Day 0" tutorial shift (when the control is the session/IDayQuery): it is for
+        /// people, has no clock, and a bot clearing it would skew balance runs - callers <c>SkipTutorial()</c> first.
+        /// </summary>
         public void Step()
         {
             DetectNewDay();
+            if (dayQuery != null && dayQuery.IsTutorial) return;
             if (Strategy == AutoPilotStrategy.LuckAware) StepLuckAware();
             else StepLuckBlind();
         }

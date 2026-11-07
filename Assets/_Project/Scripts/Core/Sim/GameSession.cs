@@ -15,6 +15,10 @@ namespace FloorF.Core
     /// this floor exit (boardSeconds per guest/party), then waiting guests board while the doors stay open.
     /// CloseDoors (or RequestFloor) stops new boarding; once the current walker and all exits finish -> Closing
     /// (doorSeconds) -> DoorsClosed, riders judged on occupancy -> depart if a floor was requested.
+    ///
+    /// Tutorial days ("Day 0" training shift, <c>DayDef.tutorial</c>): no time-out (RemainingSeconds stays full), spawns
+    /// on a wave clock that only runs while the hotel is empty, no patience loss, no Haunted ending. Luck/tips still move
+    /// (the UI explains verdicts) and are reset to the run's start values when the player leaves its summary; no shop.
     /// </summary>
     public sealed partial class GameSession : IElevatorControl, IDayQuery, IGameFlow, IShopService, IMenuFlow
     {
@@ -60,6 +64,8 @@ namespace FloorF.Core
         SpawnDef[] spawns = Array.Empty<SpawnDef>();
         int nextSpawn;
         float elapsed;
+        /// <summary>Tutorial days: spawn clock that only runs while the hotel is empty (waves). Real days spawn on <see cref="elapsed"/>.</summary>
+        float waveClock;
         float emptyFor;
         bool started;
         int luckAtStart, dayDelivered, dayLeft, dayLucky, dayUnlucky;
@@ -110,7 +116,10 @@ namespace FloorF.Core
         public bool IsTutorial => dayDef != null && dayDef.tutorial;
         public float DurationSeconds => dayDef != null ? dayDef.durationSeconds : 0f;
         public float ElapsedSeconds => elapsed;
-        public float RemainingSeconds => Math.Max(0f, DurationSeconds - elapsed);
+        /// <summary>Tutorial days have no clock: stays at <see cref="DurationSeconds"/>.</summary>
+        public float RemainingSeconds => IsTutorial ? DurationSeconds : Math.Max(0f, DurationSeconds - elapsed);
+        /// <summary>Tutorial wave clock (spawn times of a tutorial day are on it); 0 on real days.</summary>
+        internal float WaveClockSeconds => waveClock;
         public EndingKind Ending => ending;
         public DaySummary LastSummary => lastSummary;
         public DayDef CurrentDayDef => dayDef;
@@ -167,6 +176,7 @@ namespace FloorF.Core
             Array.Sort(times, spawns);
             nextSpawn = 0;
             elapsed = 0f;
+            waveClock = 0f;
             emptyFor = 0f;
             lastLineAt.Clear();
             luckAtStart = Score.Luck;
@@ -178,19 +188,43 @@ namespace FloorF.Core
             return true;
         }
 
+        /// <summary>
+        /// Tutorial Intro -> first real day's Intro (DayPhaseChanged Intro -> Intro). Luck/tips untouched (nothing was
+        /// played yet). False anywhere else, or when no real day follows.
+        /// </summary>
         public bool SkipTutorial()
         {
             if (paused || onTitle || phase != DayPhase.Intro || !IsTutorial) return false;
-            while (dayDef.tutorial && !data.IsLastDay(day)) { day = day.Next; dayDef = data.GetDay(day); }
+            if (!TryFirstRealDayFrom(day, out var real)) return false;
+            day = real;
+            dayDef = data.GetDay(day);
             elapsed = 0f;
+            waveClock = 0f;
             ResetElevator();
             SetPhase(DayPhase.Intro);
             return true;
         }
 
+        /// <summary>First non-tutorial day at or after <paramref name="from"/>.</summary>
+        bool TryFirstRealDayFrom(DayId from, out DayId real)
+        {
+            for (var d = from; ; d = d.Next)
+            {
+                if (!data.GetDay(d).tutorial) { real = d; return true; }
+                if (data.IsLastDay(d)) { real = from; return false; }
+            }
+        }
+
         public bool ContinueFromSummary()
         {
             if (phase != DayPhase.Summary || paused || onTitle) return false;
+            if (IsTutorial && !data.IsLastDay(day))
+            {
+                // the training shift does not count: back to the run's start Luck/tips, no shop
+                Score.ResetForNewGame();
+                GoToNextDayIntro();
+                return true;
+            }
             if (data.IsLastDay(day))
             {
                 ReachEnding(Score.Luck >= rules.prosperousEndingLuck ? EndingKind.Prosperous : EndingKind.Modest);
@@ -214,6 +248,7 @@ namespace FloorF.Core
             day = day.Next;
             dayDef = data.GetDay(day);
             elapsed = 0f;
+            waveClock = 0f;
             ResetElevator();
             SetPhase(DayPhase.Intro);
         }
@@ -256,6 +291,7 @@ namespace FloorF.Core
         void Step(float dt)
         {
             elapsed += dt;
+            if (dayDef.tutorial && Guests.Active.Count == 0) waveClock += dt;
             SpawnDue();
             StepPatience(dt);
             if (phase != DayPhase.Running) return;
@@ -263,7 +299,7 @@ namespace FloorF.Core
             if (phase != DayPhase.Running) return;
             StepDoors(dt);
             if (phase != DayPhase.Running) return;
-            if (elapsed >= dayDef.durationSeconds) { EndDay(EndingKind.None); return; }
+            if (!dayDef.tutorial && elapsed >= dayDef.durationSeconds) { EndDay(EndingKind.None); return; }
             StepEarlyEnd(dt);
         }
 
@@ -279,9 +315,14 @@ namespace FloorF.Core
 
         // =========================================================================================== guests
 
+        /// <summary>
+        /// Spawns every due entry. Real days: due on the day clock. Tutorial days: due on the wave clock, which only
+        /// runs while the hotel is empty - so each wave (entries with equal times spawn together) waits for the last one.
+        /// </summary>
         void SpawnDue()
         {
-            while (phase == DayPhase.Running && nextSpawn < spawns.Length && spawns[nextSpawn].time <= elapsed)
+            float clock = dayDef.tutorial ? waveClock : elapsed;
+            while (phase == DayPhase.Running && nextSpawn < spawns.Length && spawns[nextSpawn].time <= clock)
                 SpawnEntry(spawns[nextSpawn++]);
         }
 
@@ -367,6 +408,7 @@ namespace FloorF.Core
 
         void StepPatience(float dt)
         {
+            if (dayDef.tutorial) return; // training shift: nobody runs out of patience
             scratch.Clear();
             foreach (var g in Guests.Active) if (g.State == GuestState.Waiting) scratch.Add(g);
             foreach (var g in scratch)
@@ -798,7 +840,7 @@ namespace FloorF.Core
 
         bool CheckHaunted()
         {
-            if (phase != DayPhase.Running || Score.Luck > 0) return false;
+            if (phase != DayPhase.Running || dayDef.tutorial || Score.Luck > 0) return false; // no Haunted on the training shift
             EndDay(EndingKind.Haunted);
             return true;
         }

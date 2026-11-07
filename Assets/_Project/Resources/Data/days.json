@@ -2,21 +2,41 @@
   "days": [
     {
       "day": 1,
-      "title": "Day 1 - First Shift",
-      "titleKo": "1일차 - 첫 출근",
-      "intro": "Guests judge the number of every floor where the doors open - and how many are inside when the doors close.",
-      "introKo": "손님은 문이 열린 층의 번호와, 문이 닫힐 때 안에 있는 인원수로 운을 판단합니다.",
-      "durationSeconds": 50,
+      "title": "Day 0 - Training Shift",
+      "titleKo": "0일차 - 수습 근무",
+      "intro": "No clock today: learn the rules step by step - new guests arrive once the hotel is empty.",
+      "introKo": "오늘은 시간 제한이 없습니다. 규칙을 차근차근 익혀 보세요. 호텔이 비면 다음 손님이 옵니다.",
+      "durationSeconds": 60,
       "tutorial": true,
-      "shopStickers": ["four_to_f", "any_to_8"],
+      "shopStickers": [],
       "spawns": [
-        { "time": 1, "guest": "korean_grandma", "floor": 1, "destination": "sauna" },
-        { "time": 1.5, "guest": "western_tourist", "floor": 1, "destination": "karaoke" },
-        { "time": 2, "guest": "western_tourist", "floor": 1, "destination": "bar" }
+        { "time": 1, "guest": "korean_grandma", "floor": 1, "destination": "gym" },
+        { "time": 3, "guest": "korean_grandma", "floor": 1, "destination": "sauna" },
+        { "time": 3, "guest": "korean_grandma", "floor": 1, "destination": "sauna" },
+        { "time": 3, "guest": "korean_grandma", "floor": 1, "destination": "sauna" },
+        { "time": 5, "guest": "western_tourist", "floor": 1, "destination": "bar" },
+        { "time": 5, "guest": "korean_grandma", "floor": 1, "destination": "karaoke" }
       ]
     },
     {
       "day": 2,
+      "title": "Day 1 - First Shift",
+      "titleKo": "1일차 - 첫 출근",
+      "intro": "Guests judge the number of every floor where the doors open - and how many are inside when the doors close.",
+      "introKo": "손님은 문이 열린 층의 번호와, 문이 닫힐 때 안에 있는 인원수로 운을 판단합니다.",
+      "durationSeconds": 75,
+      "tutorial": false,
+      "shopStickers": ["four_to_f", "any_to_8"],
+      "spawns": [
+        { "time": 1, "guest": "korean_grandma", "floor": 1, "destination": "sauna" },
+        { "time": 1.5, "guest": "western_tourist", "floor": 1, "destination": "karaoke" },
+        { "time": 2, "guest": "western_tourist", "floor": 1, "destination": "bar" },
+        { "time": 24, "guest": "korean_grandma", "floor": 2, "destination": "gym" },
+        { "time": 40, "guest": "western_tourist", "floor": 6, "destination": "lobby" }
+      ]
+    },
+    {
+      "day": 3,
       "title": "Day 2 - Business Hours",
       "titleKo": "2일차 - 영업 시간",
       "intro": "A businessman in a hurry. To him, 8 means fortune and 9 means a long life.",
@@ -39,7 +59,7 @@
       ]
     },
     {
-      "day": 3,
+      "day": 4,
       "title": "Day 3 - Honeymoon",
       "titleKo": "3일차 - 신혼여행",
       "intro": "Newlyweds ride as two. To them 9 means suffering - to the businessman it means long life.",
@@ -64,7 +84,7 @@
       ]
     },
     {
-      "day": 4,
+      "day": 5,
       "title": "Day 4 - Full House",
       "titleKo": "4일차 - 만실",
       "intro": "Everyone checks in at once. The gambler only rides if it makes seven. Many hotels hide their 4th floor behind an F - hidden, but still there.",
@@ -90,7 +110,7 @@
       ]
     },
     {
-      "day": 5,
+      "day": 6,
       "title": "Day 5 - The Fourth Floor",
       "titleKo": "5일차 - 4층",
       "intro": "Last night. An accountant checks every number, and someone is asking for a floor that should not exist.",
