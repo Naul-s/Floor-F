@@ -50,7 +50,8 @@ namespace FloorF.UI
         public const float MaxCardHeight = UIStyle.RefHeight - ColumnTop - BottomClear;
         /// <summary>Cut-out margin around the target (smaller than half the panel's button gap: neighbours stay covered).</summary>
         public const float HolePad = 3f;
-        public static readonly Color DimColor = new Color(0.07f, 0.07f, 0.09f, 0.66f);
+        // linear colour space: 0.66 alpha read as only ~40% darker in the WebGL build; 0.88 gives a clear coach-mark dim
+        public static readonly Color DimColor = new Color(0.03f, 0.03f, 0.04f, 0.88f);
 
         struct Explain
         {
