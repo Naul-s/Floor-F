@@ -137,7 +137,7 @@ namespace FloorF.Tests.PlayMode.UI
         {
             GameplayRoot.SeedOverride = 7;
             GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
-            yield return UITestDriver.LoadMain();
+            yield return UITestDriver.LoadMain(skipTutorial: false);
             var ui = UITestDriver.UI();
             var elevator = GameServices.Get<IElevatorQuery>();
             yield return WaitForLobbyChips(ui);
