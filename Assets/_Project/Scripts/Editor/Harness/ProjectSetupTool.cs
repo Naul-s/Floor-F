@@ -102,7 +102,7 @@ namespace FloorF.EditorTools
                 var path = AssetDatabase.GUIDToAssetPath(guid);
                 var ai = AssetImporter.GetAtPath(path) as AudioImporter;
                 if (ai == null) continue;
-                bool music = path.Contains("/KevinMacLeod/");
+                bool music = path.Contains("/KevinMacLeod/") || path.ToLowerInvariant().Contains("loop");
                 ai.forceToMono = true;
                 ai.loadInBackground = music;
                 var s = ai.defaultSampleSettings;
