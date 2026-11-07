@@ -103,6 +103,8 @@ namespace FloorF.Core
 
         public DayId CurrentDay => day;
         public int DayCount => data.DayCount;
+        public int DisplayDay => data.DisplayDayNumber(day);
+        public int PlayableDayCount => data.PlayableDayCount;
         /// <summary>Visible phase: <see cref="DayPhase.Title"/> while the title/demo runs (the demo's own day phases stay internal).</summary>
         public DayPhase Phase => onTitle ? DayPhase.Title : phase;
         public bool IsTutorial => dayDef != null && dayDef.tutorial;
@@ -173,6 +175,16 @@ namespace FloorF.Core
             SetPhase(DayPhase.Running);
             PublishFlow(new DayStarted(day, data.DayCount, dayDef.durationSeconds, dayDef.tutorial));
             SpawnDue();
+            return true;
+        }
+
+        public bool SkipTutorial()
+        {
+            if (paused || onTitle || phase != DayPhase.Intro || !IsTutorial) return false;
+            while (dayDef.tutorial && !data.IsLastDay(day)) { day = day.Next; dayDef = data.GetDay(day); }
+            elapsed = 0f;
+            ResetElevator();
+            SetPhase(DayPhase.Intro);
             return true;
         }
 

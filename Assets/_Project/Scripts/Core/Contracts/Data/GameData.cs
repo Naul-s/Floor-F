@@ -35,6 +35,23 @@ namespace FloorF.Core
         public IReadOnlyList<StickerDef> Stickers { get; }
         public IReadOnlyList<DestinationDef> Destinations { get; }
         public int DayCount => daysByIndex.Length;
+        /// <summary>
+        /// Leading days flagged <c>tutorial</c> (the "Day 0" training shift). Shown day number = DayId.Number - this,
+        /// so the first tutorial day reads "Day 0" and the first real day "Day 1". Tutorial days only count from the start.
+        /// </summary>
+        public int TutorialDayCount
+        {
+            get
+            {
+                int n = 0;
+                while (n < daysByIndex.Length && daysByIndex[n].tutorial) n++;
+                return n;
+            }
+        }
+        /// <summary>Days that count toward the run (DayCount - TutorialDayCount): the "/5" in "Day 2/5".</summary>
+        public int PlayableDayCount => DayCount - TutorialDayCount;
+        /// <summary>Shown number of a day: 0 for the (first) tutorial day, 1 for the first real day.</summary>
+        public int DisplayDayNumber(DayId day) => day.Number - TutorialDayCount;
 
         GameData(HotelDef hotel, GuestCatalogDef guests, DayCatalogDef days, StickerCatalogDef stickers)
         {

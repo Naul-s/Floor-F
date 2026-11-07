@@ -131,9 +131,20 @@ namespace FloorF.Core
 
     public interface IDayQuery
     {
+        /// <summary>Internal 1-based day (DayId 1 = the "Day 0" tutorial shift when the data has one). Show <see cref="DisplayDay"/>.</summary>
         DayId CurrentDay { get; }
+        /// <summary>All days in the data, tutorial days included. Show <see cref="PlayableDayCount"/>.</summary>
         int DayCount { get; }
+        /// <summary>Day number for players: 0 on the tutorial shift, then 1..PlayableDayCount ("Day 2/5").</summary>
+        int DisplayDay { get; }
+        /// <summary>Days that count (tutorial excluded): the "/5".</summary>
+        int PlayableDayCount { get; }
         DayPhase Phase { get; }
+        /// <summary>
+        /// Tutorial shift ("Day 0"): no clock (RemainingSeconds stays at DurationSeconds and the day never times out),
+        /// no patience loss, no Haunted ending; guests come in waves (next wave once the hotel is empty); Luck and tips
+        /// go back to the run's start values when the player leaves its summary; no shop after it.
+        /// </summary>
         bool IsTutorial { get; }
         float DurationSeconds { get; }
         float ElapsedSeconds { get; }
@@ -152,8 +163,13 @@ namespace FloorF.Core
         bool ContinueFromSummary();
         /// <summary>Shop -> next day's Intro.</summary>
         bool FinishShopping();
-        /// <summary>Anywhere -> new game, Day 1 Intro.</summary>
+        /// <summary>Anywhere -> new game, first day's Intro (the Day 0 tutorial when the data has one).</summary>
         void RestartGame();
+        /// <summary>
+        /// "Skip tutorial" on a tutorial day's Intro: straight to the first real day's Intro (DayPhaseChanged Intro -> Intro,
+        /// Luck/tips untouched). False anywhere else.
+        /// </summary>
+        bool SkipTutorial();
     }
 
     public readonly struct ShopOffer
