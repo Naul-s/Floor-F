@@ -179,7 +179,7 @@ namespace FloorF.Tests.PlayMode.UI
             ui.ClickCredits();
             yield return UITestDriver.Frames(2);
             Assert.IsTrue(ui.CreditsVisible, "CREDITS -> credits card");
-            Assert.IsFalse(ui.TitlePanelVisible, "title panel steps aside");
+            Assert.IsFalse(ui.TitleMenuVisible, "logo + title buttons step aside");
             Assert.IsTrue(ui.CreditsFitOnScreen, "credits card fits the 1280x720 canvas");
 
             foreach (bool korean in new[] { false, true })
@@ -201,7 +201,7 @@ namespace FloorF.Tests.PlayMode.UI
             ui.ClickCreditsBack();
             yield return null;
             Assert.IsFalse(ui.CreditsVisible, "BACK closes the credits");
-            Assert.IsTrue(ui.TitlePanelVisible);
+            Assert.IsTrue(ui.TitleMenuVisible);
 
             ui.ClickCredits();
             ui.ClickTitleStart(); // leaving the title closes the credits

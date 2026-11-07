@@ -105,8 +105,6 @@ namespace FloorF.UI
 
         // ---- title
         public const string GameName = "FLOOR F";
-        public static readonly Loc Subtitle = new Loc("A hotel where the 4th floor is bad luck. Every number counts.", "4층은 불길한 호텔. 모든 숫자가 운을 가른다.");
-        public static readonly Loc TitleHint = new Loc("You run the elevator. Keep the guests lucky.", "당신은 엘리베이터 담당. 손님들의 운을 지켜라.");
         public static readonly Loc Credits = new Loc("Made for the 2026 Unity Game Jam   •   music, sound, font & icons: see CREDITS",
             "2026 Unity Game Jam 출품작   •   음악·효과음·폰트·아이콘: 크레딧 참고");
         public static readonly Loc CreditsButton = new Loc("CREDITS", "크레딧");
@@ -237,6 +235,5 @@ namespace FloorF.UI
         public static readonly Loc Streak = new Loc("Lucky streak x{0} · tips {1}", "연속 행운 x{0} · 팁 {1}");
         public static readonly Loc StreakBroken = new Loc("Streak broken!", "연속 끊김!");
         public static readonly Loc BestStreak = new Loc("Best lucky streak", "최고 연속 행운");
-        public static readonly Loc Grade = new Loc("GRADE", "등급");
     }
 }

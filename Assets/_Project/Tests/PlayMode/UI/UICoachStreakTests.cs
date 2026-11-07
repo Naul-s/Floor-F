@@ -187,6 +187,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(DayPhase.Summary, ui.VisibleFlowScreen);
             Assert.IsTrue(ui.GradeStampVisible, "grade on a real day");
             Assert.AreEqual(UIFormat.DayGrade(day.LastSummary), ui.GradeStampText);
+            Assert.AreEqual(1, ui.GradeStampTextCount, "just the stamped letter, no GRADE caption");
             StringAssert.Contains(ko ? "최고 연속 행운" : "Best lucky streak", ui.FlowExtra);
             StringAssert.Contains("x" + day.LastSummary.BestStreak, Plain(ui.FlowExtra));
             Assert.IsFalse(ui.GradeStampLanded, "it slams in after a moment");
@@ -202,17 +203,52 @@ namespace FloorF.Tests.PlayMode.UI
         }
 
         [UnityTest]
-        public IEnumerator Title_PanelIsCompact_HotelVisibleAbove()
+        public IEnumerator Title_LogoOnTop_ButtonsStackedInTheMiddle() => TitleLayout(false);
+
+        [UnityTest]
+        public IEnumerator Title_LogoOnTop_ButtonsStackedInTheMiddle_Korean() => TitleLayout(true);
+
+        static IEnumerator TitleLayout(bool ko)
         {
             GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
             yield return UITestDriver.LoadTitle();
-            yield return UITestDriver.Frames(3);
             var ui = UITestDriver.UI();
-            var r = ui.TitlePanelRect;
-            Assert.Greater(r.height, 100f, "title panel laid out");
-            Assert.LessOrEqual(r.yMax, UIStyle.RefHeight * 0.55f, "the panel stays in the lower half: " + r);
-            Assert.GreaterOrEqual(r.yMin, 28f, "above the credit strip");
-            yield return Day0Driver.Shot("ui_title_compact", true);
+            GameServices.Get<IGameSettings>().UseKorean = ko;
+            yield return UITestDriver.Frames(3);
+            Assert.IsTrue(ui.TitleMenuVisible);
+            Assert.AreEqual("", ui.TitleMenuPanels, "no shared panel and no box behind the logo");
+            var size = ui.CanvasSize;
+
+            var logo = ui.TitlePartRect(MenuView.TitlePart.Logo);
+            Assert.Greater(logo.width, 400f, "big logo: " + logo);
+            Assert.GreaterOrEqual(logo.yMin, size.y * 0.72f, "logo at the top of the screen: " + logo);
+            Assert.LessOrEqual(logo.yMax, size.y - 8f, "fully on screen, bob included: " + logo);
+            Assert.AreEqual(size.x * 0.5f, logo.center.x, 3f, "centred");
+
+            var start = ui.TitlePartRect(MenuView.TitlePart.Start);
+            var credits = ui.TitlePartRect(MenuView.TitlePart.Credits);
+            var language = ui.TitlePartRect(MenuView.TitlePart.Language);
+            foreach (var b in new[] { start, credits, language })
+            {
+                Assert.AreEqual(size.x * 0.5f, b.center.x, 1f, "buttons centred: " + b);
+                Assert.LessOrEqual(b.width, size.x * 0.35f, "narrow: the hotel stays visible beside them");
+                Assert.GreaterOrEqual(b.yMin, size.y * 0.2f, "bottom 20% clear for the street: " + b);
+                Assert.LessOrEqual(b.yMax, logo.yMin - 24f, "below the logo");
+            }
+            Assert.Greater(start.yMin, credits.yMax, "START on top");
+            Assert.Greater(credits.yMin, language.yMax, "then CREDITS, then the language toggle");
+            Assert.Greater(start.width, credits.width, "START emphasised (wider)");
+            Assert.Greater(start.height, credits.height, "START emphasised (taller)");
+            float mid = (start.yMax + language.yMin) * 0.5f;
+            Assert.AreEqual(size.y * 0.5f, mid, size.y * 0.1f, "the stack sits in the middle of the screen");
+
+            foreach (var p in new[] { MenuView.TitlePart.Start, MenuView.TitlePart.Credits, MenuView.TitlePart.Language })
+            {
+                Assert.IsTrue(ui.TitleLabelFits(p, out float font), p + " label fits on one line (" + (ko ? "ko" : "en") + ")");
+                Assert.GreaterOrEqual(font, p == MenuView.TitlePart.Start ? 36f : 24f, p + " label not shrunk");
+            }
+            Assert.IsNull(ui.FirstOffGridOrForeignText(), "title texts on Galmuri's grid");
+            yield return Day0Driver.Shot("ui_title_layout" + (ko ? "_ko" : ""), true);
         }
     }
 }
