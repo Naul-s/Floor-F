@@ -22,7 +22,7 @@ namespace FloorF.UI
         int shownDay = -1;
         readonly RectTransform stamp;
         readonly CanvasGroup stampGroup;
-        readonly TextMeshProUGUI stampLetter, stampCaption;
+        readonly TextMeshProUGUI stampLetter;
         readonly Image[] stampEdges;
         float stampAge = -1f;
         /// <summary>The stamp lands this long after the summary card appears, in <see cref="StampSlam"/> seconds.</summary>
@@ -86,10 +86,9 @@ namespace FloorF.UI
             UIBuild.Stretch(UIBuild.Box("Plate", stamp, new Color(0f, 0f, 0f, 0.35f)).rectTransform);
             var ring = UIBuild.Outline("Ring", stamp, UIStyle.Lucky, 6f, 0f);
             stampEdges = ring.GetComponentsInChildren<Image>();
-            stampCaption = UIBuild.Text("Caption", stamp, "", 12f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(stampCaption.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(110f, 20f));
+            // just the letter: no "GRADE" caption (it crowded the top of the S)
             stampLetter = UIBuild.Text("Letter", stamp, "", 96f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(stampLetter.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, -8f), new Vector2(120f, 100f));
+            UIBuild.Place(stampLetter.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(120f, 110f));
             stampLetter.textWrappingMode = TextWrappingModes.NoWrap;
             stamp.gameObject.SetActive(false);
 
@@ -261,8 +260,7 @@ namespace FloorF.UI
         {
             var c = GradeColor(grade);
             stampLetter.text = grade;
-            stampLetter.color = stampCaption.color = c;
-            stampCaption.text = ctx.S(UIStrings.Grade);
+            stampLetter.color = c;
             foreach (var e in stampEdges) e.color = c;
         }
 
@@ -284,6 +282,8 @@ namespace FloorF.UI
 
         public bool StampVisible => stamp.gameObject.activeInHierarchy;
         public string StampGrade => StampVisible ? stampLetter.text : null;
+        /// <summary>Texts on the stamp (1: just the letter, no caption).</summary>
+        public int StampTextCount => stamp.GetComponentsInChildren<TMP_Text>(true).Length;
         public bool StampLanded => StampVisible && stampGroup.alpha >= 0.99f && Mathf.Abs(stamp.localScale.x - 1f) < 0.08f;
         public Rect StampRect(RectTransform canvas) => StampVisible ? UIBuild.CanvasRect(canvas, stamp) : default;
         public Rect CardRect(RectTransform canvas) => dim.gameObject.activeSelf ? UIBuild.CanvasRect(canvas, card) : default;
