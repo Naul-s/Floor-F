@@ -27,9 +27,9 @@ namespace FloorF.Audio
         Impatient = 9,
         /// <summary>DayStarted.</summary>
         DayStart = 10,
-        /// <summary>Reserved: shop purchase rejected (no Contracts event yet - see Docs/Notes/audio-dev).</summary>
+        /// <summary>UiSound(Error): shop purchase rejected etc.</summary>
         Error = 11,
-        /// <summary>Reserved: UI button click (no Contracts event yet).</summary>
+        /// <summary>UiSound(Click).</summary>
         UiClick = 12,
     }
 
