@@ -19,6 +19,10 @@ namespace FloorF.Core
     /// Tutorial days ("Day 0" training shift, <c>DayDef.tutorial</c>): no time-out (RemainingSeconds stays full), spawns
     /// on a wave clock that only runs while the hotel is empty, no patience loss, no Haunted ending. Luck/tips still move
     /// (the UI explains verdicts) and are reset to the run's start values when the player leaves its summary; no shop.
+    /// Coach marks can freeze a tutorial day with <see cref="SetTutorialHold"/> (the next accepted elevator command resumes it).
+    ///
+    /// Lucky streak (every day, Day 0 included): each LuckJudged is followed by LuckStreakChanged when the streak moved;
+    /// tips are multiplied by <see cref="ScoreKeeper.StreakTipMultiplier"/> at payment (guest steps out).
     /// </summary>
     public sealed partial class GameSession : IElevatorControl, IDayQuery, IGameFlow, IShopService, IMenuFlow
     {
@@ -142,6 +146,7 @@ namespace FloorF.Core
         /// <summary>Fresh run state (day 1, start Luck/tips, original labels, empty building) without flow events.</summary>
         void ResetRun()
         {
+            ReleaseTutorialHold();
             if (started)
             {
                 DropAllGuests();
@@ -215,9 +220,32 @@ namespace FloorF.Core
             }
         }
 
-        // TODO(gameplay-dev): tutorial hold (contract stub)
-        public bool TutorialHold => false;
-        public bool SetTutorialHold(bool held) => !held;
+        // ---- Day 0 coach marks: tutorial hold
+        bool tutorialHold;
+
+        /// <summary>
+        /// Coach-mark hold: <see cref="Tick"/> advances nothing while held (motion, doors, transfers, spawns, wave clock,
+        /// elapsed). Elevator commands stay accepted; the first ACCEPTED one releases the hold (TutorialHoldChanged(false))
+        /// and then takes effect, so its events follow the release. A refused command keeps the hold.
+        /// </summary>
+        public bool TutorialHold => tutorialHold;
+
+        public bool SetTutorialHold(bool held)
+        {
+            if (!held) { ReleaseTutorialHold(); return true; }
+            if (tutorialHold) return true;
+            if (onTitle || paused || phase != DayPhase.Running || !IsTutorial) return false;
+            tutorialHold = true;
+            bus.Publish(new TutorialHoldChanged(true));
+            return true;
+        }
+
+        void ReleaseTutorialHold()
+        {
+            if (!tutorialHold) return;
+            tutorialHold = false;
+            bus.Publish(new TutorialHoldChanged(false));
+        }
 
         public bool ContinueFromSummary()
         {
@@ -262,6 +290,7 @@ namespace FloorF.Core
         /// <summary>Sets the internal phase; publishes DayPhaseChanged(<paramref name="shownBefore"/> -> next) unless the title demo runs.</summary>
         void SetPhase(DayPhase next, DayPhase shownBefore)
         {
+            if (next != DayPhase.Running) ReleaseTutorialHold();
             phase = next;
             if (!onTitle) bus.Publish(new DayPhaseChanged(day, shownBefore, next));
         }
@@ -280,7 +309,7 @@ namespace FloorF.Core
         /// <summary>Advances the running day by <paramref name="deltaSeconds"/> (no-op outside Running).</summary>
         public void Tick(float deltaSeconds)
         {
-            if (deltaSeconds <= 0f || float.IsNaN(deltaSeconds) || paused) return;
+            if (deltaSeconds <= 0f || float.IsNaN(deltaSeconds) || paused || tutorialHold) return;
             float remaining = deltaSeconds;
             while (remaining > 0f && phase == DayPhase.Running)
             {
@@ -491,26 +520,48 @@ namespace FloorF.Core
         /// <summary>Simulation-side gate (the demo pilot drives through this).</summary>
         bool SimAcceptsInput => phase == DayPhase.Running && !paused;
 
-        public bool RequestFloor(FloorIndex floor) => AcceptsInput && RequestFloorCore(floor);
-        public bool OpenDoors() => AcceptsInput && OpenDoorsCore();
-        public bool CloseDoors() => AcceptsInput && CloseDoorsCore();
+        public bool RequestFloor(FloorIndex floor) => AcceptsInput && ReleaseHoldIf(CanRequestFloor(floor)) && RequestFloorCore(floor);
+        public bool OpenDoors() => AcceptsInput && ReleaseHoldIf(CanOpenDoors()) && OpenDoorsCore();
+        public bool CloseDoors() => AcceptsInput && ReleaseHoldIf(CanCloseDoors()) && CloseDoorsCore();
+
+        /// <summary>Tutorial hold: an accepted command releases the hold BEFORE it applies. Returns <paramref name="accepted"/>.</summary>
+        bool ReleaseHoldIf(bool accepted)
+        {
+            if (accepted) ReleaseTutorialHold();
+            return accepted;
+        }
+
+        bool CanRequestFloor(FloorIndex floor)
+        {
+            if (!SimAcceptsInput || !Building.IsValid(floor)) return false;
+            if (Elevator.Motion != ElevatorMotion.Idle) return Elevator.TargetFloor != floor;
+            if (floor == Elevator.CurrentFloor) return Elevator.HasTarget; // cancels a pending departure
+            return !(Elevator.HasTarget && Elevator.TargetFloor == floor);
+        }
+
+        bool CanOpenDoors()
+        {
+            if (!SimAcceptsInput || Elevator.Motion != ElevatorMotion.Idle) return false;
+            if (Elevator.Doors == DoorState.Closed || Elevator.Doors == DoorState.Closing) return true;
+            return closeRequested && !Elevator.HasTarget; // cancels a pending close
+        }
+
+        bool CanCloseDoors()
+            => SimAcceptsInput && (Elevator.Doors == DoorState.Open || Elevator.Doors == DoorState.Opening) && !closeRequested;
 
         bool RequestFloorCore(FloorIndex floor)
         {
-            if (!SimAcceptsInput || !Building.IsValid(floor)) return false;
+            if (!CanRequestFloor(floor)) return false;
             if (Elevator.Motion != ElevatorMotion.Idle)
             {
-                if (Elevator.TargetFloor == floor) return false;
                 Elevator.TargetFloor = floor;
                 return true;
             }
             if (floor == Elevator.CurrentFloor)
             {
-                if (!Elevator.HasTarget) return false;
                 Elevator.HasTarget = false; // cancel a pending departure
                 return true;
             }
-            if (Elevator.HasTarget && Elevator.TargetFloor == floor) return false;
             Elevator.HasTarget = true;
             Elevator.TargetFloor = floor;
             if (Elevator.Doors == DoorState.Closed) Depart();
@@ -520,7 +571,7 @@ namespace FloorF.Core
 
         bool OpenDoorsCore()
         {
-            if (!SimAcceptsInput || Elevator.Motion != ElevatorMotion.Idle) return false;
+            if (!CanOpenDoors()) return false;
             switch (Elevator.Doors)
             {
                 case DoorState.Closed:
@@ -534,16 +585,14 @@ namespace FloorF.Core
                     closeRequested = false;
                     return true;
                 default:
-                    if (closeRequested && !Elevator.HasTarget) { closeRequested = false; return true; }
-                    return false;
+                    closeRequested = false;
+                    return true;
             }
         }
 
         bool CloseDoorsCore()
         {
-            if (!SimAcceptsInput) return false;
-            if (Elevator.Doors != DoorState.Open && Elevator.Doors != DoorState.Opening) return false;
-            if (closeRequested) return false;
+            if (!CanCloseDoors()) return false;
             closeRequested = true;
             return true;
         }
@@ -650,6 +699,7 @@ namespace FloorF.Core
             {
                 dayLucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.FloorLabel, number, verdict, floor));
+                Score.OnVerdict(verdict);
                 Score.AddLuck(rules.luckyFloorLuckBonus, LuckSource.FloorLabel);
                 if (!g.FloorTipBonusApplied) { g.FloorTipBonusApplied = true; g.TipMultiplier *= rules.luckyFloorTipMultiplier; }
                 SetMood(g, g.Mood == GuestMood.Happy || g.Mood == GuestMood.Delighted ? GuestMood.Delighted : GuestMood.Happy);
@@ -659,6 +709,7 @@ namespace FloorF.Core
             {
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.FloorLabel, number, verdict, floor));
+                Score.OnVerdict(verdict);
                 Score.AddLuck(-rules.unluckyFloorLuckPenalty, LuckSource.FloorLabel);
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyFloor);
@@ -669,6 +720,7 @@ namespace FloorF.Core
                 // GDD 5 counterweight: honest guests hate stickers (once per floor per ride, like every floor reaction)
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Sticker, -1, LuckVerdict.Unlucky, floor));
+                Score.OnVerdict(LuckVerdict.Unlucky);
                 Score.AddLuck(-rules.honestGuestLuckPenalty, LuckSource.Sticker);
                 SetMood(g, GuestMood.Angry);
             }
@@ -702,6 +754,7 @@ namespace FloorF.Core
             {
                 dayLucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Occupancy, occupancy, verdict, floor));
+                Score.OnVerdict(verdict);
                 Score.AddLuck(rules.luckyOccupancyLuckBonus, LuckSource.Occupancy);
                 if (!g.OccupancyTipBonusApplied) { g.OccupancyTipBonusApplied = true; g.TipMultiplier *= rules.luckyOccupancyTipMultiplier; }
                 SetMood(g, g.Mood == GuestMood.Happy || g.Mood == GuestMood.Delighted ? GuestMood.Delighted : GuestMood.Happy);
@@ -711,6 +764,7 @@ namespace FloorF.Core
             {
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Occupancy, occupancy, verdict, floor));
+                Score.OnVerdict(verdict);
                 Score.AddLuck(-rules.unluckyOccupancyLuckPenalty, LuckSource.Occupancy);
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyOccupancy);
@@ -814,7 +868,8 @@ namespace FloorF.Core
                     g.State = GuestState.Delivered;
                     g.Floor = floor;
                     bus.Publish(new GuestExited(g.Id, floor, true, Elevator.Occupancy));
-                    int tip = (int)Math.Round(g.Def.baseTip * g.TipMultiplier, MidpointRounding.AwayFromZero);
+                    // lucky streak bonus taken at payment time (see ScoreKeeper)
+                    int tip = (int)Math.Round((double)g.Def.baseTip * g.TipMultiplier * Score.StreakTipMultiplier, MidpointRounding.AwayFromZero);
                     bus.Publish(new GuestDelivered(g.Id, floor, tip));
                     dayDelivered++;
                     Score.AddLuck(rules.deliveryLuckBonus, LuckSource.Delivery);
@@ -854,7 +909,7 @@ namespace FloorF.Core
         {
             if (phase != DayPhase.Running) return;
             DropAllGuests();
-            lastSummary = new DaySummary(dayDelivered, dayLeft, Score.TipsEarnedToday, luckAtStart, Score.Luck, dayLucky, dayUnlucky);
+            lastSummary = new DaySummary(dayDelivered, dayLeft, Score.TipsEarnedToday, luckAtStart, Score.Luck, dayLucky, dayUnlucky, Score.BestStreakToday);
             PublishFlow(new DayEnded(day, lastSummary));
             if (endingNow != EndingKind.None) ReachEnding(endingNow);
             else SetPhase(DayPhase.Summary);
