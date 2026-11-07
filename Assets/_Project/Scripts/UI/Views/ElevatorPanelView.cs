@@ -129,8 +129,8 @@ namespace FloorF.UI
             brt.anchorMin = new Vector2(0f, 0f);
             brt.anchorMax = new Vector2(1f, 0f);
             brt.pivot = new Vector2(0.5f, 0f);
-            brt.offsetMin = new Vector2(3f, 3f);
-            brt.offsetMax = new Vector2(-3f, BadgeH);
+            brt.offsetMin = new Vector2(2f, 3f);
+            brt.offsetMax = new Vector2(-2f, BadgeH);
             return fb;
         }
 

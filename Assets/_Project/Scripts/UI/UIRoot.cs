@@ -221,6 +221,9 @@ namespace FloorF.UI
         internal void ClickShopOffer(int index) => shop.ClickOffer(index);
         internal void ClickShopDone() => shop.ClickDone();
         internal string ShopResult => shop.ResultText;
+        internal float ShopDescriptionFontSize(int i) => shop.DescriptionFontSize(i);
+        internal float ShopDescriptionContrast(int i) => shop.DescriptionContrast(i);
+        internal string ShopDescriptionProblem() => shop.FirstDescriptionProblem(ctx.CanvasRect);
         internal int ActivePopupCount => popups.ActivePopupCount;
         internal int ActiveSpeechCount => popups.ActiveSpeechCount;
         internal string LastPopupText => popups.LastPopupText;
@@ -231,6 +234,9 @@ namespace FloorF.UI
         /// <summary>Every visible speech bubble is clear of every luck popup (null) or the first offender's description.</summary>
         internal string SpeechPopupOverlap() => popups.FirstPopupOverlap();
         internal string SpeechTexts => popups.SpeechTexts;
+        /// <summary>No two visible speech bubbles overlap (null) or the first pair.</summary>
+        internal string SpeechSpeechOverlap() => popups.FirstSpeechOverlap();
+        internal string PopupOverlapX(float minX, float maxX) => popups.FirstPopupOverlapX(minX, maxX);
         internal void ShowFontCompare(bool show)
         {
             if (show && fontCompare == null) { fontCompare = FontSampleCard.Build(ctx.CanvasRect); SetLayerRecursively(fontCompare.transform, PresentationContract.UiLayer); }

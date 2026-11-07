@@ -63,6 +63,19 @@ namespace FloorF.UI
             return lum > 0.179f ? Color.black : Color.white;
         }
 
+        /// <summary>WCAG 2 contrast ratio (1..21) of <paramref name="ink"/> on an opaque <paramref name="bg"/> (alphas ignored).</summary>
+        public static float ContrastRatio(Color ink, Color bg)
+        {
+            float a = RelLum(ink), b = RelLum(bg);
+            return (Mathf.Max(a, b) + 0.05f) / (Mathf.Min(a, b) + 0.05f);
+        }
+
+        static float RelLum(Color c)
+        {
+            var l = c.linear;
+            return 0.2126f * l.r + 0.7152f * l.g + 0.0722f * l.b;
+        }
+
         public static readonly Color Title = Hex("#FFD447");
         public static readonly Color TitlePanel = new Color(0.04f, 0.045f, 0.07f, 0.96f);
         public static readonly Color Highlight = Hex("#FFE14D");

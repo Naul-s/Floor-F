@@ -147,6 +147,24 @@ namespace FloorF.UI
             return true;
         }
 
+        /// <summary>
+        /// Canvas x-range of the floor-sign plates only (left part of <see cref="CenterColumn"/>, up to the shaft posts),
+        /// widened by <paramref name="margin"/>. Luck popups sit over the shaft but never on this.
+        /// </summary>
+        public bool SignColumn(float margin, out float minX, out float maxX)
+        {
+            minX = maxX = 0f;
+            float shaftX = Layout != null ? Layout.ShaftX : Data != null ? Data.Layout.shaftX : 0f;
+            var car = Locator != null ? ToVector3(Locator.CarPosition) : new Vector3(shaftX, 0f, 0f);
+            float right = shaftX - CarWidth * 0.5f - ShaftPostPad - SignGap + SignSafety;
+            float left = right - SignWidth() - 2f * SignSafety;
+            if (!WorldToCanvas(new Vector3(left, car.y, car.z), out var a)) return false;
+            if (!WorldToCanvas(new Vector3(right, car.y, car.z), out var b)) return false;
+            minX = Mathf.Min(a.x, b.x) - margin;
+            maxX = Mathf.Max(a.x, b.x) + margin;
+            return true;
+        }
+
         public string S(Loc l) => l.Get(Korean);
 
         /// <summary>string.Format of the current-language template; Korean particle specifiers ("{0:은}") resolved.</summary>
@@ -160,6 +178,9 @@ namespace FloorF.UI
                 return Korean && !string.IsNullOrEmpty(d.nameKo) ? d.nameKo : d.name;
             return "???";
         }
+
+        /// <summary>Curated short name for tight badges ("Rooms", "객실"), or null for an id without one.</summary>
+        public string DestinationShortName(DestinationId id) => id.IsEmpty ? null : UIFormat.DestinationShortName(id.Value, Korean);
 
         public DestinationDef Destination(DestinationId id) =>
             Data != null && !id.IsEmpty && Data.TryGetDestination(id, out var d) ? d : null;

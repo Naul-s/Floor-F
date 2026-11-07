@@ -105,7 +105,7 @@ namespace FloorF.UI
 
         // ---- title
         public const string GameName = "FLOOR F";
-        public static readonly Loc Subtitle = new Loc("A hotel with no 4th floor. Every number counts.", "4층이 없는 호텔. 모든 숫자가 운을 가른다.");
+        public static readonly Loc Subtitle = new Loc("A hotel where the 4th floor is bad luck. Every number counts.", "4층은 불길한 호텔. 모든 숫자가 운을 가른다.");
         public static readonly Loc TitleHint = new Loc("You run the elevator. Keep the guests lucky.", "당신은 엘리베이터 담당. 손님들의 운을 지켜라.");
         public static readonly Loc Credits = new Loc("Made for the 2026 Unity Game Jam   •   music, sound, font & icons: see CREDITS",
             "2026 Unity Game Jam 출품작   •   음악·효과음·폰트·아이콘: 크레딧 참고");
@@ -134,8 +134,8 @@ namespace FloorF.UI
             "폰트: 갈무리11 (Galmuri11) - 이민서 (quiple), SIL Open Font License 1.1\n" +
             "아이콘: Google Material Symbols, Apache License 2.0");
         public static readonly Loc CreditsAi = new Loc(
-            "Made with the help of Claude (Anthropic) for code, text and balancing.",
-            "코드·문구·밸런싱에 Claude (Anthropic)의 도움을 받아 만들었습니다.");
+            "Made with the help of Claude (Anthropic): code, text, balancing and procedural visuals.",
+            "Claude(Anthropic)의 도움으로 제작: 코드·문구·밸런싱·절차적 그래픽");
         public static readonly Loc CreditsJam = new Loc("Made for the 2026 Unity Game Jam - theme \"Lucky Number\"",
             "2026 Unity Game Jam 출품작 - 주제 \"Lucky Number\"");
 
@@ -160,6 +160,9 @@ namespace FloorF.UI
             "{0}층({1}) 버튼을 눌러 데려다주세요.");
         public static readonly Loc TutOpenThere = new Loc("Arrived! OPEN the doors: everyone inside judges this FLOOR's number!",
             "도착! 문을 여세요(열기). 안에 있는 모두가 이 층의 번호로 운을 판정!");
+        /// <summary>Doors closed at a floor no rider wants. {0} = a rider's floor label, {1} = its destination (InlineIcon markup).</summary>
+        public static readonly Loc TutNotTheirStop = new Loc("This isn't anyone's stop - opening here still counts the floor number! Their floor: {0} ({1}).",
+            "여긴 아무도 내리지 않는 층! 그래도 문을 열면 이 층 번호로 판정돼요. 목적지: {0}층({1})");
         public static readonly Loc TutDone = new Loc("That's the job! Deliver every guest for tips. Luck 0 = haunted hotel.",
             "이게 전부예요! 모든 손님을 데려다주고 팁을 받으세요. 운이 0이면 흉가!");
         public static readonly Loc TutWhyLucky = new Loc("LUCKY! {0} is a lucky number for that guest: Luck goes UP (meter, top right).",

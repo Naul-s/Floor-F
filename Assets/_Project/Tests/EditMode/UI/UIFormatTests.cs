@@ -77,6 +77,52 @@ namespace FloorF.Tests.EditMode.UI
         }
 
         [Test]
+        public void ShortNames_Curated()
+        {
+            var en = new[] { "Lobby", "Dining", "Gym", "Karaoke", "Sauna", "Rooms", "Bar", "Casino", "Roof" };
+            var ko = new[] { "로비", "식당", "헬스", "노래방", "사우나", "객실", "바", "카지노", "옥상" };
+            var ids = new[] { "lobby", "restaurant", "gym", "karaoke", "sauna", "rooms", "bar", "casino", "rooftop" };
+            for (int i = 0; i < ids.Length; i++)
+            {
+                Assert.AreEqual(en[i], UIFormat.DestinationShortName(ids[i], false), ids[i] + " en");
+                Assert.AreEqual(ko[i], UIFormat.DestinationShortName(ids[i], true), ids[i] + " ko");
+                StringAssert.DoesNotEndWith(".", en[i], "curated, never cut");
+            }
+            Assert.IsNull(UIFormat.DestinationShortName("observatory", false), "unknown id: no curated name");
+            Assert.IsNull(UIFormat.DestinationShortName("", true));
+            Assert.AreEqual("Observ.", UIFormat.ShortName("Observatory"), "unknown ids still fall back to truncation");
+
+            // every destination in the shipped data has one
+            var hotel = UnityEngine.Resources.Load<UnityEngine.TextAsset>("Data/hotel");
+            Assert.IsNotNull(hotel, "Resources/Data/hotel.json");
+            string json = hotel.text;
+            int at = json.IndexOf("\"destinations\"", System.StringComparison.Ordinal);
+            Assert.Greater(at, 0);
+            string list = json.Substring(at, json.IndexOf(']', at) - at);
+            var found = System.Text.RegularExpressions.Regex.Matches(list, "\"id\"\\s*:\\s*\"([^\"]+)\"");
+            Assert.Greater(found.Count, 5);
+            foreach (System.Text.RegularExpressions.Match m in found)
+            {
+                Assert.IsNotNull(UIFormat.DestinationShortName(m.Groups[1].Value, false), m.Groups[1].Value + " en short name");
+                Assert.IsNotNull(UIFormat.DestinationShortName(m.Groups[1].Value, true), m.Groups[1].Value + " ko short name");
+            }
+        }
+
+        [Test]
+        public void TitleAndAiStrings_MatchTheGame()
+        {
+            // the building shows a "4" from the start: the subtitle must not claim there is no 4th floor
+            StringAssert.DoesNotContain("no 4th", UIStrings.Subtitle.En);
+            StringAssert.DoesNotContain("없는", UIStrings.Subtitle.Ko);
+            StringAssert.Contains("bad luck", UIStrings.Subtitle.En);
+            // Docs/AI_DISCLOSURE.md: code, text, balancing, procedural visuals
+            foreach (var word in new[] { "Claude", "Anthropic", "code", "text", "balancing", "procedural visuals" })
+                StringAssert.Contains(word, UIStrings.CreditsAi.En, "en AI line: " + word);
+            foreach (var word in new[] { "Claude", "Anthropic", "코드", "문구", "밸런싱", "절차적 그래픽" })
+                StringAssert.Contains(word, UIStrings.CreditsAi.Ko, "ko AI line: " + word);
+        }
+
+        [Test]
         public void StickerHeadline_FromData()
         {
             var four = new StickerDef { id = "four_to_f", from = "4", to = "F" };

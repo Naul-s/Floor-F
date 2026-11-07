@@ -8,8 +8,9 @@ namespace FloorF.UI
     /// <summary>
     /// Day-1 step-by-step prompts (shown while IGameSettings.ShowTutorialHints &amp;&amp; IDayQuery.IsTutorial, Running,
     /// not paused). One line at a time, chosen from the live state, with a pulsing outline + arrow on the panel button
-    /// to press:  Board (OPEN where guests wait) -> Close (head count) -> Floor (destination button) -> OpenThere
-    /// (floor number) -> Done. A step completes on its game event and never comes back. The first LuckJudged adds a
+    /// to press:  Board (OPEN where guests wait) -> Close (head count, only once nobody else here can still board) ->
+    /// Floor (destination button) -> OpenThere (floor number, only at a rider's stop; elsewhere a "not their stop" hint
+    /// pointing at the right floor) -> Done. A step completes on its game event and never comes back. The first LuckJudged adds a
     /// "why" card explaining what just happened. Never blocks clicks (no raycast targets).
     /// </summary>
     sealed class TutorialView
@@ -18,6 +19,8 @@ namespace FloorF.UI
 
         const int PromptSteps = 4;
         const float DoneLife = 6f, WhyLife = 7f, BannerW = 560f, BannerX = -60f;
+        /// <summary>Doors open, nobody boarded for this long -> CLOSE anyway (e.g. a guest who refuses this head count).</summary>
+        public const float CloseFallback = 4f;
 
         readonly UIContext ctx;
         readonly ElevatorPanelView panel;
@@ -28,7 +31,7 @@ namespace FloorF.UI
         readonly System.Collections.Generic.List<GuestId> waiting = new System.Collections.Generic.List<GuestId>();
 
         Step step;
-        float doneTimer, whyTimer;
+        float doneTimer, whyTimer, sinceBoarded;
         bool explained, departedWithRiders;
         string targetName;
         readonly InlineIcon promptIcon;
@@ -98,7 +101,7 @@ namespace FloorF.UI
         public void Reset()
         {
             step = Step.Board;
-            doneTimer = whyTimer = 0f;
+            doneTimer = whyTimer = sinceBoarded = 0f;
             explained = departedWithRiders = false;
             Hide();
         }
@@ -110,7 +113,12 @@ namespace FloorF.UI
             if (step == Step.Done) doneTimer = DoneLife;
         }
 
-        public void OnGuestBoarded(GuestBoarded e) { if (Live) Complete(Step.Board); }
+        public void OnGuestBoarded(GuestBoarded e)
+        {
+            if (!Live) return;
+            sinceBoarded = 0f;
+            Complete(Step.Board);
+        }
 
         public void OnDoorsClosed(DoorsClosed e) { if (Live && e.Occupancy > 0) Complete(Step.Close); }
 
@@ -123,7 +131,7 @@ namespace FloorF.UI
 
         public void OnDoorsOpened(DoorsOpened e)
         {
-            if (Live && e.Occupancy > 0 && departedWithRiders) Complete(Step.OpenThere);
+            if (Live && e.Occupancy > 0 && departedWithRiders && RiderGetsOffAt(e.Floor)) Complete(Step.OpenThere);
         }
 
         public void OnLuckJudged(LuckJudged e)
@@ -149,6 +157,7 @@ namespace FloorF.UI
             if (!(Live && HintsOn) || ctx.Paused) { Hide(); return; }
 
             if (whyTimer > 0f) whyTimer -= dt;
+            sinceBoarded += dt;
             if (step == Step.Done)
             {
                 doneTimer -= dt;
@@ -220,6 +229,8 @@ namespace FloorF.UI
                 }
                 case Step.Close:
                     if (e.Occupancy == 0 || !doorsOpen) return null;
+                    // wait for the whole group: closing early leaves guests behind (and hides "3 people = lucky")
+                    if (!e.IsFull && sinceBoarded < CloseFallback && SomeoneCanStillBoard()) return null;
                     target = panel.CloseRect;
                     return ctx.S(UIStrings.TutClose);
                 case Step.Floor:
@@ -231,9 +242,19 @@ namespace FloorF.UI
                     return ctx.F(UIStrings.TutFloor, ctx.Building.GetLabel(dest).Text, place);
                 }
                 case Step.OpenThere:
+                {
                     if (e.Occupancy == 0 || e.Doors != DoorState.Closed || !idle) return null;
-                    target = panel.OpenRect;
-                    return ctx.S(UIStrings.TutOpenThere);
+                    if (RiderGetsOffAt(e.CurrentFloor))
+                    {
+                        target = panel.OpenRect;
+                        return ctx.S(UIStrings.TutOpenThere);
+                    }
+                    // not anyone's stop: say so, and point at where they are going
+                    if (!FirstRiderDestination(out var dest, out var destId)) return null;
+                    target = panel.FloorButtonRect(dest);
+                    string place = InlineIcon.Markup(ctx, destId, out promptSprite, out promptTint);
+                    return ctx.F(UIStrings.TutNotTheirStop, ctx.Building.GetLabel(dest).Text, place);
+                }
                 case Step.Done:
                     return ctx.S(UIStrings.TutDone);
                 default:
@@ -247,6 +268,29 @@ namespace FloorF.UI
             if (ctx.Guests.GetWaiting(floor, waiting) > 0) return true;
             for (int f = 0; f < ctx.Building.FloorCount; f++)
                 if (ctx.Guests.GetWaiting(new FloorIndex(f), waiting) > 0) { floor = new FloorIndex(f); return true; }
+            return false;
+        }
+
+        /// <summary>A guest on this floor (doors open here) who would still get in: Waiting, not already there, car not full.</summary>
+        bool SomeoneCanStillBoard()
+        {
+            var e = ctx.Elevator;
+            if (ctx.Guests == null || e.IsFull) return false;
+            var active = ctx.Guests.ActiveGuests;
+            for (int i = 0; i < active.Count; i++)
+                if (ctx.Guests.TryGet(active[i], out var g) && g.State == GuestState.Boarding) return true; // walking in now
+            ctx.Guests.GetWaiting(e.CurrentFloor, waiting);
+            for (int i = 0; i < waiting.Count; i++)
+                if (ctx.Guests.TryGet(waiting[i], out var g) && g.State == GuestState.Waiting && g.DestinationFloor != e.CurrentFloor) return true;
+            return false;
+        }
+
+        bool RiderGetsOffAt(FloorIndex floor)
+        {
+            if (ctx.Guests == null) return false;
+            var riders = ctx.Elevator.Riders;
+            for (int i = 0; i < riders.Count; i++)
+                if (ctx.Guests.TryGet(riders[i], out var info) && info.DestinationFloor == floor) return true;
             return false;
         }
 
