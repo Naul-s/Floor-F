@@ -199,6 +199,9 @@ namespace FloorF.Core
         public const string UnluckyFloor = "unlucky_floor";
         public const string LuckyOccupancy = "lucky_occupancy";
         public const string UnluckyOccupancy = "unlucky_occupancy";
+        /// <summary>Rule 3 (ride distance) verdicts, said when stepping out.</summary>
+        public const string LuckyDistance = "lucky_distance";
+        public const string UnluckyDistance = "unlucky_distance";
         public const string Delivered = "delivered";
         public const string Impatient = "impatient";
         public const string Left = "left";
@@ -219,6 +222,8 @@ namespace FloorF.Core
         public const string Mystery = "mystery";
         /// <summary>Tips a lot, short patience (flavour; numbers still come from fields).</summary>
         public const string VIP = "vip";
+        /// <summary>"666": an Unlucky 6 from this guest counts double (penalty x2) and presentation shows the 666 curse.</summary>
+        public const string Devout = "devout";
     }
 
     // ---------------------------------------------------------------- days.json
