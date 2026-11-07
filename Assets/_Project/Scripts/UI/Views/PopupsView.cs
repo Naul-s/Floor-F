@@ -320,7 +320,7 @@ namespace FloorF.UI
             }
         }
 
-        const float ColumnReach = 100000f, SettleGap = 4f, WrongSidePenalty = 400f;
+        const float ColumnReach = 100000f, SettleGap = 4f, WrongSidePenalty = 400f, DownPenalty = 4f;
         const int SettleDepth = 3, MaxCandidates = 160;
         readonly List<Rect> blockers = new List<Rect>();
         readonly List<Vector3> candidates = new List<Vector3>(); // x, y, depth
@@ -385,7 +385,9 @@ namespace FloorF.UI
                 int hit = FirstBlocker(p, size);
                 if (hit < 0)
                 {
-                    float cost = Mathf.Abs(p.x - start.x) + Mathf.Abs(p.y - start.y);
+                    // down is expensive: below its base a bubble covers its own guest / the riders' chips
+                    float dy = p.y - start.y;
+                    float cost = Mathf.Abs(p.x - start.x) + (dy >= 0f ? dy : -dy * DownPenalty);
                     if (haveColumn && (p.x < mid) != startLeft) cost += WrongSidePenalty;
                     if (cost < bestCost) { bestCost = cost; best = p; }
                     continue;

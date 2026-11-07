@@ -16,7 +16,7 @@ namespace FloorF.UI
     {
         /// <summary>Offer card: [headline 36px | price + need, right] on top, then the name (if it adds anything), then
         /// the description at 24px across the full width (pure black on the gold selected card, white otherwise).</summary>
-        const float CardW = 440f, InnerW = CardW - 40f, OfferPad = 8f, TopRowH = 44f, NameH = 30f, DescSize = 24f;
+        const float CardW = 400f, InnerW = CardW - 40f, OfferPad = 8f, TopRowH = 44f, NameH = 30f, DescSize = 24f;
         const float DescW = InnerW - 2f * OfferPad;
 
         sealed class OfferButton
@@ -213,7 +213,7 @@ namespace FloorF.UI
                 var offer = list[i];
                 o.Id = offer.Id;
                 string headline = UIFormat.StickerHeadline(offer.Sticker, ctx.Korean);
-                if (!string.Equals(o.Headline.text, headline, System.StringComparison.Ordinal)) { o.Headline.text = headline; UIBuild.Fit(o.Headline, 36f); }
+                UIBuild.Set(o.Headline, headline);
                 string name = ctx.StickerName(offer.Sticker);
                 // the headline already says "4 -> F"; only repeat the name when it adds something
                 o.Name.text = name.Contains("→") || string.Equals(name.Replace(" ", ""), o.Headline.text.Replace(" ", ""), System.StringComparison.OrdinalIgnoreCase) ? "" : name;
@@ -222,6 +222,12 @@ namespace FloorF.UI
                 o.Price.text = soldOut ? ctx.S(UIStrings.SoldOut)
                     : offer.Remaining < 0 ? string.Format(ctx.S(UIStrings.PriceUnlimited), offer.Price.ToString(CultureInfo.InvariantCulture))
                     : string.Format(ctx.S(UIStrings.PriceStock), offer.Price.ToString(CultureInfo.InvariantCulture), offer.Remaining.ToString(CultureInfo.InvariantCulture));
+                // top row: the price keeps its natural width, the headline gets the rest (36px, one grid step down if needed)
+                if (o.Price.font != null) o.Price.font.TryAddCharacters(o.Price.text);
+                float priceW = Mathf.Ceil(o.Price.GetPreferredValues(o.Price.text, float.PositiveInfinity, float.PositiveInfinity).x) + 2f;
+                o.Price.rectTransform.sizeDelta = new Vector2(priceW, 28f);
+                o.Headline.rectTransform.sizeDelta = new Vector2(Mathf.Max(60f, DescW - priceW - 12f), TopRowH);
+                UIBuild.Fit(o.Headline, 36f);
                 bool isSel = !selected.IsEmpty && selected == offer.Id;
                 bool broke = !soldOut && tipsNow < offer.Price;
                 o.Price.color = isSel ? UIStyle.Dark : soldOut || broke ? UIStyle.Unlucky : UIStyle.Good;
@@ -284,6 +290,11 @@ namespace FloorF.UI
                 var d = o.Description;
                 float need = d.GetPreferredValues(d.text, d.rectTransform.rect.width, float.PositiveInfinity).y;
                 if (need > d.rectTransform.rect.height + 0.5f) return "offer " + i + " description needs " + need + " > " + d.rectTransform.rect.height;
+                var hr = UIBuild.CanvasRect(canvas, o.Headline.rectTransform);
+                var pr = UIBuild.CanvasRect(canvas, o.Price.rectTransform);
+                if (hr.xMax > pr.xMin + 0.5f) return "offer " + i + " headline box runs into the price " + hr + " vs " + pr;
+                float hw = o.Headline.GetPreferredValues(o.Headline.text, float.PositiveInfinity, float.PositiveInfinity).x;
+                if (hw > hr.width + 0.5f) return "offer " + i + " headline '" + o.Headline.text + "' needs " + hw + " > " + hr.width;
                 var dr = UIBuild.CanvasRect(canvas, d.rectTransform);
                 var orc = UIBuild.CanvasRect(canvas, o.Parts.Rect);
                 if (dr.yMin < orc.yMin - 0.5f || dr.xMax > orc.xMax + 0.5f) return "offer " + i + " description spills out of its card " + dr + " vs " + orc;
