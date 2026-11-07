@@ -134,6 +134,9 @@ namespace FloorF.UI
 
         public string S(Loc l) => l.Get(Korean);
 
+        /// <summary>string.Format of the current-language template; Korean particle specifiers ("{0:은}") resolved.</summary>
+        public string F(Loc l, params object[] args) => KoreanParticles.Format(l.Get(Korean), args);
+
         // ------------------------------------------------------------------ data text
 
         public string DestinationName(DestinationId id)
@@ -142,6 +145,9 @@ namespace FloorF.UI
                 return Korean && !string.IsNullOrEmpty(d.nameKo) ? d.nameKo : d.name;
             return "???";
         }
+
+        public DestinationDef Destination(DestinationId id) =>
+            Data != null && !id.IsEmpty && Data.TryGetDestination(id, out var d) ? d : null;
 
         public int DestinationIndex(DestinationId id)
         {

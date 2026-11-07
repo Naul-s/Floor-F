@@ -31,6 +31,9 @@ namespace FloorF.UI
         float doneTimer, whyTimer;
         bool explained, departedWithRiders;
         string targetName;
+        readonly InlineIcon promptIcon;
+        Sprite promptSprite;
+        Color promptTint;
 
         public TutorialView(UIContext ctx, RectTransform canvas, ElevatorPanelView panel)
         {
@@ -43,6 +46,7 @@ namespace FloorF.UI
             banner = bannerEdge.rectTransform;
             UIBuild.Place(banner, new Vector2(0.5f, 1f), new Vector2(BannerX, -16f), new Vector2(BannerW, 92f));
             Card(banner, out stepText, out promptText, UIStyle.Highlight);
+            promptIcon = new InlineIcon(promptText);
 
             whyEdge = UIBuild.Framed("Why", layer, UIStyle.Card, UIStyle.Lucky, 3f);
             why = whyEdge.rectTransform;
@@ -130,7 +134,7 @@ namespace FloorF.UI
             bool lucky = e.Verdict == LuckVerdict.Lucky;
             string number = e.Number >= 0 ? e.Number.ToString(System.Globalization.CultureInfo.InvariantCulture)
                 : ctx.Building != null && e.Floor.IsValidFor(ctx.Building.FloorCount) ? ctx.Building.GetLabel(e.Floor).Text : "?";
-            whyText.text = string.Format(ctx.S(lucky ? UIStrings.TutWhyLucky : UIStrings.TutWhyUnlucky), number);
+            whyText.text = ctx.F(lucky ? UIStrings.TutWhyLucky : UIStrings.TutWhyUnlucky, number);
             whyText.color = lucky ? UIStyle.Lucky : UIStyle.Unlucky;
             whyEdge.color = lucky ? UIStyle.Lucky : UIStyle.Unlucky;
             whyLegend.text = string.Format(ctx.S(UIStrings.TutWhyLegend), UIFormat.LuckyHex, UIFormat.UnluckyHex);
@@ -152,16 +156,21 @@ namespace FloorF.UI
             }
 
             RectTransform target = null;
+            promptSprite = null;
             string text = Prompt(ref target);
 
             Show(banner, text != null);
             if (text != null)
             {
                 UIBuild.Set(promptText, text);
+                promptIcon.Set(promptSprite, promptTint);
                 UIBuild.Set(stepText, step < Step.Done
                     ? string.Format(ctx.S(UIStrings.TutStep), (int)step + 1, PromptSteps)
                     : ctx.S(UIStrings.HowToTitle));
             }
+
+            if (text == null) promptIcon.Set(null, Color.white);
+            promptIcon.Place();
 
             bool showWhy = whyTimer > 0f;
             Show(why, showWhy);
@@ -204,10 +213,10 @@ namespace FloorF.UI
                     {
                         if (doorsOpen) return null; // boarding
                         target = panel.OpenRect;
-                        return string.Format(ctx.S(UIStrings.TutBoardHere), label);
+                        return ctx.F(UIStrings.TutBoardHere, label);
                     }
                     target = panel.FloorButtonRect(floor);
-                    return string.Format(ctx.S(UIStrings.TutBoardGo), label);
+                    return ctx.F(UIStrings.TutBoardGo, label);
                 }
                 case Step.Close:
                     if (e.Occupancy == 0 || !doorsOpen) return null;
@@ -218,7 +227,8 @@ namespace FloorF.UI
                     if (e.Occupancy == 0 || e.Doors != DoorState.Closed || !idle) return null;
                     if (!FirstRiderDestination(out var dest, out var destId)) return null;
                     target = panel.FloorButtonRect(dest);
-                    return string.Format(ctx.S(UIStrings.TutFloor), ctx.Building.GetLabel(dest).Text, ctx.DestinationName(destId));
+                    string place = InlineIcon.Markup(ctx, destId, out promptSprite, out promptTint);
+                    return ctx.F(UIStrings.TutFloor, ctx.Building.GetLabel(dest).Text, place);
                 }
                 case Step.OpenThere:
                     if (e.Occupancy == 0 || e.Doors != DoorState.Closed || !idle) return null;
@@ -278,5 +288,7 @@ namespace FloorF.UI
         public string PromptText => banner.gameObject.activeSelf ? promptText.text : null;
         public string WhyText => why.gameObject.activeSelf ? whyText.text : null;
         public string TargetName => targetName;
+        public bool PromptIconVisible => banner.gameObject.activeSelf && promptIcon.Visible;
+        public Sprite PromptIconSprite => promptIcon.Sprite;
     }
 }

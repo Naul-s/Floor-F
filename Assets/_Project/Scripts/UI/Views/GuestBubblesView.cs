@@ -7,7 +7,8 @@ using UnityEngine.UI;
 namespace FloorF.UI
 {
     /// <summary>
-    /// Number chips above guests (GDD 4: lucky number + 0-2 unlucky over every head, destination as an icon).
+    /// Number chips above guests (GDD 4: lucky number + 0-2 unlucky over every head, destination as an icon tinted with its colour;
+    /// the name only when it fits whole beside the icon - DestinationBadge.NameMode.FullOrNone).
     /// Waiting guests: one chip above each head, packed left-to-right in line order so neighbours never overlap.
     /// Riders: grouped in a 4-wide grid hugging the left side of the car (they stand too close to label one by one).
     /// Position: IActorLocator -> Camera.main.WorldToViewportPoint -> PresentationContract.ViewportToScreen.
@@ -24,8 +25,7 @@ namespace FloorF.UI
             public RectTransform Rect;
             public Image Edge;
             public TextMeshProUGUI Numbers;
-            public Image Badge;
-            public TextMeshProUGUI Dest;
+            public DestinationBadge Badge;
             public RectTransform Patience;
             public Image PatienceImage;
             public int Seen;
@@ -65,14 +65,8 @@ namespace FloorF.UI
             c.Numbers = UIBuild.Text("Numbers", c.Rect, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
             UIBuild.Place(c.Numbers.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -1f), new Vector2(ChipW - 4f, 26f));
             c.Numbers.textWrappingMode = TextWrappingModes.NoWrap;
-            c.Badge = UIBuild.Box("Badge", c.Rect, Color.gray);
-            UIBuild.Place(c.Badge.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, BadgeH));
-            c.Dest = UIBuild.Text("Dest", c.Badge.transform, "", BadgeSize, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Stretch(c.Dest.rectTransform);
-            c.Dest.rectTransform.offsetMin = new Vector2(1f, 0f);
-            c.Dest.rectTransform.offsetMax = new Vector2(-1f, 0f);
-            c.Dest.textWrappingMode = TextWrappingModes.NoWrap;
-            c.Dest.overflowMode = TextOverflowModes.Overflow;
+            c.Badge = new DestinationBadge(c.Rect, BadgeSize, DestinationBadge.NameMode.FullOrNone);
+            UIBuild.Place(c.Badge.Rect, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, BadgeH));
             var track = UIBuild.Box("PatienceTrack", c.Rect, new Color(0f, 0f, 0f, 0.9f));
             UIBuild.Place(track.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(ChipW - 6f, 4f));
             c.PatienceImage = UIBuild.Box("Patience", track.transform, UIStyle.Good);
@@ -103,9 +97,7 @@ namespace FloorF.UI
             {
                 c.ShownDestination = info.Destination;
                 c.LanguageKorean = ctx.Korean;
-                c.Badge.color = UIStyle.Destination(ctx.DestinationIndex(info.Destination));
-                UIBuild.FitName(c.Dest, ctx.DestinationName(info.Destination), BadgeSize);
-                c.Dest.color = UIStyle.ContrastInk(c.Badge.color);
+                c.Badge.Set(ctx, info.Destination);
             }
             float p = Mathf.Clamp01(info.Patience01);
             c.Patience.anchorMax = new Vector2(p, 1f);
@@ -182,6 +174,24 @@ namespace FloorF.UI
                     return "chip x " + (x - ChipW * 0.5f).ToString("0") + ".." + (x + ChipW * 0.5f).ToString("0") + " vs " + minX.ToString("0") + ".." + maxX.ToString("0");
             }
             return null;
+        }
+
+        /// <summary>Visible chips: how many show an icon / a name / only the text fallback (test hook).</summary>
+        public void BadgeStats(out int count, out int icons, out int names, out int textOnly)
+        {
+            count = icons = names = textOnly = 0;
+            foreach (var c in VisibleChips())
+            {
+                count++;
+                if (c.Badge.ShowsIcon) icons++;
+                if (c.Badge.ShowsName) names++;
+                if (!c.Badge.ShowsIcon && c.Badge.ShowsName) textOnly++;
+            }
+        }
+
+        IEnumerable<Chip> VisibleChips()
+        {
+            foreach (var c in chips.Values) if (c.Rect.gameObject.activeSelf) yield return c;
         }
 
         public void Clear()
