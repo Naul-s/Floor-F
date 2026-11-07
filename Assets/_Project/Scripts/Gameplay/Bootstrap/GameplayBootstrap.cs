@@ -66,6 +66,12 @@ namespace FloorF.Gameplay
         internal static bool SkipTitleForTests;
 
         /// <summary>
+        /// Tests: with <see cref="SkipTitleForTests"/>, also skip the "Day 0" training shift at boot (IGameFlow.SkipTutorial),
+        /// so the first Intro every module sees is the first real day. Same lifetime rules as SkipTitleForTests.
+        /// </summary>
+        internal static bool SkipTutorialForTests;
+
+        /// <summary>
         /// Tests: settings storage for the next Main loads (e.g. a shared <see cref="MemorySettingsStore"/> to simulate a
         /// relaunch). Null = PlayerPrefs, except in batch mode (CI/agents), which always uses a fresh in-memory store so
         /// test runs never write the real player prefs.
@@ -80,6 +86,7 @@ namespace FloorF.Gameplay
         {
             SeedOverride = null;
             SkipTitleForTests = false;
+            SkipTutorialForTests = false;
             SettingsStoreOverride = null;
         }
 
@@ -149,7 +156,11 @@ namespace FloorF.Gameplay
             if (session == null) return;
             if (!session.HasStarted)
             {
-                if (SkipTitleForTests) session.StartNewGame();
+                if (SkipTitleForTests)
+                {
+                    session.StartNewGame();
+                    if (SkipTutorialForTests) session.SkipTutorial();
+                }
                 else session.ReturnToTitle();
             }
             if (settingsPersistence != null && settingsPersistence.IsDirty && Time.unscaledTime >= nextSettingsFlush)

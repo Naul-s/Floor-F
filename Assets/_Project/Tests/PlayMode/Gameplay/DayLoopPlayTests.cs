@@ -84,6 +84,8 @@ namespace FloorF.Tests.PlayMode.Gameplay
             }
             Assert.AreEqual(DayPhase.Intro, day.Phase);
             Assert.AreEqual(1, day.CurrentDay.Number);
+            Assert.IsTrue(day.IsTutorial, "a new game starts on the Day 0 training shift");
+            Assert.AreEqual(0, day.DisplayDay);
             Assert.AreEqual(0, GameServices.Get<IGuestQuery>().ActiveGuests.Count, "demo guests cleared");
             var score = GameServices.Get<IScoreQuery>();
             var data = GameServices.Get<GameData>();
@@ -116,10 +118,15 @@ namespace FloorF.Tests.PlayMode.Gameplay
             Assert.AreEqual(DayPhase.Intro, day.Phase, "game started after the first frame");
             Assert.IsFalse(menu.IsOnTitle);
             Assert.AreEqual(1, day.CurrentDay.Number);
+            Assert.IsTrue(day.IsTutorial, "Day 0 training shift first");
+            Assert.IsTrue(flow.SkipTutorial(), "skip the training shift (the bot never plays it)");
+            Assert.AreEqual(DayPhase.Intro, day.Phase);
+            Assert.AreEqual(1, day.DisplayDay, "Day 1");
+            int firstReal = day.CurrentDay.Number;
 
             bool dayEnded = false;
             int delivered = 0, boarded = 0;
-            using (GameServices.Events.Subscribe<DayEnded>(e => dayEnded = e.Day.Number == 1))
+            using (GameServices.Events.Subscribe<DayEnded>(e => dayEnded = e.Day.Number == firstReal))
             using (GameServices.Events.Subscribe<GuestDelivered>(e => delivered++))
             using (GameServices.Events.Subscribe<GuestBoarded>(e => boarded++))
             {
@@ -148,7 +155,7 @@ namespace FloorF.Tests.PlayMode.Gameplay
                 Time.captureDeltaTime = 0f;
             }
 
-            Assert.IsTrue(dayEnded, "DayEnded(1) published");
+            Assert.IsTrue(dayEnded, "DayEnded(first real day) published");
             Assert.That(day.Phase, Is.EqualTo(DayPhase.Summary).Or.EqualTo(DayPhase.Ending));
             Debug.Log($"[DayLoopPlayTests] day 1: boarded {boarded}, delivered {delivered}, summary delivered {day.LastSummary.Delivered}");
             Assert.That(boarded, Is.GreaterThan(0), "scripted input boarded someone");

@@ -120,6 +120,7 @@ namespace FloorF.Tests.EditMode.Content
             {
                 total += d.durationSeconds;
                 if (d.tutorial) Assert.LessOrEqual(d.durationSeconds, 60f, "tutorial day " + d.day + " should be short");
+                else if (d.day == data.TutorialDayCount + 1) Assert.That(d.durationSeconds, Is.InRange(60f, 90f), "first real day " + d.day + " should be a gentle 60-90 s");
                 else Assert.That(d.durationSeconds, Is.InRange(90f, 120f), "day " + d.day + " should be 90-120 s");
                 foreach (var s in d.spawns)
                 {
@@ -156,16 +157,51 @@ namespace FloorF.Tests.EditMode.Content
             }
         }
 
-        // ------------------------------------------------------------ day 1 tutorial
+        // ------------------------------------------------------------ day 0 tutorial (training shift, waves)
 
+        /// <summary>
+        /// Day 0: three waves (the next one comes once the hotel is empty), each teaching one lesson -
+        /// wave 1 a lucky door-open floor, wave 2 a lucky head-count, wave 3 an unlucky "4" that the 4 -> F sticker fixes.
+        /// </summary>
         [Test]
-        public void Day1_ThreeGuests_TeachesBothRules()
+        public void Day0_Waves_TeachOneLessonEach()
         {
             var day = data.GetDay(DayId.First);
             Assert.IsTrue(day.tutorial);
+            Assert.IsEmpty(day.shopStickers, "no shop after the training shift");
             var sp = day.spawns;
-            Assert.AreEqual(3, sp.Length, "GDD 3: 3-guest tutorial");
             Assert.IsTrue(sp.All(s => !s.HasDestinationFloor && DestinationNumber(s) > 0), "tutorial destinations must be explicit");
+            var waves = sp.GroupBy(s => s.time).OrderBy(g => g.Key).Select(g => g.ToArray()).ToArray();
+            Assert.AreEqual(3, waves.Length, "three waves");
+            Assert.IsTrue(sp.All(s => s.floor == sp[0].floor), "every wave boards in the lobby");
+
+            Assert.AreEqual(1, waves[0].Length, "wave 1: a single guest");
+            Assert.AreEqual(LuckVerdict.Lucky, JudgeInitialLabel(Profile(waves[0][0]), DestinationNumber(waves[0][0])),
+                "wave 1: the guest's floor is their lucky number");
+
+            int heads = waves[1].Sum(s => Guest(s).partySize);
+            Assert.IsTrue(waves[1].Any(s => Profile(s).Judge(heads) == LuckVerdict.Lucky), "wave 2: boarding together hits a lucky head-count");
+            Assert.IsTrue(waves[1].All(s => JudgeInitialLabel(Profile(s), DestinationNumber(s)) == LuckVerdict.Neutral),
+                "wave 2: only the head-count matters");
+
+            var fourToF = data.Stickers.Single(s => s.from.Trim() == "4");
+            var scared = waves[2].Where(s => JudgeInitialLabel(Profile(s), DestinationNumber(s)) == LuckVerdict.Unlucky).ToArray();
+            Assert.IsNotEmpty(scared, "wave 3: someone's floor is unlucky for them");
+            Assert.IsTrue(scared.Any(s => fourToF.CanApplyTo(data.GetFloor(FloorIndex.FromPhysicalNumber(DestinationNumber(s))).InitialLabel)),
+                "wave 3: the unlucky floor is the one 4 -> F hides");
+            Assert.IsTrue(waves[2].Any(s => JudgeInitialLabel(Profile(s), DestinationNumber(s)) == LuckVerdict.Lucky),
+                "wave 3: different guests, different numbers - someone else is lucky");
+        }
+
+        /// <summary>The first real day (formerly the tutorial) still teaches both rules with its first three guests.</summary>
+        [Test]
+        public void Day1_FirstGuests_TeachBothRules()
+        {
+            var day = data.GetDay(new DayId(data.TutorialDayCount + 1));
+            Assert.IsFalse(day.tutorial);
+            var sp = day.spawns.Take(3).ToArray();
+            Assert.AreEqual(3, sp.Length, "GDD 3: the first three guests");
+            Assert.IsTrue(sp.All(s => !s.HasDestinationFloor && DestinationNumber(s) > 0), "first-day destinations must be explicit");
             Assert.IsTrue(sp.All(s => s.time <= 10f), "the lesson must start immediately");
 
             // Rule 1, positive: some guest's destination label is their lucky number -> guaranteed sparkle.
@@ -204,7 +240,8 @@ namespace FloorF.Tests.EditMode.Content
             int floorsTravelled = (top - start) + (top - dests.Min());
             int people = sp.Sum(s => Guest(s).partySize);
             float sweep = floorsTravelled * r.elevatorSecondsPerFloor + (dests.Length + 1) * 2f * r.doorSeconds + 2f * people * r.boardSeconds;
-            Assert.LessOrEqual(sp.Max(s => s.time) + sweep, 20f, "day 1 must be playable well inside 30 s");
+            Assert.LessOrEqual(sp.Max(s => s.time) + sweep, 20f, "the opening of day 1 must be playable well inside 30 s");
+            Assert.LessOrEqual(day.spawns.Length, 6, "the first real day stays gentle (about 5 guests)");
         }
 
         // ------------------------------------------------------------ progression
@@ -212,8 +249,15 @@ namespace FloorF.Tests.EditMode.Content
         [Test]
         public void EachDay_IntroducesNewGuest()
         {
-            var seen = new HashSet<string>(data.GetDay(DayId.First).spawns.Select(s => s.guest));
-            for (int n = 2; n <= data.DayCount; n++)
+            // Day 0 only rehearses the guests of Day 1; "one new concept per day" starts after Day 1.
+            int first = data.TutorialDayCount + 1;
+            var seen = new HashSet<string>(data.GetDay(new DayId(first)).spawns.Select(s => s.guest));
+            for (int n = 1; n < first; n++)
+            {
+                var tutorialIds = data.GetDay(new DayId(n)).spawns.Select(s => s.guest).Distinct();
+                Assert.IsTrue(tutorialIds.All(seen.Contains), "tutorial day " + n + " should only use guests Day 1 has");
+            }
+            for (int n = first + 1; n <= data.DayCount; n++)
             {
                 var ids = data.GetDay(new DayId(n)).spawns.Select(s => s.guest).Distinct().ToArray();
                 Assert.IsTrue(ids.Any(id => !seen.Contains(id)), "day " + n + " brings no new guest (one new concept per day)");
@@ -231,7 +275,7 @@ namespace FloorF.Tests.EditMode.Content
                 {
                     var g = Guest(s);
                     if (ExpansionTraits.Any(g.HasTrait))
-                        Assert.GreaterOrEqual(d.day, FirstExpansionDay, s.guest + " (expansion trait) scheduled on day " + d.day);
+                        Assert.GreaterOrEqual(data.DisplayDayNumber(d.Id), FirstExpansionDay, s.guest + " (expansion trait) scheduled on day " + d.day);
                 }
         }
 
@@ -365,7 +409,7 @@ namespace FloorF.Tests.EditMode.Content
             Assert.IsNotNull(mystery.FindLine(GuestLineTriggers.Relabelled), "mystery guest should react to stickers");
 
             var fourToF = data.Stickers.Single(s => s.from.Trim() == "4");
-            for (int n = 1; n < data.DayCount; n++)
+            for (int n = data.TutorialDayCount + 1; n < data.DayCount; n++) // the training shift has no shop
                 CollectionAssert.Contains(data.GetDay(new DayId(n)).shopStickers, fourToF.id,
                     "day " + n + ": 4 -> F must be on sale at every shop (the ending stays reachable)");
         }

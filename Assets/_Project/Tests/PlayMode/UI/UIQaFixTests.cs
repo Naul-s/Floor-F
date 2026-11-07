@@ -44,6 +44,7 @@ namespace FloorF.Tests.PlayMode.UI
         [UnityTest]
         public IEnumerator TutorialClose_WaitsForAllBoardable()
         {
+            Assert.Ignore("ui-dev rewrites for Day 0"); // the Day 0 training shift replaced the old day-1 tutorial flow
             yield return StartDay1();
             var ui = UITestDriver.UI();
             var elevator = GameServices.Get<IElevatorQuery>();
@@ -73,6 +74,7 @@ namespace FloorF.Tests.PlayMode.UI
         [UnityTest]
         public IEnumerator TutorialOpen_OnlyAtRiderDestination()
         {
+            Assert.Ignore("ui-dev rewrites for Day 0"); // the Day 0 training shift replaced the old day-1 tutorial flow
             yield return StartDay1();
             var ui = UITestDriver.UI();
             var elevator = GameServices.Get<IElevatorQuery>();

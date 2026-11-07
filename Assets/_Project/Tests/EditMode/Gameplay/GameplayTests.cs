@@ -105,9 +105,11 @@ namespace FloorF.Tests.EditMode.Gameplay
             bus.Subscribe<DayEnded>(e => flow++);
             bus.Subscribe<GameStarted>(e => flow++);
             s.ReturnToTitle();
+            var demoDay = new DayId(data.TutorialDayCount + 1);
+            Assert.AreEqual(demoDay, s.CurrentDay, "the demo plays the first real day, never the Day 0 training shift");
             int loops = 0;
             float last = 0f;
-            float horizon = data.GetDay(DayId.First).durationSeconds * 2f + 10f;
+            float horizon = data.GetDay(demoDay).durationSeconds * 2f + 10f;
             for (float t = 0f; t < horizon; t += 1f / 30f)
             {
                 s.Tick(1f / 30f);
@@ -118,6 +120,7 @@ namespace FloorF.Tests.EditMode.Gameplay
             Assert.That(delivered, Is.GreaterThan(0), "the LuckAware demo delivers guests");
             Assert.That(loops, Is.GreaterThan(0), "the demo day looped");
             Assert.AreEqual(0, flow, "no flow events from the demo");
+            Assert.AreEqual(demoDay, s.CurrentDay, "still the real day after looping");
             TestContext.WriteLine($"demo: {delivered} delivered, {spawned} spawned, {loops} loops over {horizon:0}s, luck {s.Score.Luck}");
         }
 
@@ -138,7 +141,7 @@ namespace FloorF.Tests.EditMode.Gameplay
             {
                 switch (s.Phase)
                 {
-                    case DayPhase.Intro: s.BeginDay(); break;
+                    case DayPhase.Intro: if (!s.SkipTutorial()) s.BeginDay(); break; // bots never play the Day 0 training shift
                     case DayPhase.Summary: s.ContinueFromSummary(); break;
                     case DayPhase.Shop:
                         foreach (var o in s.Offers) s.TryBuyAndApply(o.Id, StoryRules.RealFourthFloor);
@@ -173,7 +176,7 @@ namespace FloorF.Tests.EditMode.Gameplay
             {
                 switch (s.Phase)
                 {
-                    case DayPhase.Intro: s.BeginDay(); break;
+                    case DayPhase.Intro: if (!s.SkipTutorial()) s.BeginDay(); break; // bots never play the Day 0 training shift
                     case DayPhase.Summary: s.ContinueFromSummary(); break;
                     case DayPhase.Shop:
                         foreach (var o in s.Offers) s.TryBuyAndApply(o.Id, StoryRules.RealFourthFloor);

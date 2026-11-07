@@ -100,6 +100,7 @@ namespace FloorF.Tests.EditMode.Content
                 switch (s.Phase)
                 {
                     case DayPhase.Intro:
+                        if (s.IsTutorial) { Assert.IsTrue(s.SkipTutorial()); break; } // the bot never plays Day 0 (no shop after it anyway)
                         if (s.CurrentDay.Number >= data.DayCount) return visits; // the last day has no shop after it
                         pilot = new AutoPilot(s.Elevator, s, s.Guests, s.Building, strategy) { Data = data };
                         s.BeginDay();
@@ -139,7 +140,7 @@ namespace FloorF.Tests.EditMode.Content
             {
                 var visits = Run(seed, AutoPilotStrategy.LuckAware, buy: true);
                 foreach (var v in visits) TestContext.WriteLine("seed " + seed + " " + v);
-                Assert.AreEqual(data.DayCount - 1, visits.Count, "seed " + seed + ": one shop after every day but the last");
+                Assert.AreEqual(data.PlayableDayCount - 1, visits.Count, "seed " + seed + ": one shop after every real day but the last");
 
                 var day1 = visits[0];
                 Assert.GreaterOrEqual(day1.TipsBefore, fourToF.price, "seed " + seed + ": day 1 must pay for 4 -> F");
@@ -163,7 +164,7 @@ namespace FloorF.Tests.EditMode.Content
                 var visits = Run(seed, strategy, buy: false);
                 TestContext.WriteLine(strategy + " seed " + seed + ": earned by day " + string.Join(", ", visits.Select(v => v.TipsEarnedToday))
                                       + " (total before day " + data.DayCount + ": " + visits.Last().TipsBefore + ")");
-                Assert.AreEqual(data.DayCount - 1, visits.Count);
+                Assert.AreEqual(data.PlayableDayCount - 1, visits.Count);
             }
         }
 
