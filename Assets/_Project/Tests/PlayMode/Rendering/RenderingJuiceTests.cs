@@ -27,8 +27,10 @@ namespace FloorF.Tests.PlayMode.Rendering
             yield return null;
         }
 
+        /// <summary>Kenney model: the tint painted into its atlas tile; blocky fallback: the Body box colour.</summary>
         static Color BaseColorOf(GuestFigure f)
         {
+            if (f.IsModel) return f.ModelEntry.Tint;
             var m = f.Visual.Find("Body").GetComponent<MeshRenderer>().sharedMaterial;
             return m.HasProperty("_BaseColor") ? m.GetColor("_BaseColor") : m.color;
         }

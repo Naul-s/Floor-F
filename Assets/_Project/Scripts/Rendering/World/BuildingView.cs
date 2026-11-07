@@ -31,6 +31,8 @@ namespace FloorF.Rendering
             public bool Falling, Fallen;
             public Vector3 FallVelocity;
             public float FallSpin;
+            public readonly List<PropInfo> Props = new List<PropInfo>();
+            public MeshRenderer PropRenderer;
         }
 
         public const float StickSeconds = 0.32f;
@@ -187,7 +189,8 @@ namespace FloorF.Rendering
                 lighting.AddTube(f.Value, tube);
             }
 
-            BuildProps(floorRoot, destination, y0, left + 0.4f, holeL - 0.3f, lightColor);
+            if (assets.Kenney != null) BuildKenneyProps(floorRoot, entry, destination, y0);
+            else BuildProps(floorRoot, destination, y0, left + 0.4f, holeL - 0.3f, lightColor);
 
             // the floor sign: front plate just left of the shaft, facing the camera
             entry.Sign = new GameObject(RenderingNames.FloorSignPrefix + f.PhysicalNumber);
@@ -346,7 +349,7 @@ namespace FloorF.Rendering
 
         // ------------------------------------------------------------------ dressing
 
-        /// <summary>A few boxes per destination on the left half so floors read apart (greybox, placeholder for CC0 props).</summary>
+        /// <summary>Greybox fallback (no Kenney catalog): a few boxes per destination on the left half.</summary>
         void BuildProps(Transform parent, DestinationId destination, float y0, float xMin, float xMax, Color lightColor)
         {
             float span = xMax - xMin;
@@ -430,6 +433,205 @@ namespace FloorF.Rendering
                     P("Crate", 0.3f, 1.0f, 1.0f, 1.0f, zBack, wood);
                     break;
             }
+        }
+
+        // ------------------------------------------------------------------ Kenney props
+
+        /// <summary>One placed prop (for tests/inspection): catalog mesh or swatch-cube name + world-space bounds.</summary>
+        public readonly struct PropInfo
+        {
+            public readonly string Name;
+            public readonly Bounds Bounds;
+            public PropInfo(string name, Bounds bounds) { Name = name; Bounds = bounds; }
+        }
+
+        /// <summary>Left edge of the widest possible floor sign (sign plates sit just left of the shaft).</summary>
+        public float SignZoneLeftX
+        {
+            get
+            {
+                int digits = Mathf.Max(1, layout.FloorCount.ToString().Length);
+                float sw = PixelFont.Measure(new string('8', digits), 1).x * signTexel;
+                return layout.ShaftX - ShaftHalfWidth - 0.35f - sw;
+            }
+        }
+
+        /// <summary>X range props may use: inside the left wall up to the sign zone (shaft and queue are to the right).</summary>
+        public float PropZoneMinX => layout.ShaftX - layout.FloorWidth * 0.5f + 0.3f;
+        public float PropZoneMaxX => SignZoneLeftX - 0.15f;
+
+        public IReadOnlyList<PropInfo> GetProps(FloorIndex floor) =>
+            floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].Props : (IReadOnlyList<PropInfo>)System.Array.Empty<PropInfo>();
+
+        /// <summary>The floor's merged prop renderer (one draw per floor), null in greybox mode.</summary>
+        public MeshRenderer GetPropRenderer(FloorIndex floor) =>
+            floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].PropRenderer : null;
+
+        /// <summary>
+        /// Kenney furniture/arcade dressing on the left half of a floor, all merged into ONE mesh with the shared atlas
+        /// material (props never move). Positions are authored for a 4.4-unit zone and squeezed if the zone is narrower.
+        /// Meshes face the camera (-Z) with a bottom-centre pivot; yaw +90 turns a prop to face -X.
+        /// </summary>
+        void BuildKenneyProps(Transform floorRoot, Floor entry, DestinationId destination, float y0)
+        {
+            var kenney = assets.Kenney;
+            float xMin = PropZoneMinX, xMax = PropZoneMaxX;
+            float squeeze = Mathf.Min(1f, (xMax - xMin) / 4.4f);
+            var parts = new List<CombineInstance>();
+            var names = new List<string>();
+
+            void Add(string name, Mesh mesh, Matrix4x4 m)
+            {
+                if (mesh == null) return;
+                // keep every prop inside the zone (never under the sign, never into the shaft)
+                var bb = TransformBounds(mesh.bounds, m);
+                float shift = bb.min.x < xMin ? xMin - bb.min.x : bb.max.x > xMax ? xMax - bb.max.x : 0f;
+                if (shift != 0f) m = Matrix4x4.Translate(new Vector3(shift, 0f, 0f)) * m;
+                parts.Add(new CombineInstance { mesh = mesh, transform = m });
+                names.Add(name);
+            }
+            // catalog mesh: x = centre from the zone's left edge, z = depth centre, uniform scale, yaw, lift (stacking)
+            void M(string mesh, float x, float z, float scale = 1f, float yaw = 0f, float lift = 0f)
+                => Add(mesh, kenney.FindProp(mesh), Matrix4x4.TRS(new Vector3(xMin + x * squeeze, y0 + lift, z), Quaternion.Euler(0f, yaw, 0f), Vector3.one * scale));
+            // swatch cube: bottom at lift
+            void C(string swatch, float x, float z, Vector3 size, float lift = 0f)
+                => Add("cube:" + swatch, assets.SwatchCube(swatch), Matrix4x4.TRS(new Vector3(xMin + x * squeeze, y0 + lift + size.y * 0.5f, z), Quaternion.identity, size));
+            float Top(string mesh, float scale = 1f) { var m = kenney.FindProp(mesh); return m != null ? m.bounds.size.y * scale : 0f; }
+
+            switch (destination.Value)
+            {
+                case "lobby":
+                    M("rugRectangle", 1.6f, 0.4f, 0.85f);
+                    M("pottedPlant", 0.25f, 1.3f, 0.9f);
+                    M("loungeSofa", 1.45f, 1.05f, 0.95f);
+                    M("desk", 3.35f, -0.2f, 1.05f);
+                    M("cash-register", 3.55f, -0.2f, 0.32f, 0f, Top("desk", 1.05f));
+                    M("lampRoundTable", 2.85f, -0.1f, 1.1f, 0f, Top("desk", 1.05f));
+                    M("plantSmall2", 4.2f, 1.5f, 2.2f);
+                    break;
+                case "restaurant":
+                    M("chairCushion", 0.25f, 0.4f, 1f, -90f);
+                    M("tableCloth", 1.2f, 0.4f, 1f);
+                    M("chairCushion", 2.15f, 0.4f, 1f, 90f);
+                    M("tableRound", 3.55f, 0.9f, 0.85f);
+                    M("chair", 3.55f, 1.75f, 1f, 180f);
+                    M("chair", 3.55f, 0.0f, 1f);
+                    C("gold", 1.2f, 0.4f, new Vector3(0.08f, 0.16f, 0.08f), Top("tableCloth"));
+                    break;
+                case "gym":
+                    // weight bench + barbell on uprights, dumbbell rack, primitive treadmill (no gym kit in the packs)
+                    M("bench", 1.0f, 0.2f, 1f);
+                    C("iron", 0.45f, 0.2f, new Vector3(0.08f, 1.25f, 0.08f));
+                    C("iron", 1.55f, 0.2f, new Vector3(0.08f, 1.25f, 0.08f));
+                    C("chrome", 1.0f, 0.2f, new Vector3(1.55f, 0.05f, 0.05f), 1.2f);
+                    C("iron", 0.33f, 0.2f, new Vector3(0.08f, 0.42f, 0.42f), 1.02f);
+                    C("iron", 1.67f, 0.2f, new Vector3(0.08f, 0.42f, 0.42f), 1.02f);
+                    C("iron", 2.55f, 1.4f, new Vector3(1.0f, 0.5f, 0.45f));
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float dx = 2.2f + i * 0.35f;
+                        C("chrome", dx, 1.25f, new Vector3(0.05f, 0.05f, 0.34f), 0.56f);
+                        C("iron", dx, 1.1f, new Vector3(0.14f, 0.14f, 0.07f), 0.52f);
+                        C("iron", dx, 1.4f, new Vector3(0.14f, 0.14f, 0.07f), 0.52f);
+                    }
+                    C("iron", 3.75f, 0.3f, new Vector3(1.1f, 0.16f, 0.62f));
+                    C("chrome", 4.2f, 0.3f, new Vector3(0.07f, 1.15f, 0.07f), 0.16f);
+                    C("screen", 4.15f, 0.3f, new Vector3(0.18f, 0.16f, 0.5f), 1.25f);
+                    break;
+                case "karaoke":
+                    M("dance-machine", 0.55f, 0.5f, 0.55f);
+                    M("speaker", 1.4f, 1.5f, 1f);
+                    M("televisionModern", 2.55f, 1.75f, 1f, 0f, 0.75f);
+                    C("neon", 2.55f, 1.92f, new Vector3(1.7f, 0.06f, 0.06f), 1.75f);
+                    M("speaker", 3.7f, 1.5f, 1f);
+                    M("loungeSofa", 2.55f, -0.2f, 0.8f);
+                    M("speakerSmall", 4.2f, 0.4f, 1f);
+                    break;
+                case "sauna":
+                    M("bathtub", 1.15f, 0.6f, 0.9f);
+                    M("shower", 2.85f, 1.3f, 1f);
+                    M("bench", 3.95f, 0.1f, 1f);
+                    C("stone", 3.95f, 1.4f, new Vector3(0.6f, 0.4f, 0.5f));
+                    C("coal", 3.95f, 1.4f, new Vector3(0.45f, 0.08f, 0.35f), 0.4f);
+                    C("towel", 1.15f, 0.05f, new Vector3(0.5f, 0.06f, 0.3f), Top("bathtub", 0.9f));
+                    break;
+                case "rooms":
+                    M("cabinetBedDrawerTable", 0.3f, 1.6f, 1f);
+                    M("lampRoundTable", 0.3f, 1.6f, 1f, 0f, Top("cabinetBedDrawerTable"));
+                    M("bedDouble", 1.45f, 0.85f, 0.85f);
+                    M("bedSingle", 3.25f, 0.85f, 0.85f);
+                    M("cabinetBedDrawerTable", 4.1f, 1.6f, 1f);
+                    M("lampRoundTable", 4.1f, 1.6f, 1f, 0f, Top("cabinetBedDrawerTable"));
+                    break;
+                case "bar":
+                    // shelf with bottles on the back wall, counter, stools in front
+                    C("bottle", 2.0f, 1.85f, new Vector3(2.8f, 0.06f, 0.25f), 1.35f);
+                    for (int i = 0; i < 7; i++) C(i % 2 == 0 ? "bottle" : "felt", 0.8f + i * 0.4f, 1.85f, new Vector3(0.12f, 0.3f, 0.12f), 1.41f);
+                    M("lampSquareFloor", 0.2f, 1.5f, 1f);
+                    M("kitchenBar", 1.0f, 0.55f, 1f);
+                    M("kitchenBar", 1.86f, 0.55f, 1f);
+                    M("kitchenBar", 2.72f, 0.55f, 1f);
+                    M("kitchenBarEnd", 3.25f, 0.55f, 1f);
+                    M("lampRoundTable", 2.72f, 0.55f, 0.9f, 0f, Top("kitchenBar"));
+                    M("stoolBar", 1.0f, -0.35f, 1f);
+                    M("stoolBar", 1.86f, -0.35f, 1f);
+                    M("stoolBar", 2.72f, -0.35f, 1f);
+                    break;
+                case "casino":
+                    M("gambling-machine", 0.5f, 1.25f, 0.75f);
+                    M("gambling-machine", 1.5f, 1.25f, 0.75f);
+                    M("prize-wheel", 2.65f, 1.45f, 0.75f);
+                    M("arcade-machine", 3.85f, 1.2f, 0.75f);
+                    // card table: felt top on a wooden base
+                    C("felt", 2.1f, -0.3f, new Vector3(1.5f, 0.08f, 0.8f), 0.66f);
+                    C("wood", 2.1f, -0.3f, new Vector3(1.3f, 0.66f, 0.6f));
+                    C("gold", 1.8f, -0.4f, new Vector3(0.12f, 0.08f, 0.12f), 0.74f);
+                    C("gold", 2.4f, -0.2f, new Vector3(0.12f, 0.12f, 0.12f), 0.74f);
+                    break;
+                case "rooftop":
+                    M("pottedPlant", 0.25f, 1.5f, 1.0f);
+                    M("plantSmall2", 0.75f, 1.6f, 2.6f);
+                    M("loungeChair", 1.6f, 0.2f, 1f);
+                    C("chrome", 2.35f, 0.4f, new Vector3(0.06f, 1.9f, 0.06f));
+                    C("umbrella", 2.35f, 0.4f, new Vector3(1.6f, 0.12f, 1.2f), 1.85f);
+                    M("loungeChair", 3.05f, 0.2f, 1f);
+                    M("bench", 4.0f, 1.4f, 1f);
+                    M("plantSmall1", 4.3f, 0.2f, 2.6f);
+                    break;
+                default:
+                    M("bookcaseOpenLow", 1.0f, 1.6f, 1f);
+                    M("plantSmall1", 2.0f, 1.6f, 2.5f);
+                    break;
+            }
+            if (parts.Count == 0) return;
+
+            var combined = assets.Own(new Mesh { name = "Props " + destination.Value });
+            int verts = 0;
+            foreach (var p in parts) verts += p.mesh.vertexCount;
+            if (verts > 65000) combined.indexFormat = IndexFormat.UInt32;
+            combined.CombineMeshes(parts.ToArray(), true, true);
+            var go = new GameObject("Props");
+            go.transform.SetParent(floorRoot, false);
+            go.AddComponent<MeshFilter>().sharedMesh = combined;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = kenney.Material;
+            r.shadowCastingMode = ShadowCastingMode.Off;
+            r.receiveShadows = false;
+            r.lightProbeUsage = LightProbeUsage.Off;
+            r.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            entry.PropRenderer = r;
+            var toWorld = go.transform.localToWorldMatrix;
+            for (int i = 0; i < parts.Count; i++)
+                entry.Props.Add(new PropInfo(names[i], TransformBounds(parts[i].mesh.bounds, toWorld * parts[i].transform)));
+        }
+
+        static Bounds TransformBounds(Bounds b, Matrix4x4 m)
+        {
+            var c = b.center; var e = b.extents;
+            var r = new Bounds(m.MultiplyPoint3x4(c), Vector3.zero);
+            for (int i = 0; i < 8; i++)
+                r.Encapsulate(m.MultiplyPoint3x4(c + new Vector3((i & 1) == 0 ? -e.x : e.x, (i & 2) == 0 ? -e.y : e.y, (i & 4) == 0 ? -e.z : e.z)));
+            return r;
         }
 
         void BuildRoofSign(float height)
