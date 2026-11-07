@@ -19,7 +19,8 @@ namespace FloorF.Audio
     /// <summary>
     /// Audio module root (one per Main scene, see AudioBootstrap). Subscribes to Contracts events only:
     /// SFX pool (2D, random pitch, per-cue spam guard) + two music sources (crossfade) whose level/pitch follow the phase,
-    /// the unlucky pitch dip, pause ducking, MasterVolume and the WebGL gesture lock. All timing uses unscaled time.
+    /// the unlucky pitch dip, pause / Day 0 coach-mark ducking, the lucky-streak ladder, the last-seconds clock ticks,
+    /// MasterVolume and the WebGL gesture lock. All timing uses unscaled time (the clock ticks follow the day clock).
     /// The AudioListener is on the scene's Main Camera.
     /// </summary>
     sealed class AudioRoot : MonoBehaviour
@@ -43,6 +44,7 @@ namespace FloorF.Audio
         readonly System.Random rng = new System.Random();
         readonly List<CueRecord> played = new List<CueRecord>();
         readonly MusicChannel[] music = new MusicChannel[2];
+        readonly CountdownTicker countdown = new CountdownTicker();
 
         AudioLibrary lib;
         AudioSource[] sfx;
@@ -56,6 +58,9 @@ namespace FloorF.Audio
         AudioUnlock unlock;
         float master = 1f;
         bool paused;
+        bool held;
+        /// <summary>Highest streak reached since the last StreakUp note (same-frame increases = one note, the top one).</summary>
+        int pendingStreak;
         DayPhase phase = DayPhase.None;
         EndingKind ending = EndingKind.None;
 
@@ -72,9 +77,10 @@ namespace FloorF.Audio
         internal float DuckGain => duck;
         internal float MasterVolume => master;
         internal bool Paused => paused;
+        internal bool TutorialHeld => held;
         internal bool DipActive => dip.Active;
         internal IReadOnlyList<AudioSource> SfxSources => sfx;
-        internal void ClearRecords() { played.Clear(); SuppressedCount = 0; throttle.Clear(); }
+        internal void ClearRecords() { played.Clear(); SuppressedCount = 0; throttle.Clear(); pendingStreak = 0; }
 
         internal bool TryGetLastPlayed(AudioCue cue, out CueRecord record)
         {
@@ -141,6 +147,8 @@ namespace FloorF.Audio
             subs.Add(bus.Subscribe<DayPhaseChanged>(OnPhaseChanged));
             subs.Add(bus.Subscribe<EndingReached>(OnEnding));
             subs.Add(bus.Subscribe<PauseChanged>(OnPause));
+            subs.Add(bus.Subscribe<LuckStreakChanged>(OnStreak));
+            subs.Add(bus.Subscribe<TutorialHoldChanged>(e => held = e.Held));
             subs.Add(bus.Subscribe<SettingsChanged>(e => SetMaster(e.MasterVolume)));
             subs.Add(bus.Subscribe<UiSound>(e => Play(e.Kind == UiSoundKind.Error ? AudioCue.Error : e.Kind == UiSoundKind.Confirm ? AudioCue.DayStart : AudioCue.UiClick)));
         }
@@ -151,6 +159,7 @@ namespace FloorF.Audio
         {
             if (GameServices.TryGet<IGameSettings>(out var settings)) SetMaster(settings.MasterVolume);
             if (GameServices.TryGet<IMenuFlow>(out var menu)) paused = menu.IsPaused;
+            if (GameServices.TryGet<IGameFlow>(out var flow)) held = flow.TutorialHold;
             if (GameServices.TryGet<IDayQuery>(out var day)) { phase = day.Phase; ending = day.Ending; }
             if (spec.Track == MusicTrack.None) SetMusic(AudioRules.MusicFor(phase, ending));
         }
@@ -158,7 +167,27 @@ namespace FloorF.Audio
         void Update()
         {
             if (unlock.Poll()) OnUnlocked();
+            if (GameServices.TryGet<IDayQuery>(out var day)) TickCountdown(day.Phase, day.IsTutorial, day.RemainingSeconds);
             UpdateMusic(Time.unscaledTime, Time.unscaledDeltaTime);
+        }
+
+        /// <summary>After every Update (Core ticks in Gameplay's Update): one StreakUp note for this frame's increases.</summary>
+        void LateUpdate() => FlushStreak();
+
+        internal void FlushStreak()
+        {
+            if (pendingStreak <= 0) return;
+            int streak = pendingStreak;
+            pendingStreak = 0;
+            Play(AudioCue.StreakUp, 1f, AudioRules.StreakPitch(streak, lib.streakSemitoneStep, lib.streakMaxSemitones));
+        }
+
+        /// <summary>Last-seconds ticks: real days only (no tutorial, no title demo - its visible phase is Title), not paused.</summary>
+        internal void TickCountdown(DayPhase visiblePhase, bool tutorial, float remaining)
+        {
+            int window = lib.clockTickSeconds;
+            int sec = countdown.Step(visiblePhase == DayPhase.Running, paused || tutorial, remaining, window);
+            if (sec > 0) Play(AudioCue.ClockTick, 1f, AudioRules.ClockTickPitch(sec, window, lib.clockTickRise));
         }
 
         // ------------------------------------------------------------------ events
@@ -170,10 +199,25 @@ namespace FloorF.Audio
             if (cue == AudioCue.Unlucky && !paused) dip.Trigger(Time.unscaledTime);
         }
 
+        void OnStreak(LuckStreakChanged e)
+        {
+            switch (AudioEventMap.For(e))
+            {
+                case AudioCue.StreakUp:
+                    pendingStreak = Mathf.Max(pendingStreak, e.Streak);
+                    break;
+                case AudioCue.StreakBroken:
+                    pendingStreak = 0;
+                    Play(AudioCue.StreakBroken);
+                    break;
+            }
+        }
+
         void OnPhaseChanged(DayPhaseChanged e)
         {
             if (AudioRules.IsPlayerDrivenTransition(e.Previous, e.Current)) Unlock();
             phase = e.Current;
+            if (phase != DayPhase.Running) held = false; // leaving Running always releases the coach-mark hold
             if (phase == DayPhase.Ending && GameServices.TryGet<IDayQuery>(out var day)) ending = day.Ending;
             else if (phase != DayPhase.Ending) ending = EndingKind.None;
             SetMusic(AudioRules.MusicFor(phase, ending));
@@ -215,7 +259,10 @@ namespace FloorF.Audio
 
         // ------------------------------------------------------------------ SFX
 
-        internal void Play(AudioCue cue, float scale = 1f)
+        /// <param name="exactPitch">
+        /// &gt; 0: play at def.pitch x this, WITHOUT the random jitter (pitch ladders: streak, clock ticks). 0 = jittered.
+        /// </param>
+        internal void Play(AudioCue cue, float scale = 1f, float exactPitch = 0f)
         {
             if (cue == AudioCue.None) return;
             if (!unlock.IsUnlocked || paused) { SuppressedCount++; return; }
@@ -225,7 +272,7 @@ namespace FloorF.Audio
             if (!throttle.TryConsume(cue, now, def.minInterval)) return;
             var clip = def.clips[rng.Next(def.clips.Length)];
             if (clip == null) return;
-            float pitch = AudioRules.PickPitch(def.pitch, def.pitchJitter, rng);
+            float pitch = exactPitch > 0f ? def.pitch * exactPitch : AudioRules.PickPitch(def.pitch, def.pitchJitter, rng);
             float vol = def.volume * scale * (phase == DayPhase.Title ? lib.titleSfxScale : 1f);
             PlayVoice(clip, vol, pitch);
             if (def.layer != null) PlayVoice(def.layer, vol * def.layerVolume, pitch);
@@ -285,7 +332,7 @@ namespace FloorF.Audio
 
         void UpdateMusic(float now, float dt)
         {
-            duck = Mathf.MoveTowards(duck, paused ? AudioRules.DbToLinear(lib.pauseDuckDb) : 1f, dt * 4f);
+            duck = Mathf.MoveTowards(duck, AudioRules.DuckTarget(paused, held, lib.pauseDuckDb, lib.holdDuckDb), dt * 4f);
             basePitch = Mathf.MoveTowards(basePitch, spec.Pitch, dt * 0.5f);
             float pitch = basePitch * dip.Evaluate(now, lib.dipPitch, lib.dipDownSeconds, lib.dipUpSeconds);
             float fadeStep = dt / Mathf.Max(0.01f, lib.crossfadeSeconds);

@@ -230,6 +230,148 @@ namespace FloorF.Tests.PlayMode.Audio
         }
 
         [UnityTest]
+        public IEnumerator MainMusic_IsTheBlondPandaLoop()
+        {
+            yield return LoadMain();
+            var root = Root();
+            yield return new WaitForSecondsRealtime(0.3f);
+            Assert.AreEqual(MusicTrack.Elevator, root.CurrentTrack);
+            Assert.AreSame(root.Library.Find(MusicTrack.Elevator).clip, root.MusicSource.clip);
+            StringAssert.Contains("blondpanda", root.MusicSource.clip.name);
+            Assert.IsTrue(root.MusicSource.loop, "looping");
+            Assert.IsTrue(root.MusicStarted);
+        }
+
+        [UnityTest]
+        public IEnumerator Streak_ClimbsInSemitonesThenCaps_AndBreaksWithADeflate()
+        {
+            yield return LoadMain();
+            var root = Root();
+            root.ClearRecords();
+            var bus = GameServices.Events;
+            var def = root.Library.Find(AudioCue.StreakUp);
+            float semitone = Mathf.Pow(2f, 1f / 12f);
+            float prev = 0f;
+            for (int s = 1; s <= 10; s++)
+            {
+                bus.Publish(new LuckStreakChanged(s, s - 1, 1f + 0.1f * s));
+                yield return null; // flushed in LateUpdate
+                Assert.IsTrue(root.TryGetLastPlayed(AudioCue.StreakUp, out var rec), "streak " + s + " note");
+                Assert.AreEqual(s, CountOf(root, AudioCue.StreakUp), "one note per step");
+                CollectionAssert.Contains(def.clips, rec.Clip);
+                float expected = def.pitch * Mathf.Pow(2f, Mathf.Min(s - 1, 7) / 12f);
+                Assert.AreEqual(expected, rec.Pitch, 1e-3f, "streak " + s + " exact pitch (no jitter)");
+                if (s >= 2 && s <= 8) Assert.AreEqual(prev * semitone, rec.Pitch, 1e-3f, "+1 semitone at " + s);
+                if (s > 8) Assert.AreEqual(prev, rec.Pitch, 1e-4f, "capped at +7");
+                prev = rec.Pitch;
+                yield return new WaitForSecondsRealtime(def.minInterval + 0.02f);
+            }
+
+            // several guests judged lucky in one frame: one note, at the top step
+            root.ClearRecords();
+            bus.Publish(new LuckStreakChanged(1, 0, 1.1f));
+            bus.Publish(new LuckStreakChanged(2, 1, 1.2f));
+            bus.Publish(new LuckStreakChanged(3, 2, 1.3f));
+            yield return null;
+            Assert.AreEqual(1, CountOf(root, AudioCue.StreakUp), "same frame -> one note");
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.StreakUp, out var top));
+            Assert.AreEqual(def.pitch * semitone * semitone, top.Pitch, 1e-3f, "the highest step");
+
+            yield return new WaitForSecondsRealtime(0.2f);
+            bus.Publish(new LuckStreakChanged(0, 0, 1f));
+            yield return null;
+            Assert.IsFalse(root.TryGetLastPlayed(AudioCue.StreakBroken, out _), "0 -> 0 is no break");
+            bus.Publish(new LuckStreakChanged(0, 3, 1f));
+            yield return null;
+            AssertCuePlayed(root, AudioCue.StreakBroken);
+            Assert.Less(root.Library.Find(AudioCue.StreakBroken).pitch, 1f, "deflate = slid down");
+            Assert.AreEqual(1, CountOf(root, AudioCue.StreakUp), "a break plays no climb note");
+        }
+
+        [UnityTest]
+        public IEnumerator RealDay_LastTenSeconds_TickOncePerSecond_NotWhilePaused()
+        {
+            yield return LoadMain();
+            var root = Root();
+            var flow = GameServices.Get<IGameFlow>();
+            var day = GameServices.Get<IDayQuery>();
+            if (day.IsTutorial) Assert.IsTrue(flow.SkipTutorial(), "skip the Day 0 training shift");
+            yield return null;
+            Assert.IsTrue(flow.BeginDay(), "BeginDay");
+            Assert.IsFalse(day.IsTutorial, "a real day");
+            Time.timeScale = 6f;
+            float until = Time.realtimeSinceStartup + 40f;
+            while (Time.realtimeSinceStartup < until && day.RemainingSeconds > 11f) yield return null;
+            Time.timeScale = 1f;
+            Assert.AreEqual(DayPhase.Running, day.Phase);
+            Assert.IsFalse(root.TryGetLastPlayed(AudioCue.ClockTick, out _), "no ticks before the last 10 s");
+            root.ClearRecords();
+
+            while (Time.realtimeSinceStartup < until && day.RemainingSeconds > 7.6f) yield return null;
+            Assert.AreEqual(3, CountOf(root, AudioCue.ClockTick), "10, 9, 8");
+            float last = 0f;
+            foreach (var r in root.Played)
+                if (r.Cue == AudioCue.ClockTick) { Assert.Greater(r.Pitch, last, "rising"); last = r.Pitch; }
+
+            Assert.IsTrue(GameServices.Get<IMenuFlow>().SetPaused(true), "pause");
+            yield return new WaitForSecondsRealtime(1.3f);
+            Assert.AreEqual(3, CountOf(root, AudioCue.ClockTick), "no ticks while paused");
+            Assert.IsTrue(GameServices.Get<IMenuFlow>().SetPaused(false), "resume");
+            while (Time.realtimeSinceStartup < until && day.RemainingSeconds > 6.6f) yield return null;
+            Assert.AreEqual(4, CountOf(root, AudioCue.ClockTick), "7 after resume, no late/double tick");
+        }
+
+        [UnityTest]
+        public IEnumerator Countdown_SilentOnTutorialAndTitleDemo()
+        {
+            // Day 0: the clock never runs down, and the tutorial flag silences ticks on its own
+            yield return LoadMain();
+            var root = Root();
+            Assert.IsTrue(GameServices.Get<IDayQuery>().IsTutorial, "data starts with the Day 0 shift");
+            Assert.IsTrue(GameServices.Get<IGameFlow>().BeginDay());
+            yield return new WaitForSecondsRealtime(0.5f);
+            root.ClearRecords();
+            root.TickCountdown(DayPhase.Running, tutorial: true, remaining: 9.5f);
+            Assert.IsFalse(root.TryGetLastPlayed(AudioCue.ClockTick, out _), "tutorial: no tick");
+            yield return null;
+
+            // title screen: the demo's visible phase is Title
+            yield return LoadMain(title: true);
+            root = Root();
+            root.ClearRecords();
+            root.TickCountdown(DayPhase.Title, tutorial: false, remaining: 9.5f);
+            Assert.IsFalse(root.TryGetLastPlayed(AudioCue.ClockTick, out _), "title demo: no tick");
+            yield return new WaitForSecondsRealtime(2f);
+            Assert.IsFalse(root.TryGetLastPlayed(AudioCue.ClockTick, out _), "title demo running: no tick");
+            root.TickCountdown(DayPhase.Running, tutorial: false, remaining: 9.5f);
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.ClockTick, out _), "control: a real Running clock does tick");
+        }
+
+        [UnityTest]
+        public IEnumerator TutorialHold_DucksMusicLighterThanPause()
+        {
+            yield return LoadMain();
+            var root = Root();
+            Assert.IsTrue(GameServices.Get<IGameFlow>().BeginDay());
+            yield return new WaitForSecondsRealtime(1.6f);
+            float loud = root.UnduckedMusicVolume;
+            Assert.Greater(loud, 0.02f, "music audible");
+            Assert.AreEqual(1f, root.DuckGain, 0.01f);
+
+            GameServices.Events.Publish(new TutorialHoldChanged(true));
+            yield return new WaitForSecondsRealtime(0.4f);
+            Assert.IsTrue(root.TutorialHeld);
+            Assert.AreEqual(AudioRules.DbToLinear(-6f), root.DuckGain, 0.01f, "-6 dB while the coach marks hold");
+            Assert.LessOrEqual(root.MusicSource.volume, loud * 0.52f, "music ducked");
+            Assert.Greater(root.MusicSource.volume, loud * 0.2f, "lighter than the pause duck");
+
+            GameServices.Events.Publish(new TutorialHoldChanged(false));
+            yield return new WaitForSecondsRealtime(0.4f);
+            Assert.IsFalse(root.TutorialHeld);
+            Assert.AreEqual(1f, root.DuckGain, 0.01f, "restored on release");
+        }
+
+        [UnityTest]
         public IEnumerator WebGLLock_ReservesMusicUntilPlayerStarts()
         {
             AudioUnlock.RequireGestureOverride = true;
