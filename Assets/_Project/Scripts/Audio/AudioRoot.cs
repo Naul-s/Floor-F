@@ -142,6 +142,7 @@ namespace FloorF.Audio
             subs.Add(bus.Subscribe<EndingReached>(OnEnding));
             subs.Add(bus.Subscribe<PauseChanged>(OnPause));
             subs.Add(bus.Subscribe<SettingsChanged>(e => SetMaster(e.MasterVolume)));
+            subs.Add(bus.Subscribe<UiSound>(e => Play(e.Kind == UiSoundKind.Error ? AudioCue.Error : e.Kind == UiSoundKind.Confirm ? AudioCue.DayStart : AudioCue.UiClick)));
         }
 
         void OnDisable() => subs.Clear();
