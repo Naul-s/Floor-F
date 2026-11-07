@@ -359,7 +359,7 @@ namespace FloorF.Tests.PlayMode.UI
         }
     }
 
-    /// <summary>Phase 3a: day-1 tutorial prompts, title, pause/settings, sign-column avoidance, badges, ending card.</summary>
+    /// <summary>Phase 3a: title, pause/settings, sign-column avoidance, badges, ending card (Day 0 lesson: UIDay0Tests).</summary>
     public class UIMenuTutorialTests
     {
         [UnityTearDown]
@@ -379,109 +379,7 @@ namespace FloorF.Tests.PlayMode.UI
             yield return null;
         }
 
-        [UnityTest]
-        public IEnumerator TutorialPrompts_FollowDay1Flow()
-        {
-            Assert.Ignore("ui-dev rewrites for Day 0"); // the Day 0 training shift replaced the old day-1 tutorial flow
-            GameplayRoot.SeedOverride = 7;
-            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
-            yield return UITestDriver.LoadMain();
-            var ui = UITestDriver.UI();
-            var elevator = GameServices.Get<IElevatorQuery>();
-            var guests = GameServices.Get<IGuestQuery>();
-            Assert.IsTrue(GameServices.Get<IGameSettings>().ShowTutorialHints, "hints on by default");
-            Assert.IsTrue(GameServices.Get<IDayQuery>().IsTutorial, "day 1 is the tutorial");
-            Assert.IsNull(ui.TutorialPrompt, "no prompt on the intro card");
-            yield return UITestDriver.ClickStart();
-            yield return BoardLobbyGuests(ui);
-
-            // 1. guests waiting where the car is -> OPEN
-            Assert.AreEqual(TutorialView.Step.Board, ui.TutorialStep);
-            StringAssert.Contains("OPEN", ui.TutorialPrompt);
-            StringAssert.Contains("floor 1", ui.TutorialPrompt);
-            Assert.AreEqual("Open", ui.TutorialTarget, "arrow + outline on the OPEN button");
-            ui.ClickOpen();
-            yield return UITestDriver.Until(() => elevator.Occupancy >= 3);
-            Assert.AreEqual(3, elevator.Occupancy);
-            yield return null;
-
-            // 2. riders inside, doors open -> CLOSE (head count)
-            Assert.AreEqual(TutorialView.Step.Close, ui.TutorialStep);
-            StringAssert.Contains("CLOSE", ui.TutorialPrompt);
-            StringAssert.Contains("HEAD COUNT", ui.TutorialPrompt);
-            Assert.AreEqual("Close", ui.TutorialTarget);
-            ui.ClickClose();
-            yield return UITestDriver.Until(() => elevator.Doors == DoorState.Closed);
-            yield return null;
-
-            // first LuckJudged (grandma: 3 people is lucky) -> the "why" card
-            Assert.IsNotNull(ui.TutorialWhy, "first judgement explained");
-            StringAssert.Contains("LUCKY", ui.TutorialWhy);
-            StringAssert.Contains("3", ui.TutorialWhy);
-
-            // 3. doors closed with riders -> press the destination floor
-            Assert.AreEqual(TutorialView.Step.Floor, ui.TutorialStep);
-            Assert.IsTrue(guests.TryGet(elevator.Riders[0], out var first));
-            var dest = first.DestinationFloor;
-            string label = GameServices.Get<IBuildingQuery>().GetLabel(dest).Text;
-            StringAssert.Contains("floor " + label, ui.TutorialPrompt);
-            Assert.AreEqual("Floor " + dest.PhysicalNumber, ui.TutorialTarget, "arrow on the first rider's floor button");
-            ui.ClickFloor(dest.Value);
-            yield return UITestDriver.Until(() => elevator.Motion == ElevatorMotion.Idle && elevator.CurrentFloor == dest && !elevator.HasTarget);
-            Assert.AreEqual(dest, elevator.CurrentFloor, "arrived");
-            yield return null;
-
-            // 4. arrived, doors closed -> OPEN (floor number)
-            Assert.AreEqual(TutorialView.Step.OpenThere, ui.TutorialStep);
-            StringAssert.Contains("FLOOR", ui.TutorialPrompt);
-            Assert.AreEqual("Open", ui.TutorialTarget);
-            int opened = 0;
-            using (GameServices.Events.Subscribe<DoorsOpened>(e => opened++))
-            {
-                ui.ClickOpen();
-                yield return UITestDriver.Until(() => opened > 0);
-            }
-            yield return null;
-            Assert.AreEqual(TutorialView.Step.Done, ui.TutorialStep);
-            StringAssert.Contains("tips", ui.TutorialPrompt);
-            Assert.IsNull(ui.TutorialTarget, "wrap-up line has no arrow");
-
-            // passed steps never come back, the wrap-up fades
-            Time.captureDeltaTime = 0.1f;
-            for (int i = 0; i < 80; i++)
-            {
-                yield return null;
-                var p = ui.TutorialPrompt;
-                if (p != null) StringAssert.DoesNotContain("waiting", p, "frame " + i);
-                if (p != null) StringAssert.DoesNotContain("CLOSE", p, "frame " + i);
-            }
-            Time.captureDeltaTime = 0f;
-            Assert.AreEqual(TutorialView.Step.Finished, ui.TutorialStep);
-            Assert.IsNull(ui.TutorialPrompt);
-        }
-
-        [UnityTest]
-        public IEnumerator TutorialHints_Off_HidesPrompts()
-        {
-            Assert.Ignore("ui-dev rewrites for Day 0"); // the Day 0 training shift replaced the old day-1 tutorial flow
-            GameplayRoot.SeedOverride = 7;
-            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
-            yield return UITestDriver.LoadMain();
-            var ui = UITestDriver.UI();
-            var settings = GameServices.Get<IGameSettings>();
-            settings.ShowTutorialHints = false;
-            yield return UITestDriver.ClickStart();
-            yield return BoardLobbyGuests(ui);
-            for (int i = 0; i < 5; i++)
-            {
-                yield return null;
-                Assert.IsNull(ui.TutorialPrompt, "hints off: no prompt");
-                Assert.IsNull(ui.TutorialTarget, "hints off: no arrow");
-            }
-            settings.ShowTutorialHints = true;
-            yield return null;
-            StringAssert.Contains("OPEN", ui.TutorialPrompt, "hints back on: the current step shows");
-        }
+        // the old day-1 prompt tests became the Day 0 lesson tests: UIDay0Tests / UIDay0CaptureTests
 
         /// <summary>Canvas x-range covered by Rendering's floor-sign plates ("Sign n" objects).</summary>
         static bool SignColumn(UIRoot ui, out float minX, out float maxX)
@@ -598,8 +496,10 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsFalse(ui.TitleVisible);
             Assert.AreEqual(DayPhase.Intro, ui.VisibleFlowScreen);
             StringAssert.Contains("Day 0", ui.FlowTitle);
+            Assert.IsTrue(ui.SkipTutorialVisible, "Day 0 intro offers SKIP TUTORIAL");
             yield return UITestDriver.ClickStart();
-            // (tutorial step assertion removed: ui-dev rewrites TutorialView for the Day 0 lessons)
+            Assert.AreEqual(0, ui.TutorialWave, "fresh lesson after the demo");
+            Assert.IsNull(ui.TutorialPrompt, "nothing to say before the first guest");
         }
 
         [UnityTest]
@@ -689,7 +589,7 @@ namespace FloorF.Tests.PlayMode.UI
         }
     }
 
-    /// <summary>L2 captures of the title, tutorial, pause and ending (run with -Filter Capture).</summary>
+    /// <summary>L2 captures of the title, credits, pause and ending (run with -Filter Capture). Day 0: UIDay0CaptureTests.</summary>
     public class UIMenuCaptureTests
     {
         [UnityTearDown]
@@ -726,18 +626,12 @@ namespace FloorF.Tests.PlayMode.UI
 
             ui.ClickTitleStart();
             yield return null;
+            // the Day 0 lesson has its own captures (UIDay0CaptureTests): skip to Day 1 here
+            Assert.IsTrue(ui.SkipTutorialVisible);
+            ui.ClickSkipTutorial();
+            yield return null;
             yield return UITestDriver.ClickStart();
-            var elevator = GameServices.Get<IElevatorQuery>();
-            var guests = GameServices.Get<IGuestQuery>();
-            var waiting = new System.Collections.Generic.List<GuestId>();
-            yield return UITestDriver.Until(() => guests.GetWaiting(FloorIndex.Ground, waiting) >= 3);
-            ui.ClickOpen();
-            yield return UITestDriver.Until(() => elevator.Occupancy >= 3);
-            ui.ClickClose();
-            yield return UITestDriver.Until(() => elevator.Doors == DoorState.Closed);
-            yield return UITestDriver.Frames(2);
-            Assert.IsNotNull(ui.TutorialPrompt, "floor prompt");
-            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_tutorial" + suffix)));
+            yield return UITestDriver.Until(() => false, 20);
 
             ui.ClickPauseButton();
             yield return UITestDriver.Frames(2);

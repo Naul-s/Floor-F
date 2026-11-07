@@ -9,7 +9,7 @@ using UnityEngine.TestTools;
 
 namespace FloorF.Tests.PlayMode.UI
 {
-    /// <summary>Phase 3c QA fixes: tutorial CLOSE/OPEN timing, bubble de-overlap, shop readability, curated badge names.</summary>
+    /// <summary>Phase 3c QA fixes: bubble de-overlap, shop readability, curated badge names (tutorial timing: UIDay0Tests).</summary>
     public class UIQaFixTests
     {
         [UnityTearDown]
@@ -41,110 +41,8 @@ namespace FloorF.Tests.PlayMode.UI
             return false;
         }
 
-        [UnityTest]
-        public IEnumerator TutorialClose_WaitsForAllBoardable()
-        {
-            Assert.Ignore("ui-dev rewrites for Day 0"); // the Day 0 training shift replaced the old day-1 tutorial flow
-            yield return StartDay1();
-            var ui = UITestDriver.UI();
-            var elevator = GameServices.Get<IElevatorQuery>();
-            var guests = GameServices.Get<IGuestQuery>();
-            var waiting = new List<GuestId>();
-            ui.ClickOpen();
-            int halfBoarded = 0;
-            Time.captureDeltaTime = 0.05f;
-            for (int i = 0; i < 300 && elevator.Occupancy < 3; i++)
-            {
-                yield return null;
-                bool someoneLeft = guests.GetWaiting(FloorIndex.Ground, waiting) > 0 || AnyBoarding(guests);
-                if (!someoneLeft) continue;
-                if (elevator.Occupancy > 0) halfBoarded++;
-                Assert.AreNotEqual("Close", ui.TutorialTarget, "frame " + i + ": CLOSE while guests are still getting in (occupancy " + elevator.Occupancy + ")");
-                if (ui.TutorialPrompt != null) StringAssert.DoesNotContain("CLOSE", ui.TutorialPrompt, "frame " + i);
-            }
-            Time.captureDeltaTime = 0f;
-            Assert.Greater(halfBoarded, 0, "the car was seen half-boarded");
-            Assert.AreEqual(3, elevator.Occupancy, "all three got in");
-            yield return null;
-            Assert.AreEqual(TutorialView.Step.Close, ui.TutorialStep);
-            Assert.AreEqual("Close", ui.TutorialTarget, "everyone in -> CLOSE");
-            StringAssert.Contains("HEAD COUNT", ui.TutorialPrompt);
-        }
-
-        [UnityTest]
-        public IEnumerator TutorialOpen_OnlyAtRiderDestination()
-        {
-            Assert.Ignore("ui-dev rewrites for Day 0"); // the Day 0 training shift replaced the old day-1 tutorial flow
-            yield return StartDay1();
-            var ui = UITestDriver.UI();
-            var elevator = GameServices.Get<IElevatorQuery>();
-            var guests = GameServices.Get<IGuestQuery>();
-            var building = GameServices.Get<IBuildingQuery>();
-            ui.ClickOpen();
-            yield return UITestDriver.Until(() => elevator.Occupancy >= 3);
-            yield return null;
-            ui.ClickClose();
-            yield return UITestDriver.Until(() => elevator.Doors == DoorState.Closed);
-            yield return null;
-            Assert.AreEqual(TutorialView.Step.Floor, ui.TutorialStep);
-
-            // a floor nobody wants and nobody minds (no lucky/unlucky number for any rider)
-            var dests = new HashSet<int>();
-            var riders = new List<GuestInfo>();
-            foreach (var r in elevator.Riders) { Assert.IsTrue(guests.TryGet(r, out var info)); riders.Add(info); dests.Add(info.DestinationFloor.Value); }
-            int wrong = -1;
-            for (int f = 1; f < building.FloorCount && wrong < 0; f++)
-            {
-                if (dests.Contains(f)) continue;
-                bool neutral = true;
-                foreach (var r in riders) if (r.Luck.Judge(new FloorIndex(f).PhysicalNumber) != LuckVerdict.Neutral) neutral = false;
-                if (neutral) wrong = f;
-            }
-            Assert.GreaterOrEqual(wrong, 1, "found a floor that is nobody's stop");
-            var wrongFloor = new FloorIndex(wrong);
-
-            ui.ClickFloor(wrong);
-            yield return UITestDriver.Until(() => elevator.Motion == ElevatorMotion.Idle && elevator.CurrentFloor == wrongFloor && !elevator.HasTarget);
-            Assert.AreEqual(wrongFloor, elevator.CurrentFloor, "stopped at the wrong floor");
-            yield return null;
-            Assert.AreEqual(TutorialView.Step.OpenThere, ui.TutorialStep);
-            Assert.IsNotNull(ui.TutorialPrompt, "a gentle hint, not silence");
-            StringAssert.DoesNotContain("Arrived", ui.TutorialPrompt, "not anyone's stop");
-            StringAssert.Contains("anyone's stop", ui.TutorialPrompt);
-            Assert.AreNotEqual("Open", ui.TutorialTarget, "no arrow on OPEN at the wrong floor");
-            StringAssert.StartsWith("Floor ", ui.TutorialTarget, "arrow on a rider's floor button instead");
-            int pointed = int.Parse(ui.TutorialTarget.Substring(6));
-            Assert.IsTrue(dests.Contains(pointed - 1), "points at a rider's destination, got " + ui.TutorialTarget);
-
-            // opening here (counts the floor, but it is not their stop) does not finish the step
-            int opened = 0;
-            using (GameServices.Events.Subscribe<DoorsOpened>(e => opened++))
-            {
-                ui.ClickOpen();
-                yield return UITestDriver.Until(() => opened > 0);
-            }
-            yield return null;
-            Assert.AreEqual(TutorialView.Step.OpenThere, ui.TutorialStep, "wrong-floor OPEN is not the lesson");
-            ui.ClickClose();
-            yield return UITestDriver.Until(() => elevator.Doors == DoorState.Closed);
-            yield return null;
-
-            var dest = new FloorIndex(pointed - 1);
-            ui.ClickFloor(dest.Value);
-            yield return UITestDriver.Until(() => elevator.Motion == ElevatorMotion.Idle && elevator.CurrentFloor == dest && !elevator.HasTarget);
-            yield return null;
-            Assert.AreEqual(TutorialView.Step.OpenThere, ui.TutorialStep);
-            StringAssert.Contains("Arrived", ui.TutorialPrompt, "at a rider's stop");
-            Assert.AreEqual("Open", ui.TutorialTarget);
-            opened = 0;
-            using (GameServices.Events.Subscribe<DoorsOpened>(e => opened++))
-            {
-                ui.ClickOpen();
-                yield return UITestDriver.Until(() => opened > 0);
-            }
-            yield return null;
-            Assert.AreEqual(TutorialView.Step.Done, ui.TutorialStep);
-        }
+        // TutorialClose_WaitsForAllBoardable / TutorialOpen_OnlyAtRiderDestination became Day 0 lesson tests:
+        // UIDay0CaptureTests (wave 2 waits for all three) and UIDay0Tests.Day0_WrongFloor_SaysNotTheirStop.
 
         /// <summary>Canvas x-range covered by Rendering's floor-sign plates ("Sign n" objects).</summary>
         static bool SignColumn(UIRoot ui, out float minX, out float maxX)

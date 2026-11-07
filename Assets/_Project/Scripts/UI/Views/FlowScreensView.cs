@@ -16,8 +16,9 @@ namespace FloorF.UI
         readonly UIContext ctx;
         readonly RectTransform dim, card;
         readonly TextMeshProUGUI title, body, extra;
-        readonly UIBuild.ButtonParts action, toTitle;
+        readonly UIBuild.ButtonParts action, toTitle, skip;
         DayPhase shown = (DayPhase)(-1);
+        int shownDay = -1;
 
         public FlowScreensView(UIContext ctx, RectTransform canvas)
         {
@@ -57,6 +58,11 @@ namespace FloorF.UI
             toTitle.Label.color = UIStyle.Ink;
             toTitle.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
             toTitle.Rect.gameObject.SetActive(false);
+            // Day 0 intro only: straight to Day 1 (IGameFlow.SkipTutorial)
+            skip = UIBuild.Button("SkipTutorial", row, "", 24f, UIStyle.Btn, OnSkip);
+            skip.Label.color = UIStyle.Ink;
+            skip.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 2f; // as wide as START: the label stays at 24px
+            skip.Rect.gameObject.SetActive(false);
 
             dim.gameObject.SetActive(false);
         }
@@ -80,6 +86,13 @@ namespace FloorF.UI
             ctx.Sound(ok ? UiSoundKind.Confirm : UiSoundKind.Error);
         }
 
+        void OnSkip()
+        {
+            bool ok = ctx.Flow != null && ctx.Flow.SkipTutorial();
+            ctx.Sound(ok ? UiSoundKind.Confirm : UiSoundKind.Error);
+            if (ok) Show(ctx.Day.Phase); // Intro -> Intro: the next day's card
+        }
+
         void OnTitle()
         {
             ctx.Sound(UiSoundKind.Click);
@@ -87,6 +100,10 @@ namespace FloorF.UI
         }
 
         public void Click() => action.Button.onClick.Invoke();
+        public void ClickSkip() => skip.Button.onClick.Invoke();
+        public string SkipText => skip.Label.text;
+        public float SkipFontSize => skip.Label.fontSize;
+        public bool SkipVisible => dim.gameObject.activeSelf && skip.Rect.gameObject.activeSelf;
         public void ClickTitle() => toTitle.Button.onClick.Invoke();
         public bool TitleButtonVisible => dim.gameObject.activeSelf && toTitle.Rect.gameObject.activeSelf;
         public string ActionText => action.Label.text;
@@ -94,8 +111,16 @@ namespace FloorF.UI
         public void Tick()
         {
             var phase = ctx.HasGame ? ctx.Day.Phase : DayPhase.None;
-            if (phase == shown) return;
+            if (SkipVisible && !(ctx.Paused) && TabPressed()) { OnSkip(); return; }
+            int day = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
+            if (phase == shown && day == shownDay) return; // SkipTutorial is Intro -> Intro on another day
             Show(phase);
+        }
+
+        static bool TabPressed()
+        {
+            var kb = UnityEngine.InputSystem.Keyboard.current;
+            return kb != null && kb.tabKey.wasPressedThisFrame;
         }
 
         public void Refresh() => Show(shown);
@@ -103,6 +128,7 @@ namespace FloorF.UI
         void Show(DayPhase phase)
         {
             shown = phase;
+            shownDay = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
             bool modal = phase == DayPhase.Intro || phase == DayPhase.Summary || phase == DayPhase.Ending;
             dim.gameObject.SetActive(modal);
             if (!modal) return;
@@ -110,6 +136,9 @@ namespace FloorF.UI
             title.color = UIStyle.Lucky;
             toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
             toTitle.Label.text = ctx.S(UIStrings.ToTitle);
+            bool canSkip = phase == DayPhase.Intro && ctx.Day.IsTutorial && ctx.Flow != null;
+            skip.Rect.gameObject.SetActive(canSkip);
+            if (canSkip) skip.Label.text = ctx.S(UIStrings.SkipTutorial);
             switch (phase)
             {
                 case DayPhase.Intro: FillIntro(ko); break;
@@ -117,6 +146,7 @@ namespace FloorF.UI
                 case DayPhase.Ending: FillEnding(ko); break;
             }
             LayoutRebuilder.ForceRebuildLayoutImmediate(card);
+            if (skip.Rect.gameObject.activeSelf) UIBuild.Fit(skip.Label, 24f); // after layout: the button has its real width now
         }
 
         void FillIntro(bool ko)
@@ -127,13 +157,13 @@ namespace FloorF.UI
             {
                 t = ko && !string.IsNullOrEmpty(d.titleKo) ? d.titleKo : d.title;
                 intro = ko && !string.IsNullOrEmpty(d.introKo) ? d.introKo : d.intro;
-                tutorial |= d.tutorial;
             }
-            if (string.IsNullOrEmpty(t)) t = string.Format(ctx.S(UIStrings.DayOf), ctx.Day.CurrentDay.Number, ctx.Day.DayCount);
+            if (string.IsNullOrEmpty(t)) t = UIFormat.DayLabel(ctx.Day.DisplayDay, ctx.Day.PlayableDayCount, tutorial, ko);
             title.text = t;
             body.text = intro;
             body.gameObject.SetActive(!string.IsNullOrEmpty(intro));
-            bool howTo = tutorial || (ctx.Settings != null && ctx.Settings.ShowTutorialHints && ctx.Day.CurrentDay.Number == 1);
+            // Day 0 teaches step by step in the game itself; the real Day 1 gets the list as a recap (hints on)
+            bool howTo = !tutorial && ctx.Settings != null && ctx.Settings.ShowTutorialHints && ctx.Day.DisplayDay == 1;
             extra.gameObject.SetActive(howTo);
             if (howTo)
                 extra.text = "<b><color=#C9A15A>" + ctx.S(UIStrings.HowToTitle) + "</color></b>\n" +
@@ -144,8 +174,11 @@ namespace FloorF.UI
         void FillSummary(bool ko)
         {
             var s = ctx.Day.LastSummary;
-            title.text = string.Format(ctx.S(UIStrings.DayComplete), ctx.Day.CurrentDay.Number);
-            body.gameObject.SetActive(false);
+            bool tutorial = ctx.Day.IsTutorial;
+            title.text = tutorial ? ctx.S(UIStrings.TrainingDone) : string.Format(ctx.S(UIStrings.DayComplete), ctx.Day.DisplayDay);
+            // the training shift's wrap-up: what the real days add, and that practice Luck/tips do not carry over
+            body.gameObject.SetActive(tutorial);
+            if (tutorial) body.text = "<color=" + UIFormat.LuckyHex + ">" + ctx.S(UIStrings.PracticeReset) + "</color>";
             extra.gameObject.SetActive(true);
             string luckColor = s.LuckDelta >= 0 ? "#5BE37D" : UIFormat.UnluckyHex;
             extra.text =
@@ -154,6 +187,12 @@ namespace FloorF.UI
                 Row(ctx.S(UIStrings.TipsEarned), "<color=#5BE37D>+$" + N(s.TipsEarned) + "</color>") + "\n" +
                 Row(ctx.S(UIStrings.LuckLine), N(s.LuckAtStart) + " → " + N(s.LuckAtEnd) + "  <color=" + luckColor + ">(" + UIFormat.Signed(s.LuckDelta) + ")</color>") + "\n" +
                 Row(ctx.S(UIStrings.Judgements), "<color=" + UIFormat.LuckyHex + ">" + N(s.LuckyJudgements) + "</color> / <color=" + UIFormat.UnluckyHex + ">" + N(s.UnluckyJudgements) + "</color>");
+            if (tutorial)
+            {
+                int lastDay = ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount;
+                int prosperous = ctx.Data != null ? ctx.Data.Rules.prosperousEndingLuck : 70;
+                extra.text += "\n\n" + ctx.F(UIStrings.TutRules, lastDay, prosperous);
+            }
             action.Label.text = ctx.S(UIStrings.Continue);
         }
 
@@ -172,7 +211,7 @@ namespace FloorF.UI
             float luck01 = max > 0 ? (float)luck / max : 0f;
             string luckHex = luck01 < 0.25f ? UIFormat.UnluckyHex : luck01 >= 0.6f ? UIFormat.LuckyHex : "#F4EEDC";
             extra.text =
-                Row(ctx.S(UIStrings.EndDayReached), N(ctx.Day.CurrentDay.Number) + " / " + N(ctx.Day.DayCount)) + "\n" +
+                Row(ctx.S(UIStrings.EndDayReached), N(ctx.Day.DisplayDay) + " / " + N(ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount)) + "\n" +
                 Row(ctx.S(UIStrings.EndFinalLuck), "<color=" + luckHex + ">" + N(luck) + "</color> / " + N(max)) + "\n" +
                 Row(ctx.S(UIStrings.EndTips), "<color=#5BE37D>$" + N(tips) + "</color>");
             action.Label.text = ctx.S(UIStrings.PlayAgain);
@@ -183,5 +222,6 @@ namespace FloorF.UI
 
         public string TitleText => title.text;
         public string BodyText => body.text;
+        public string ExtraText => extra.gameObject.activeSelf ? extra.text : null;
     }
 }

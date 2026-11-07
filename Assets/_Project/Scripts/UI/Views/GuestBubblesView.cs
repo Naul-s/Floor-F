@@ -163,6 +163,24 @@ namespace FloorF.UI
             }
         }
 
+        /// <summary>Canvas rect (bottom-left origin) around the riders' chips (the tutorial points at it). False when none shows.</summary>
+        public bool RiderChipsRect(out Rect rect)
+        {
+            rect = default;
+            bool any = false;
+            var riders = ctx.Elevator != null ? ctx.Elevator.Riders : null;
+            if (riders == null) return false;
+            for (int i = 0; i < riders.Count; i++)
+            {
+                if (!chips.TryGetValue(riders[i].Value, out var c) || !c.Rect.gameObject.activeSelf || c.Seen != frame) continue;
+                var p = c.Rect.anchoredPosition;
+                var r = new Rect(p.x - ChipW * 0.5f, p.y, ChipW, ChipH);
+                rect = any ? Rect.MinMaxRect(Mathf.Min(rect.xMin, r.xMin), Mathf.Min(rect.yMin, r.yMin), Mathf.Max(rect.xMax, r.xMax), Mathf.Max(rect.yMax, r.yMax)) : r;
+                any = true;
+            }
+            return any;
+        }
+
         /// <summary>First visible chip crossing the canvas x-range, or null (test hook).</summary>
         public string FirstOverlapX(float minX, float maxX)
         {

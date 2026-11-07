@@ -141,6 +141,16 @@ namespace FloorF.UI
             return from + " → " + (s.to ?? "").Trim();
         }
 
+        /// <summary>
+        /// HUD / fallback day label from IDayQuery.DisplayDay: "DAY 0" / "0일차" on the training shift (no "/5" - it does
+        /// not count), "DAY 2/5" / "2/5일차" on real days.
+        /// </summary>
+        public static string DayLabel(int displayDay, int playableDays, bool tutorial, bool ko)
+        {
+            if (tutorial || playableDays <= 0) return string.Format(UIStrings.DayOnly.Get(ko), N(displayDay));
+            return string.Format(UIStrings.DayOf.Get(ko), N(displayDay), N(playableDays));
+        }
+
         public static void Ending(EndingKind kind, bool ko, out string title, out string text)
         {
             switch (kind)

@@ -59,7 +59,7 @@ namespace FloorF.UI
 
             title = UIBuild.Text("Title", card, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
             tips = UIBuild.Text("Tips", card, "", 24f, UIStyle.Good, TextAlignmentOptions.Center, bold: true);
-            hint = UIBuild.Text("Hint", card, "", 12f, UIStyle.Ink, TextAlignmentOptions.Center);
+            hint = UIBuild.Text("Hint", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center); // readable: the one instruction
             offersRoot = UIBuild.Rect("Offers", card);
             var ov = offersRoot.gameObject.AddComponent<VerticalLayoutGroup>();
             ov.spacing = 8f;

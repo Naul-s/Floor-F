@@ -45,6 +45,9 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<DoorsClosed>(e => { if (built) tutorial.OnDoorsClosed(e); }));
             subs.Add(bus.Subscribe<DoorsOpened>(e => { if (built) tutorial.OnDoorsOpened(e); }));
             subs.Add(bus.Subscribe<ElevatorDeparted>(e => { if (built) tutorial.OnDeparted(e); }));
+            subs.Add(bus.Subscribe<GuestSpawned>(e => { if (built) tutorial.OnGuestSpawned(e); }));
+            subs.Add(bus.Subscribe<GuestDelivered>(e => { if (built) tutorial.OnGuestDelivered(e); }));
+            subs.Add(bus.Subscribe<GuestLeft>(e => { if (built) tutorial.OnGuestLeft(e); }));
             subs.Add(bus.Subscribe<PauseChanged>(e => { if (built) menu.Tick(); }));
         }
 
@@ -69,7 +72,7 @@ namespace FloorF.UI
             hud = new HudView(ctx, rt, ToggleLanguage);
             shop = new ShopView(ctx, rt, panel);
             flow = new FlowScreensView(ctx, rt);
-            tutorial = new TutorialView(ctx, rt, panel);
+            tutorial = new TutorialView(ctx, rt, panel, bubbles);
             hud.BringLanguageToFront();
             menu = new MenuView(ctx, rt);
             menu.BringToFront();
@@ -173,8 +176,8 @@ namespace FloorF.UI
             if (e.Current == DayPhase.Ending) popups.ClearPopups(); // keep the last speech bubble behind the card
             else if (e.Current != DayPhase.Running) popups.Clear();
             if (e.Current == DayPhase.Intro) flow.LastSpecialLine = null;
-            // the attract demo replays day 1 behind the title: a new run's tutorial starts from step 1
-            if (e.Current == DayPhase.Title || (e.Current == DayPhase.Intro && e.Previous == DayPhase.Title)) tutorial.Reset();
+            // the attract demo replays a day behind the title: every tutorial day's lesson starts from wave 1
+            tutorial.OnPhaseChanged(e);
             menu.Tick();
         }
 
@@ -209,6 +212,7 @@ namespace FloorF.UI
         internal DayPhase VisibleFlowScreen => built ? (shop.IsOpen ? DayPhase.Shop : flow.Shown) : DayPhase.None;
         internal string FlowTitle => flow.TitleText;
         internal string FlowBody => flow.BodyText;
+        internal string FlowExtra => flow.ExtraText;
         internal void ClickFlowButton() => flow.Click();
         internal int FloorButtonCount => panel.ButtonCount;
         internal string FloorButtonText(int floor) => panel.ButtonText(floor);
@@ -263,6 +267,23 @@ namespace FloorF.UI
         internal string TutorialPrompt => tutorial.PromptText;
         internal string TutorialWhy => tutorial.WhyText;
         internal string TutorialTarget => tutorial.TargetName;
+        internal int TutorialWave => tutorial.Wave;
+        internal Rect TutorialPromptRect => tutorial.PromptRect;
+        internal Rect TutorialWhyRect => tutorial.WhyRect;
+        internal Rect TutorialTargetRect => tutorial.TargetRect;
+        internal Rect TutorialArrowRect => tutorial.ArrowRect;
+        internal Rect PanelRect => UIBuild.CanvasRect(ctx.CanvasRect, panel.Root);
+        internal Rect FloorButtonRect(int floor) => UIBuild.CanvasRect(ctx.CanvasRect, panel.FloorButtonRect(new FloorIndex(floor)));
+        internal Rect OpenButtonRect => UIBuild.CanvasRect(ctx.CanvasRect, panel.OpenRect);
+        internal Rect CloseButtonRect => UIBuild.CanvasRect(ctx.CanvasRect, panel.CloseRect);
+        internal string HudDayText => hud.DayText;
+        internal string HudClockText => hud.ClockText;
+        internal bool SkipTutorialVisible => flow.SkipVisible;
+        internal void ClickSkipTutorial() => flow.ClickSkip();
+        internal string SkipTutorialText => flow.SkipText;
+        internal float SkipTutorialFontSize => flow.SkipFontSize;
+        internal float HudClockFontSize => hud.ClockFontSize;
+        internal bool HudDeltaVisible => hud.DeltaVisible;
 
         // title / pause / ending
         internal bool TitleVisible => menu.TitleVisible;

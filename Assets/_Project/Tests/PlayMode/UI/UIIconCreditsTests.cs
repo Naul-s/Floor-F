@@ -132,31 +132,7 @@ namespace FloorF.Tests.PlayMode.UI
             GameplayRoot.SeedOverride = null;
         }
 
-        [UnityTest]
-        public IEnumerator TutorialFloorPrompt_ShowsDestinationIcon()
-        {
-            GameplayRoot.SeedOverride = 7;
-            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
-            yield return UITestDriver.LoadMain(skipTutorial: false);
-            var ui = UITestDriver.UI();
-            var elevator = GameServices.Get<IElevatorQuery>();
-            yield return WaitForLobbyChips(ui);
-            ui.ClickOpen();
-            yield return UITestDriver.Until(() => elevator.Occupancy >= 3);
-            ui.ClickClose();
-            yield return UITestDriver.Until(() => elevator.Doors == DoorState.Closed);
-            yield return UITestDriver.Frames(3);
-            Assert.AreEqual(TutorialView.Step.Floor, ui.TutorialStep);
-            Assert.IsTrue(ui.TutorialIconVisible, "floor prompt: icon inline before the destination name: " + ui.TutorialPrompt);
-
-            GameServices.Get<IGameSettings>().UseKorean = true;
-            yield return UITestDriver.Frames(3);
-            StringAssert.Contains("층(", ui.TutorialPrompt, "\"5층([icon]사우나)\"");
-            Assert.IsTrue(ui.TutorialIconVisible, "icon in Korean too");
-            if (ui.TutorialWhy != null) StringAssert.DoesNotContain("(는)", ui.TutorialWhy);
-            GameServices.Get<IGameSettings>().UseKorean = false;
-            GameplayRoot.SeedOverride = null;
-        }
+        // TutorialFloorPrompt_ShowsDestinationIcon -> UIDay0Tests.Day0_FloorPrompt_ShowsDestinationIcon_Korean
 
         static float MeanLuminance(string png)
         {
