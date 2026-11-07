@@ -707,6 +707,13 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(ui.TitleVisible);
             Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_title" + suffix)));
 
+            ui.ClickCredits();
+            yield return UITestDriver.Frames(2);
+            Assert.IsTrue(ui.CreditsVisible);
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_credits" + suffix)));
+            ui.ClickCreditsBack();
+            yield return null;
+
             ui.ClickTitleStart();
             yield return null;
             yield return UITestDriver.ClickStart();

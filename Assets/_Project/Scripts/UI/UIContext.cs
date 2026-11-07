@@ -61,6 +61,19 @@ namespace FloorF.UI
             GameServices.TryGet(out menu);
         }
 
+        /// <summary>
+        /// Interface feedback sound (Audio subscribes): exactly one per player click, published by the handler that
+        /// decides the outcome. Click = plain press, Confirm = START/CONTINUE/NEXT DAY/PLAY AGAIN/sticker, Error = refused.
+        /// </summary>
+        public void Sound(UiSoundKind kind) => GameServices.Events.Publish(new UiSound(kind));
+
+        /// <summary>Command result -> Click when accepted, Error when the command returned false.</summary>
+        public bool Sound(bool accepted)
+        {
+            Sound(accepted ? UiSoundKind.Click : UiSoundKind.Error);
+            return accepted;
+        }
+
         /// <summary>Flips IGameSettings.UseKorean (publishes SettingsChanged -> UIRoot refreshes). False when no service.</summary>
         public bool ToggleLanguage()
         {
@@ -68,9 +81,11 @@ namespace FloorF.UI
             if (Settings == null)
             {
                 Debug.LogWarning("[UI] no IGameSettings registered - language toggle ignored");
+                Sound(UiSoundKind.Error);
                 return false;
             }
             Settings.UseKorean = !Settings.UseKorean;
+            Sound(UiSoundKind.Click);
             return true;
         }
 
@@ -134,6 +149,9 @@ namespace FloorF.UI
 
         public string S(Loc l) => l.Get(Korean);
 
+        /// <summary>string.Format of the current-language template; Korean particle specifiers ("{0:은}") resolved.</summary>
+        public string F(Loc l, params object[] args) => KoreanParticles.Format(l.Get(Korean), args);
+
         // ------------------------------------------------------------------ data text
 
         public string DestinationName(DestinationId id)
@@ -142,6 +160,9 @@ namespace FloorF.UI
                 return Korean && !string.IsNullOrEmpty(d.nameKo) ? d.nameKo : d.name;
             return "???";
         }
+
+        public DestinationDef Destination(DestinationId id) =>
+            Data != null && !id.IsEmpty && Data.TryGetDestination(id, out var d) ? d : null;
 
         public int DestinationIndex(DestinationId id)
         {

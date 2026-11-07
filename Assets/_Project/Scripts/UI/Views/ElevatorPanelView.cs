@@ -8,7 +8,7 @@ namespace FloorF.UI
 {
     /// <summary>
     /// GDD 4 "Elevator": the clickable panel. LED (current label + direction), one button per floor whose text is the
-    /// floor's CURRENT label (FloorLabelChanged), destination badge under each label (icon placeholder), OPEN/CLOSE,
+    /// floor's CURRENT label (FloorLabelChanged), destination badge under each label (icon tinted with the destination colour + short name, see DestinationBadge), OPEN/CLOSE,
     /// riders n/8 coloured by what the riders would think of that head count if the doors closed now.
     /// In the Shop phase the floor buttons pick the sticker target (see <see cref="FloorClickInterceptor"/>).
     /// </summary>
@@ -24,8 +24,7 @@ namespace FloorF.UI
             public FloorIndex Floor;
             public UIBuild.ButtonParts Parts;
             public TextMeshProUGUI Label;
-            public Image Badge;
-            public TextMeshProUGUI BadgeText;
+            public DestinationBadge Badge;
             public Mark Mark = (Mark)(-1);
         }
 
@@ -93,9 +92,9 @@ namespace FloorF.UI
             y -= rows * BtnH + (rows - 1) * Gap + 14f;
 
             // doors
-            openButton = UIBuild.Button("Open", root, "", 24f, UIStyle.Btn, () => ctx.Control?.OpenDoors());
+            openButton = UIBuild.Button("Open", root, "", 24f, UIStyle.Btn, () => ctx.Sound(ctx.Control != null && ctx.Control.OpenDoors()));
             UIBuild.Place(openButton.Rect, new Vector2(0.5f, 1f), new Vector2(-(BtnW + Gap) / 2f, y), new Vector2(BtnW, 44f));
-            closeButton = UIBuild.Button("Close", root, "", 24f, UIStyle.Btn, () => ctx.Control?.CloseDoors());
+            closeButton = UIBuild.Button("Close", root, "", 24f, UIStyle.Btn, () => ctx.Sound(ctx.Control != null && ctx.Control.CloseDoors()));
             UIBuild.Place(closeButton.Rect, new Vector2(0.5f, 1f), new Vector2((BtnW + Gap) / 2f, y), new Vector2(BtnW, 44f));
             y -= 44f + 10f;
 
@@ -125,26 +124,20 @@ namespace FloorF.UI
             fb.Label = fb.Parts.Label;
             fb.Label.rectTransform.offsetMin = new Vector2(2f, BadgeH + 2f);
             fb.Label.textWrappingMode = TextWrappingModes.NoWrap;
-            fb.Badge = UIBuild.Box("Badge", fb.Parts.Rect, Color.gray);
-            var brt = fb.Badge.rectTransform;
+            fb.Badge = new DestinationBadge(fb.Parts.Rect, BadgeSize, DestinationBadge.NameMode.Truncate);
+            var brt = fb.Badge.Rect;
             brt.anchorMin = new Vector2(0f, 0f);
             brt.anchorMax = new Vector2(1f, 0f);
             brt.pivot = new Vector2(0.5f, 0f);
             brt.offsetMin = new Vector2(3f, 3f);
             brt.offsetMax = new Vector2(-3f, BadgeH);
-            fb.BadgeText = UIBuild.Text("Dest", fb.Badge.transform, "", BadgeSize, UIStyle.Dark, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Stretch(fb.BadgeText.rectTransform);
-            fb.BadgeText.rectTransform.offsetMin = new Vector2(2f, 0f);
-            fb.BadgeText.rectTransform.offsetMax = new Vector2(-2f, 0f);
-            fb.BadgeText.textWrappingMode = TextWrappingModes.NoWrap;
-            fb.BadgeText.overflowMode = TextOverflowModes.Overflow;
             return fb;
         }
 
         void OnFloorClicked(FloorIndex floor)
         {
-            if (FloorClickInterceptor != null && FloorClickInterceptor(floor)) return;
-            ctx.Control?.RequestFloor(floor);
+            if (FloorClickInterceptor != null && FloorClickInterceptor(floor)) return; // the shop publishes its own sound
+            ctx.Sound(ctx.Control != null && ctx.Control.RequestFloor(floor));
         }
 
         // ------------------------------------------------------------------ refresh
@@ -161,10 +154,7 @@ namespace FloorF.UI
             var b = buttons[floor.Value];
             string text = ctx.Building.GetLabel(floor).Text;
             if (!string.Equals(b.Label.text, text, StringComparison.Ordinal)) { b.Label.text = text; UIBuild.Fit(b.Label, LabelSize); }
-            var dest = ctx.Building.GetDestination(floor);
-            b.Badge.color = UIStyle.Destination(ctx.DestinationIndex(dest));
-            b.BadgeText.color = UIStyle.ContrastInk(b.Badge.color);
-            UIBuild.FitName(b.BadgeText, ctx.DestinationName(dest), BadgeSize);
+            b.Badge.Set(ctx, ctx.Building.GetDestination(floor));
         }
 
         public void RefreshLanguage()
@@ -243,7 +233,10 @@ namespace FloorF.UI
         public RectTransform FloorButtonRect(FloorIndex floor) => floor.Value >= 0 && floor.Value < buttons.Length ? buttons[floor.Value].Parts.Rect : null;
         public RectTransform OpenRect => openButton.Rect;
         public RectTransform CloseRect => closeButton.Rect;
-        public float BadgeFontSize(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].BadgeText.fontSize : 0f;
-        public string BadgeText(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].BadgeText.text : null;
+        public float BadgeFontSize(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Badge.Name.fontSize : 0f;
+        public string BadgeText(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Badge.Text : null;
+        public bool BadgeShowsIcon(int floor) => floor >= 0 && floor < buttons.Length && buttons[floor].Badge.ShowsIcon;
+        public Sprite BadgeSprite(int floor) => floor >= 0 && floor < buttons.Length && buttons[floor].Badge.ShowsIcon ? buttons[floor].Badge.Icon.sprite : null;
+        public Color BadgeIconColor(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Badge.Icon.color : Color.clear;
     }
 }

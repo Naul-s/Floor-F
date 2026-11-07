@@ -95,11 +95,15 @@ namespace FloorF.UI
             return name.Length <= max ? name : name.Substring(0, max - 1) + ".";
         }
 
-        public static string ApplyResult(StickerApplyResult r, string floorOriginal, string newLabel, bool ko)
+        /// <summary>Shop result line. <paramref name="destination"/> (optional, e.g. InlineIcon markup) names the floor's venue.</summary>
+        public static string ApplyResult(StickerApplyResult r, string floorOriginal, string newLabel, bool ko, string destination = null)
         {
             switch (r)
             {
-                case StickerApplyResult.Applied: return string.Format(UIStrings.ResultApplied.Get(ko), floorOriginal, newLabel);
+                case StickerApplyResult.Applied:
+                    return string.IsNullOrEmpty(destination)
+                        ? KoreanParticles.Format(UIStrings.ResultApplied.Get(ko), floorOriginal, newLabel)
+                        : KoreanParticles.Format(UIStrings.ResultAppliedAt.Get(ko), floorOriginal, newLabel, destination);
                 case StickerApplyResult.NotEnoughTips: return UIStrings.ResultNotEnough.Get(ko);
                 case StickerApplyResult.NotApplicable: return UIStrings.ResultNotApplicable.Get(ko);
                 case StickerApplyResult.OutOfStock: return UIStrings.ResultOutOfStock.Get(ko);

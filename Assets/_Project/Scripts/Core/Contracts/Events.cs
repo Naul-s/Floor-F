@@ -277,3 +277,23 @@ namespace FloorF.Core
         public PauseChanged(bool paused) { Paused = paused; }
     }
 }
+
+namespace FloorF.Core
+{
+    public enum UiSoundKind
+    {
+        /// <summary>Any button press (panel floor, open/close, menu).</summary>
+        Click = 0,
+        /// <summary>Positive confirmation (START, NEXT DAY, sticker picked).</summary>
+        Confirm = 1,
+        /// <summary>Rejected action (shop purchase refused, command rejected).</summary>
+        Error = 2,
+    }
+
+    /// <summary>Published by UI for interface feedback sounds (Audio subscribes). UI-only; Gameplay never publishes it.</summary>
+    public readonly struct UiSound
+    {
+        public readonly UiSoundKind Kind;
+        public UiSound(UiSoundKind kind) { Kind = kind; }
+    }
+}
