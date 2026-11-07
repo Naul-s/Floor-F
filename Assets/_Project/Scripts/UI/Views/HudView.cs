@@ -8,15 +8,23 @@ namespace FloorF.UI
 {
     /// <summary>
     /// Always-on HUD: day + clock (IDayQuery), Luck meter (animated on LuckChanged, ghost bar on loss, +/- float),
-    /// tips (TipsChanged), the two-line rule reminder, and the language toggle (IGameSettings.UseKorean).
+    /// tips (TipsChanged), the lucky-streak readout under the tips (LuckStreakChanged: hidden at 0, pops on each step,
+    /// "Streak broken!" for a moment), the two-line rule reminder, and the language toggle (IGameSettings.UseKorean).
     /// </summary>
     sealed class HudView
     {
         const float MeterW = 344f, ClockW = 118f, PracticeW = 150f;
+        /// <summary>Streak slot under the tips box; the rule box sits under it (ends <see cref="RulesBottom"/> px from the top).</summary>
+        public const float StreakTop = 148f, StreakH = 38f, RulesTop = 192f, RulesH = 112f, RulesBottom = RulesTop + RulesH;
+        const float BrokenLife = 1.6f, PopLife = 0.35f;
         readonly UIContext ctx;
         readonly TextMeshProUGUI dayText, clockText, luckCaption, luckValue, luckDelta, tipsCaption, tipsValue, tipsDelta;
         readonly TextMeshProUGUI rulesTitle, ruleOpen, ruleClose, ruleLegend;
-        readonly RectTransform luckFill, luckGhost, rulesBox, dayBox, luckBox, tipsBox;
+        readonly RectTransform luckFill, luckGhost, rulesBox, dayBox, luckBox, tipsBox, streakBox;
+        readonly TextMeshProUGUI streakText;
+        readonly Image streakEdge;
+        int streak;
+        float streakMultiplier = 1f, brokenTimer, popTimer;
         readonly Image luckFillImage;
         readonly UIBuild.ButtonParts language;
 
@@ -63,9 +71,20 @@ namespace FloorF.UI
             tipsDelta = UIBuild.Text("Delta", tipsBox, "", 24f, UIStyle.Good, TextAlignmentOptions.Center, bold: true);
             UIBuild.Place(tipsDelta.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 0f), new Vector2(100f, 32f));
 
-            // rule reminder (right, under tips)
+            // lucky streak (right, under tips; hidden at 0)
+            streakEdge = UIBuild.Framed("StreakBox", canvas, UIStyle.Box, UIStyle.Lucky, 2f);
+            streakBox = streakEdge.rectTransform;
+            UIBuild.Place(streakBox, new Vector2(1f, 1f), new Vector2(-24f, -StreakTop), new Vector2(MeterW + 32f, StreakH));
+            streakBox.pivot = new Vector2(1f, 0.5f); // pops out of its right edge: never past the screen edge
+            streakBox.anchoredPosition = new Vector2(-24f, -StreakTop - StreakH * 0.5f);
+            streakText = UIBuild.Text("Text", streakBox, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Stretch(streakText.rectTransform, 6f);
+            streakText.textWrappingMode = TextWrappingModes.NoWrap;
+            streakBox.gameObject.SetActive(false);
+
+            // rule reminder (right, under the streak slot)
             rulesBox = UIBuild.Framed("RulesBox", canvas, UIStyle.Box, new Color(1f, 1f, 1f, 0.15f), 2f).rectTransform;
-            UIBuild.Place(rulesBox, new Vector2(1f, 1f), new Vector2(-24f, -150f), new Vector2(MeterW + 32f, 112f));
+            UIBuild.Place(rulesBox, new Vector2(1f, 1f), new Vector2(-24f, -RulesTop), new Vector2(MeterW + 32f, RulesH));
             rulesTitle = UIBuild.Text("Title", rulesBox, "", 12f, UIStyle.CardEdge, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(rulesTitle.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -6f), new Vector2(MeterW, 22f));
             ruleOpen = UIBuild.Text("Open", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left);
@@ -111,6 +130,65 @@ namespace FloorF.UI
                 language.Label.text = ctx.S(UIStrings.Language);
                 UIBuild.Fit(language.Label, 24f);
             }
+            ShowStreakText();
+        }
+
+        // ------------------------------------------------------------------ lucky streak
+
+        /// <summary>LuckStreakChanged (Running, not the title demo): pop on every step up, "broken" flash on a reset.</summary>
+        public void OnLuckStreakChanged(LuckStreakChanged e)
+        {
+            streak = Mathf.Max(0, e.Streak);
+            streakMultiplier = e.TipMultiplier;
+            brokenTimer = e.Broken ? BrokenLife : 0f;
+            if (e.Streak > e.Previous && e.Streak > 0) popTimer = PopLife;
+            ShowStreakText();
+        }
+
+        /// <summary>A new day / run starts at 0 silently (no "broken" flash).</summary>
+        public void ResetStreak()
+        {
+            streak = 0;
+            streakMultiplier = 1f;
+            brokenTimer = popTimer = 0f;
+            ShowStreakText();
+        }
+
+        void ShowStreakText()
+        {
+            if (streakText == null) return;
+            if (streak > 0)
+            {
+                streakText.text = string.Format(ctx.S(UIStrings.Streak),
+                    "<color=" + UIFormat.LuckyHex + ">" + streak.ToString(CultureInfo.InvariantCulture) + "</color>",
+                    "<color=#5BE37D>" + UIFormat.Multiplier(streakMultiplier) + "</color>");
+                streakText.color = UIStyle.Ink;
+                streakEdge.color = UIStyle.Lucky;
+            }
+            else
+            {
+                streakText.text = ctx.S(UIStrings.StreakBroken);
+                streakText.color = UIStyle.Unlucky;
+                streakEdge.color = UIStyle.Unlucky;
+            }
+            UIBuild.Fit(streakText, 24f);
+        }
+
+        void TickStreak(float dt, bool running)
+        {
+            if (brokenTimer > 0f) brokenTimer -= dt;
+            bool show = running && (streak > 0 || brokenTimer > 0f);
+            if (streakBox.gameObject.activeSelf != show) streakBox.gameObject.SetActive(show);
+            if (!show) { popTimer = 0f; streakBox.localScale = Vector3.one; return; }
+            float scale = 1f;
+            if (popTimer > 0f)
+            {
+                popTimer -= dt;
+                float t = 1f - Mathf.Clamp01(popTimer / PopLife); // 0 -> 1
+                scale = 1f + 0.22f * Mathf.Sin(t * Mathf.PI) * (1f - t * 0.5f);
+            }
+            else if (streak == 0) scale = 1f + 0.04f * Mathf.Sin(brokenTimer * 30f); // a short shake while "broken"
+            streakBox.localScale = new Vector3(scale, scale, 1f);
         }
 
         /// <summary>
@@ -153,6 +231,7 @@ namespace FloorF.UI
             ghostLuck = -1f;
             luckDeltaTimer = tipsDeltaTimer = 0f; // the new run's reset is not a "+/-" moment
             ghostHold = 0f;
+            ResetStreak();
         }
 
         public void Tick(float dt)
@@ -207,6 +286,7 @@ namespace FloorF.UI
             Fade(tipsDelta, ref tipsDeltaTimer, dt);
             bool rules = phase == DayPhase.Running;
             if (rulesBox.gameObject.activeSelf != rules) rulesBox.gameObject.SetActive(rules);
+            TickStreak(dt, rules);
         }
 
         static void Fade(TextMeshProUGUI t, ref float timer, float dt)
@@ -230,8 +310,16 @@ namespace FloorF.UI
             luckBox.gameObject.SetActive(visible);
             tipsBox.gameObject.SetActive(visible);
             language.Rect.gameObject.SetActive(visible);
-            if (!visible) rulesBox.gameObject.SetActive(false);
+            if (!visible) { rulesBox.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); }
         }
+
+        // coach-mark targets + test hooks
+        public RectTransform LuckBox => luckBox;
+        public RectTransform DayBox => dayBox;
+        public RectTransform StreakBox => streakBox;
+        public bool StreakVisible => streakBox.gameObject.activeInHierarchy;
+        public string StreakText => StreakVisible ? streakText.text : null;
+        public float StreakScale => streakBox.localScale.x;
 
         /// <summary>Keep the toggle clickable above the modal flow cards.</summary>
         public void BringLanguageToFront() => language.Rect.SetAsLastSibling();

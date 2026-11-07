@@ -206,5 +206,45 @@ namespace FloorF.Tests.EditMode.UI
             }
             Assert.Greater(count, 30);
         }
+
+        static DaySummary Day(int delivered, int left, int luckStart, int luckEnd, int unlucky, int bestStreak)
+            => new DaySummary(delivered, left, 0, luckStart, luckEnd, 0, unlucky, bestStreak);
+
+        [Test]
+        public void DayGrade_Thresholds()
+        {
+            // perfect day: all delivered (3) + no unlucky (2) + luck +12 (2) + streak 5 (2) = 9
+            Assert.AreEqual(9, UIFormat.GradePoints(Day(10, 0, 50, 62, 0, 5)));
+            Assert.AreEqual("S", UIFormat.DayGrade(Day(10, 0, 50, 62, 0, 5)));
+            // 8 = S: streak 3 instead of 5
+            Assert.AreEqual("S", UIFormat.DayGrade(Day(10, 0, 50, 62, 0, 3)));
+            // 7 = A: + one unlucky moment
+            Assert.AreEqual(7, UIFormat.GradePoints(Day(10, 0, 50, 62, 1, 3)));
+            Assert.AreEqual("A", UIFormat.DayGrade(Day(10, 0, 50, 62, 1, 3)));
+            // 6 = A: 80% delivered (2) + 1 unlucky (1) + luck +0 (1) + streak 5 (2)
+            Assert.AreEqual(6, UIFormat.GradePoints(Day(8, 2, 50, 50, 1, 5)));
+            Assert.AreEqual("A", UIFormat.DayGrade(Day(8, 2, 50, 50, 1, 5)));
+            // 4 = B: 80% (2) + 3 unlucky (0) + luck +0 (1) + streak 3 (1); one Luck lower = 3 = C
+            Assert.AreEqual(4, UIFormat.GradePoints(Day(8, 2, 50, 50, 3, 3)));
+            Assert.AreEqual("B", UIFormat.DayGrade(Day(8, 2, 50, 50, 3, 3)));
+            Assert.AreEqual("C", UIFormat.DayGrade(Day(8, 2, 50, 49, 3, 3)));
+            // C: half delivered, many unlucky, luck down, no streak
+            Assert.AreEqual(0, UIFormat.GradePoints(Day(5, 5, 50, 30, 4, 1)));
+            Assert.AreEqual("C", UIFormat.DayGrade(Day(5, 5, 50, 30, 4, 1)));
+            // nobody delivered is always C (no "0 left, 0 unlucky" free points)
+            Assert.AreEqual("C", UIFormat.DayGrade(Day(0, 0, 50, 50, 0, 0)));
+            // the 95% edge: 19/20 still gets the top share points
+            Assert.AreEqual(3 + 2 + 2 + 2, UIFormat.GradePoints(Day(19, 1, 50, 60, 0, 6)));
+        }
+
+        [Test]
+        public void Multiplier_UpToTwoDecimals_Invariant()
+        {
+            Assert.AreEqual("x1.15", UIFormat.Multiplier(1.15f));
+            Assert.AreEqual("x1.05", UIFormat.Multiplier(1f + 0.05f));
+            Assert.AreEqual("x1.1", UIFormat.Multiplier(1f + 2 * 0.05f));
+            Assert.AreEqual("x2.0", UIFormat.Multiplier(2f));
+            Assert.AreEqual("x1.0", UIFormat.Multiplier(1f));
+        }
     }
 }
