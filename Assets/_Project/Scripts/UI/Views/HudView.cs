@@ -113,8 +113,21 @@ namespace FloorF.UI
             }
         }
 
+        /// <summary>
+        /// Luck/tips set back between days (the Day 0 practice reset happens while leaving its summary): not a +/- moment,
+        /// the meter just snaps. Only Running (judgements, tips) and Shop (purchases) show deltas.
+        /// </summary>
+        bool SilentChange => ctx.Phase != DayPhase.Running && ctx.Phase != DayPhase.Shop;
+
         public void OnLuckChanged(LuckChanged e)
         {
+            if (SilentChange)
+            {
+                shownLuck = e.Current;
+                ghostLuck = -1f;
+                ghostHold = luckDeltaTimer = 0f;
+                return;
+            }
             if (shownLuck < 0f) shownLuck = e.Previous;
             if (e.Delta < 0) { ghostLuck = Mathf.Max(ghostLuck, shownLuck); ghostHold = 0.45f; }
             if (e.Delta != 0)
@@ -128,6 +141,7 @@ namespace FloorF.UI
         public void OnTipsChanged(TipsChanged e)
         {
             if (e.Delta == 0) return;
+            if (SilentChange) { tipsDeltaTimer = 0f; return; }
             tipsDelta.text = (e.Delta > 0 ? "+$" : "-$") + Mathf.Abs(e.Delta).ToString(CultureInfo.InvariantCulture);
             tipsDelta.color = e.Delta > 0 ? UIStyle.Good : UIStyle.Unlucky;
             tipsDeltaTimer = 1.4f;
@@ -206,6 +220,7 @@ namespace FloorF.UI
         public string DayText => dayText.text;
         public string ClockText => clockText.text;
         public float ClockFontSize => clockText.fontSize;
+        public bool DeltaVisible => luckDelta.alpha > 0.01f || tipsDelta.alpha > 0.01f;
 
         /// <summary>Title screen: the demo plays behind the title card without HUD boxes (the title has its own toggle).</summary>
         public void SetVisible(bool visible)

@@ -138,7 +138,7 @@ namespace FloorF.UI
             toTitle.Label.text = ctx.S(UIStrings.ToTitle);
             bool canSkip = phase == DayPhase.Intro && ctx.Day.IsTutorial && ctx.Flow != null;
             skip.Rect.gameObject.SetActive(canSkip);
-            if (canSkip) { skip.Label.text = ctx.S(UIStrings.SkipTutorial); UIBuild.Fit(skip.Label, 24f); }
+            if (canSkip) skip.Label.text = ctx.S(UIStrings.SkipTutorial);
             switch (phase)
             {
                 case DayPhase.Intro: FillIntro(ko); break;
@@ -146,6 +146,7 @@ namespace FloorF.UI
                 case DayPhase.Ending: FillEnding(ko); break;
             }
             LayoutRebuilder.ForceRebuildLayoutImmediate(card);
+            if (skip.Rect.gameObject.activeSelf) UIBuild.Fit(skip.Label, 24f); // after layout: the button has its real width now
         }
 
         void FillIntro(bool ko)

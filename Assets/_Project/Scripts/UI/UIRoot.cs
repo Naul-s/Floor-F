@@ -283,6 +283,7 @@ namespace FloorF.UI
         internal string SkipTutorialText => flow.SkipText;
         internal float SkipTutorialFontSize => flow.SkipFontSize;
         internal float HudClockFontSize => hud.ClockFontSize;
+        internal bool HudDeltaVisible => hud.DeltaVisible;
 
         // title / pause / ending
         internal bool TitleVisible => menu.TitleVisible;

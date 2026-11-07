@@ -322,6 +322,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsFalse(ui.SkipTutorialVisible);
             Assert.AreEqual(data.Rules.startLuck, score.Luck, "practice Luck reset");
             Assert.AreEqual(data.Rules.startTips, score.Tips, "practice tips reset");
+            Assert.IsFalse(ui.HudDeltaVisible, "the reset is not shown as a -Luck / -$ moment");
             Assert.IsNotNull(ui.FlowExtra, "how-to recap on Day 1 (hints on)");
             yield return Day0Driver.Shot("ui_day1_intro" + suffix, true);
             yield return UITestDriver.ClickStart();
