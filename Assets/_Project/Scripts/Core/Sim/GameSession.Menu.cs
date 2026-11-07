@@ -49,6 +49,7 @@ namespace FloorF.Core
             if (!value) { Unpause(); return true; }
             if (paused) return true;
             if (onTitle || !CanPauseIn(phase)) return false;
+            ReleaseTutorialHold(); // the menu pause takes over from a coach mark
             paused = true;
             bus.Publish(new PauseChanged(true));
             return true;

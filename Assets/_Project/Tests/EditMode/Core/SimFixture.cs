@@ -41,6 +41,8 @@ namespace FloorF.Tests.EditMode.Core
                     luckyOccupancyTipMultiplier = 1.5f, luckyOccupancyLuckBonus = 3, unluckyOccupancyLuckPenalty = 5,
                     patienceOutLuckPenalty = 5, deliveryLuckBonus = 1, honestGuestLuckPenalty = 5,
                     prosperousEndingLuck = 70,
+                    // streak bonus off by default so tip-value tests stay exact; StreakTests turn it on
+                    streakTipBonusPerStep = 0f, streakMaxTipMultiplier = 2f,
                     elevatorSecondsPerFloor = 1f, doorSeconds = 0f, boardSeconds = 0f,
                 },
                 layout = new HotelLayoutDef(),
@@ -121,6 +123,7 @@ namespace FloorF.Tests.EditMode.Core
             Rec<GuestMoodChanged>(); Rec<GuestSpoke>();
             Rec<ElevatorDeparted>(); Rec<ElevatorPassedFloor>(); Rec<ElevatorArrived>(); Rec<DoorsOpened>(); Rec<DoorsClosed>();
             Rec<LuckJudged>(); Rec<LuckChanged>(); Rec<TipsChanged>(); Rec<FloorLabelChanged>(); Rec<StickerApplied>(); Rec<EndingReached>(); Rec<PauseChanged>();
+            Rec<LuckStreakChanged>(); Rec<TutorialHoldChanged>();
         }
 
         void Rec<T>() => Bus.Subscribe<T>(e => Log.Add(e));

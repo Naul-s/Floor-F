@@ -85,8 +85,8 @@ namespace FloorF.Core
 
         // lucky streak: consecutive Lucky judgements in a day (Unlucky resets, Neutral keeps)
         /// <summary>Tip multiplier per streak step: x(1 + streak * this), capped at <see cref="streakMaxTipMultiplier"/>. 0 = off.</summary>
-        public float streakTipBonusPerStep = 0.1f;
-        public float streakMaxTipMultiplier = 2f;
+        public float streakTipBonusPerStep = 0.05f;
+        public float streakMaxTipMultiplier = 1.15f;
 
         // endings
         /// <summary>Luck at the end of the last day needed for the Prosperous ending (else Modest).</summary>

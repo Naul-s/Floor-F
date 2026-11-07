@@ -159,6 +159,8 @@ namespace FloorF.Core
             var r = h.rules;
             if (r.maxLuck < 1) e.Add("hotel.rules: maxLuck must be >= 1");
             if (r.startLuck < 1 || r.startLuck > r.maxLuck) e.Add("hotel.rules: startLuck must be in 1..maxLuck");
+            if (!(r.streakTipBonusPerStep >= 0f)) e.Add("hotel.rules: streakTipBonusPerStep must be >= 0");
+            if (!(r.streakMaxTipMultiplier >= 1f)) e.Add("hotel.rules: streakMaxTipMultiplier must be >= 1");
             if (r.prosperousEndingLuck < 0 || r.prosperousEndingLuck > r.maxLuck) e.Add("hotel.rules: prosperousEndingLuck must be in 0..maxLuck");
             if (r.elevatorSecondsPerFloor <= 0) e.Add("hotel.rules: elevatorSecondsPerFloor must be > 0");
             if (r.doorSeconds < 0) e.Add("hotel.rules: doorSeconds must be >= 0");
