@@ -21,10 +21,13 @@ namespace FloorF.EditorTools
     /// short high sparkle on top, ringing out over ~1.8 s. <b>star_sparkle.wav</b> - star-night layer on Lucky: three
     /// tiny high pings (E7 G7 B7) in 0.6 s.
     ///
+    /// Rain loop + thunder rumbles: ProceduralSfxSynth.Weather.cs. Shop cues (charm bell, shield chime, sticker peel):
+    /// ProceduralSfxSynth.Shop.cs.
+    ///
     /// Batch: tools/unity-batch.ps1 -Mode method -Method FloorF.EditorTools.ProceduralSfxSynth.Build
     /// then AudioLibraryBuilder.Build.
     /// </summary>
-    public static class ProceduralSfxSynth
+    public static partial class ProceduralSfxSynth
     {
         public const string Folder = "Assets/_Project/Audio/Generated";
         public const string HumPath = Folder + "/elevator_hum_loop.wav";
@@ -47,6 +50,8 @@ namespace FloorF.EditorTools
             Write(WishStarPath, WishStarTwinkle());
             Write(WishChimePath, WishChime());
             Write(StarSparklePath, StarSparkle());
+            BuildWeather();
+            BuildShop();
         }
 
         static void Write(string assetPath, float[] mono)
@@ -158,7 +163,7 @@ namespace FloorF.EditorTools
         /// A small bell at <paramref name="start"/> s: fundamental + 2.0x / 3.0x harmonics and a 4.2x inharmonic shimmer,
         /// upper partials decaying faster; 4 ms raised-cosine attack (no click).
         /// </summary>
-        static void AddBell(float[] o, float start, float freq, float amp, float tau)
+        internal static void AddBell(float[] o, float start, float freq, float amp, float tau)
         {
             float[] mul = { 1f, 2f, 3f, 4.2f };
             float[] lvl = { 1f, 0.35f, 0.12f, 0.08f };
@@ -178,14 +183,14 @@ namespace FloorF.EditorTools
             }
         }
 
-        static double SmoothStep(double x)
+        internal static double SmoothStep(double x)
         {
             x = Math.Max(0, Math.Min(1, x));
             return x * x * (3 - 2 * x);
         }
 
         /// <summary>Raised-cosine fade over the last <paramref name="seconds"/>; the last sample is exactly 0.</summary>
-        static void FadeOut(float[] o, float seconds)
+        internal static void FadeOut(float[] o, float seconds)
         {
             int f = Mathf.Clamp(Mathf.RoundToInt(seconds * Rate), 2, o.Length);
             for (int i = 0; i < f; i++)
@@ -195,7 +200,7 @@ namespace FloorF.EditorTools
             }
         }
 
-        static float[] Normalize(float[] o, float peakDb)
+        internal static float[] Normalize(float[] o, float peakDb)
         {
             float peak = 0f;
             foreach (float v in o) peak = Mathf.Max(peak, Mathf.Abs(v));
