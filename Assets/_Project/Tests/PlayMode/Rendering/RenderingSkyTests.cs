@@ -75,7 +75,7 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.IsTrue(sky.StarRenderer.enabled);
             Assert.IsFalse(sky.StarNight, "day 1 is an ordinary night");
             Assert.IsFalse(sky.BandVisible, "no Milky Way on an ordinary night");
-            Assert.LessOrEqual(sky.Root.GetComponentsInChildren<Renderer>(true).Length, 3, "sky = at most 3 renderers");
+            Assert.LessOrEqual(sky.Root.GetComponentsInChildren<Renderer>(true).Length, 4, "sky = at most 4 renderers");
 
             // twinkles rewrite palette texels, glints come and go, nothing new gets created
             int renderers = sky.Root.GetComponentsInChildren<Renderer>(true).Length;
@@ -212,6 +212,62 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.AreEqual(0, sky.WishCount, "faded star finished");
         }
 
+        /// <summary>
+        /// Day 7 feedback: wish stars were hidden behind the skyline / hotel. Now they are drawn on an additive layer over
+        /// the whole world - a star crossing the hotel itself is still the brightest thing at the event's viewport point.
+        /// Captures render_wish_front (one star over the hotel, one wished on over the neighbours, HUD hidden).
+        /// </summary>
+        [UnityTest]
+        public IEnumerator WishStar_DrawnInFrontOfTheHotel_OnTheEventCoords()
+        {
+            yield return RenderingTestDriver.LoadMain();
+            Assert.IsTrue(GameServices.Get<IGameFlow>().BeginDay());
+            var root = RenderingTestDriver.Rendering();
+            var sky = Sky;
+            var cam = root.Pipeline.WorldCamera;
+            Assert.IsTrue(sky.WishInFront, "additive wish shader loaded (Resources/" + RenderAssets.AdditiveShaderPath + ")");
+            Assert.AreNotSame(root.Palette.Material, sky.WishRenderer.sharedMaterial, "own additive material");
+            Assert.GreaterOrEqual(sky.WishRenderer.sharedMaterial.renderQueue, 3000, "drawn after the opaque world");
+            Assert.AreSame(root.Palette.Texture, sky.WishRenderer.sharedMaterial.mainTexture, "same palette texels");
+
+            sky.ForceStarNight = true;
+            GameServices.Events.Publish(new WishStarAppeared(41, 0.56f, 0.70f, 0.44f, 0.40f, 6f));
+            GameServices.Events.Publish(new WishStarAppeared(42, 0.90f, 0.60f, 0.80f, 0.45f, 5f));
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < 20; i++) yield return null;
+            GameServices.Events.Publish(new WishMade(42, 3));
+            Time.captureDeltaTime = 0.05f;
+            for (int i = 0; i < 4; i++) yield return null;
+            yield return RenderingTestDriver.Freeze();
+            Assert.IsTrue(sky.WishRenderer.enabled, "wish layer on while a star crosses");
+            Assert.Greater(sky.WishQuadCount, 20, "head, tail, glow and burst on the wish layer");
+
+            Assert.IsTrue(sky.TryGetWishHead(41, out var vp));
+            // the head is over the hotel itself (inside its projected bounds) ...
+            var hb = BuildingView.FramingBounds(GameServices.Get<IWorldLayout>());
+            var lo = cam.WorldToViewportPoint(root.transform.Find(RenderingNames.World).TransformPoint(new Vector3(hb.min.x, hb.min.y, hb.min.z)));
+            var hi = cam.WorldToViewportPoint(root.transform.Find(RenderingNames.World).TransformPoint(new Vector3(hb.max.x, hb.max.y, hb.min.z)));
+            Assert.That(vp.x, Is.InRange(lo.x, hi.x), "head over the hotel (x)");
+            Assert.That(vp.y, Is.InRange(lo.y, hi.y), "head over the hotel (y)");
+            // ... on the event's viewport mapping, and still the brightest pixel there
+            var back = cam.WorldToViewportPoint(SkyView.ViewportToWorld(root.Rig.Current, vp, SkyView.FxDepth));
+            Assert.AreEqual(vp.x, back.x, 0.5f / 640f);
+            Assert.AreEqual(vp.y, back.y, 0.5f / 360f);
+            HideOtherCanvases(true);
+            Assert.IsTrue(File.Exists(FrameCapture.Capture("render_wish_front")));
+            HideOtherCanvases(false);
+            Assert.Greater(TargetPeak(vp, 1), 0.9f, "white-hot head drawn over the hotel at the event's viewport point");
+            Vector3 W(float x, float y) => SkyView.ViewportToWorld(root.Rig.Current, new Vector2(x, y), SkyView.FxDepth);
+            Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_wish_front_zoom", W(vp.x - 0.08f, vp.y - 0.1f), W(vp.x + 0.12f, vp.y + 0.14f), 5)));
+
+            RenderingTestDriver.Unfreeze();
+            GameServices.Events.Publish(new WishStarFaded(41));
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < 20; i++) yield return null;
+            Assert.AreEqual(0, sky.WishCount);
+            Assert.IsFalse(sky.WishRenderer.enabled, "wish layer off (no draw call) when no wish star is up");
+        }
+
         [UnityTest]
         public IEnumerator MilkyWayAndMeteors_OnlyOnStarNight()
         {
@@ -234,7 +290,7 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.IsTrue(sky.BandVisible, "Milky Way on star night");
             for (int i = 0; i < 300 && sky.MeteorsSeen < before + 2; i++) yield return null;
             Assert.GreaterOrEqual(sky.MeteorsSeen, before + 2, "meteor shower");
-            Assert.LessOrEqual(sky.Root.GetComponentsInChildren<Renderer>(true).Length, 3);
+            Assert.LessOrEqual(sky.Root.GetComponentsInChildren<Renderer>(true).Length, 4);
 
             sky.ForceStarNight = false;
             yield return null;
