@@ -18,7 +18,10 @@ namespace FloorF.Core
         public FloorIndex DestinationFloor;
         public float Patience;
         public float PatienceMax;
+        /// <summary>The guest's own numbers (what bubbles show).</summary>
         public LuckProfile Luck;
+        /// <summary>Numbers verdicts use today: <see cref="Luck"/>, or <see cref="StarNightRules.Apply"/> of it on a star night.</summary>
+        public LuckProfile JudgeLuck;
         public float TipMultiplier = 1f;
         public bool FloorTipBonusApplied;
         public bool OccupancyTipBonusApplied;

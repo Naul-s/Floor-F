@@ -131,8 +131,9 @@ namespace FloorF.Tests.EditMode.Content
                     Assert.LessOrEqual(s.time, d.durationSeconds - 10f, "day " + d.day + " " + s.guest + " spawns too late");
                 }
             }
+            // 7 real days (5 days were capped at 15 min): the clock-out worst case may run ~17 min; early day ends make real runs shorter
             const float shopBudget = 30f;
-            Assert.LessOrEqual(total + shopBudget * (data.DayCount - 1), 15f * 60f, "full run must stay under 15 minutes");
+            Assert.LessOrEqual(total + shopBudget * (data.DayCount - 1), 17f * 60f, "full run must stay under 17 minutes");
         }
 
         [Test]
@@ -387,9 +388,15 @@ namespace FloorF.Tests.EditMode.Content
             return dest > 0 ? Math.Abs(dest - s.floor) : -1;
         }
 
-        /// <summary>Rule 3 verdict for <paramref name="distance"/> floors on day <paramref name="d"/> (Friday: 13 is unlucky for all).</summary>
+        /// <summary>
+        /// Rule 3 verdict for <paramref name="distance"/> floors on day <paramref name="d"/> (Friday: 13 is unlucky for all;
+        /// star night: 7 is lucky for all).
+        /// </summary>
         static LuckVerdict JudgeDistance(DayDef d, LuckProfile p, int distance)
-            => d.friday13 && distance == StoryRules.FridayDistance ? LuckVerdict.Unlucky : p.Judge(distance);
+        {
+            if (d.starNight) p = StarNightRules.Apply(p);
+            return d.friday13 && distance == StoryRules.FridayDistance ? LuckVerdict.Unlucky : p.Judge(distance);
+        }
 
         /// <summary>Ride lengths reachable with at most one turn: start -> x -> destination (x = destination: direct).</summary>
         IEnumerable<int> OneTurnDistances(int start, int dest)
@@ -509,16 +516,80 @@ namespace FloorF.Tests.EditMode.Content
         }
 
         [Test]
-        public void Friday13_IsTheLastDay_AndSaysSo()
+        public void Friday13_IsDay5_AndSaysSo()
         {
             var fridays = data.Days.Where(d => d.friday13).ToArray();
             Assert.AreEqual(1, fridays.Length, "one Friday the 13th");
             var f = fridays[0];
-            Assert.AreEqual(data.DayCount, f.day, "the last real day");
+            Assert.AreEqual(5, data.DisplayDayNumber(f.Id), "Friday the 13th is Day 5");
+            Assert.Less(f.day, data.DayCount, "no longer the last day");
             Assert.IsFalse(f.tutorial);
+            Assert.IsFalse(f.starNight);
             foreach (var t in new[] { f.title, f.titleKo, f.intro, f.introKo }) StringAssert.Contains("13", t);
             Assert.Greater(data.Rules.friday13PenaltyMultiplier, 1f, "bad luck must hit harder on Friday the 13th");
-            Assert.IsTrue(f.spawns.Any(s => s.guest == "mystery_guest"), "still the night of the 4th-floor guest");
+            Assert.IsFalse(f.intro.Contains("last"), "Friday is not the last night any more");
+            Assert.IsFalse(f.introKo.Contains("\uB9C8\uC9C0\uB9C9"), "Friday is not the last night any more (ko)");
+        }
+
+        /// <summary>Day 7 = the last day = the star night: lucky 7 for all, 4-5 wish stars, the 4th-floor guest.</summary>
+        [Test]
+        public void StarNight_IsTheLastDay_AndSaysSo()
+        {
+            var nights = data.Days.Where(d => d.starNight).ToArray();
+            Assert.AreEqual(1, nights.Length, "one star night");
+            var n = nights[0];
+            Assert.AreEqual(data.DayCount, n.day, "the last day");
+            Assert.AreEqual(7, data.DisplayDayNumber(n.Id), "Day 7");
+            Assert.IsFalse(n.tutorial);
+            Assert.IsFalse(n.friday13);
+            Assert.That(n.wishStars, Is.InRange(4, 5), "about five wishes");
+            Assert.IsTrue(data.Days.Where(d => !d.starNight).All(d => d.wishStars == 0), "wish stars only on the star night");
+            foreach (var t in new[] { n.title, n.titleKo, n.intro, n.introKo }) StringAssert.Contains("7", t);
+            StringAssert.Contains("wish", n.intro);
+            StringAssert.Contains("\uC18C\uC6D0", n.introKo);
+            Assert.IsEmpty(n.shopStickers, "no shop after the last day");
+            Assert.IsTrue(n.spawns.Any(s => s.guest == "mystery_guest"), "the night of the 4th-floor guest");
+
+            var r = data.Rules;
+            Assert.That(r.wishStarSeconds, Is.InRange(2f, 5f), "a wish window a person can hit");
+            Assert.That(r.wishLuckBonus, Is.InRange(1, 10));
+            // the stars fit inside the day (GameSession margin on both ends)
+            Assert.Greater(n.durationSeconds, 2f * GameSession.WishStarMarginSeconds + n.wishStars * r.wishStarSeconds);
+            // the theme: some scheduled straight rides are exactly 7 floors, for someone lucky only because of the stars
+            var sevens = n.spawns.Where(s => DirectDistance(s) == StoryRules.StarNightNumber).ToArray();
+            Assert.GreaterOrEqual(sevens.Length, 2, "a few 7-floor rides tonight");
+            Assert.IsTrue(sevens.Any(s => Profile(s).Judge(7) != LuckVerdict.Lucky), "someone gets a 7 only the stars make lucky");
+        }
+
+        /// <summary>
+        /// Day 6, the wedding day: even numbers are lucky for the Chinese wedding guests (6, 8; "good things come in pairs"),
+        /// odd ones for the Japanese guest's gift money (3, 5, 7: an odd sum cannot be split in two). A head count that pleases
+        /// one side leaves the other cold; both fear 4.
+        /// </summary>
+        [Test]
+        public void WeddingDay_EvenVersusOdd()
+        {
+            var cn = data.GetGuest(new GuestArchetypeId("chinese_wedding_party"));
+            var jp = data.GetGuest(new GuestArchetypeId("japanese_wedding_guest"));
+            Assert.IsTrue(cn.lucky.Length > 0 && cn.lucky.All(x => x % 2 == 0), "Chinese wedding: even numbers");
+            CollectionAssert.AreEquivalent(new[] { 6, 8 }, cn.lucky);
+            Assert.IsTrue(jp.lucky.Length > 0 && jp.lucky.All(x => x % 2 == 1), "Japanese wedding gift: odd numbers");
+            CollectionAssert.AreEquivalent(new[] { 3, 5, 7 }, jp.lucky);
+            CollectionAssert.Contains(cn.unlucky, 4);
+            CollectionAssert.Contains(jp.unlucky, 4);
+            CollectionAssert.Contains(jp.unlucky, 9);
+            Assert.AreEqual(2, cn.partySize, "the Chinese guests come as a pair");
+
+            var day = data.Days.First(d => d.spawns.Any(s => s.guest == cn.id));
+            Assert.AreEqual(day, data.Days.First(d => d.spawns.Any(s => s.guest == jp.id)), "both arrive on the same day");
+            Assert.AreEqual(6, data.DisplayDayNumber(day.Id), "the wedding is Day 6");
+            foreach (var t in new[] { day.intro, day.introKo }) { StringAssert.Contains("6, 8", t); StringAssert.Contains("3, 5, 7", t); }
+            // the opening: a pair and the Japanese guest board together -> 3 riders, lucky for one side only
+            var open = day.spawns.Where(s => s.time <= 5f).ToArray();
+            Assert.IsTrue(open.Any(s => s.guest == cn.id) && open.Any(s => s.guest == jp.id) && open.Select(s => s.floor).Distinct().Count() == 1,
+                "Day 6 opens with both wedding guests on one floor");
+            int heads = open.Sum(s => Guest(s).partySize);
+            Assert.AreNotEqual(data.GetLuckProfile(cn.Id).Judge(heads), data.GetLuckProfile(jp.Id).Judge(heads), "one side's lucky head count");
         }
 
         [Test]
