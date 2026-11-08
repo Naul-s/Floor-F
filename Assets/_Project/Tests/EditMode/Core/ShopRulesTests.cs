@@ -20,7 +20,7 @@ namespace FloorF.Tests.EditMode.Core
 
         // GameData validation still wants a 'to' on every sticker (CONTRACT REQUEST: skip it for charms)
         static StickerDef Charm(string id, string effect, float amount, int price = 10)
-            => new StickerDef { id = id, name = id, kind = StickerKinds.Charm, effect = effect, amount = amount, to = "-", price = price, stock = 1 };
+            => new StickerDef { id = id, name = id, kind = StickerKinds.Charm, effect = effect, amount = amount, price = price, stock = 1 };
 
         static void ShopData(SimFixture.Defs d)
         {

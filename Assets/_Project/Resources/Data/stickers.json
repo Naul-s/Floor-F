@@ -93,7 +93,6 @@
       "kind": "charm",
       "effect": "patience",
       "amount": 0.5,
-      "to": "-",
       "price": 60,
       "stock": 1,
       "weight": 1.5
@@ -107,7 +106,6 @@
       "kind": "charm",
       "effect": "speed",
       "amount": 0.25,
-      "to": "-",
       "price": 80,
       "stock": 1,
       "weight": 1.5
@@ -121,7 +119,6 @@
       "kind": "charm",
       "effect": "shield",
       "amount": 1,
-      "to": "-",
       "price": 200,
       "stock": 1,
       "weight": 2
@@ -135,7 +132,6 @@
       "kind": "charm",
       "effect": "tips",
       "amount": 0.3,
-      "to": "-",
       "price": 150,
       "stock": 1,
       "weight": 1.5
