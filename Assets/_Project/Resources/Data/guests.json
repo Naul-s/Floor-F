@@ -185,7 +185,7 @@
       "destinations": ["restaurant", "bar", "rooftop", "lobby"],
       "traits": ["devout"],
       "color": "#4B2C6F",
-      "accessory": "glasses",
+      "accessory": "collar",
       "lines": [
         { "trigger": "spawn", "text": "Bless you, child. Keep me far from the sixes.", "textKo": "축복을 빌어요. 6만은 멀리해 주시게." },
         { "trigger": "board", "text": "Six, six, six is the number of the Beast. Mind every six.", "textKo": "육, 육, 육은 짐승의 수라네. 6이란 6은 다 조심하게." },
@@ -214,7 +214,7 @@
       "destinations": ["restaurant", "bar", "karaoke", "gym"],
       "traits": [],
       "color": "#D9A441",
-      "accessory": "perm_hair",
+      "accessory": "flat_cap",
       "lines": [
         { "trigger": "spawn", "text": "Ciao! Anything but 17, eh?", "textKo": "차오! 17만 아니면 돼, 응?" },
         { "trigger": "board", "text": "In Italy 13 is lucky - 'fare tredici' means hitting the jackpot!", "textKo": "이탈리아에선 13이 행운이야. '13을 맞힌다'는 건 대박이란 뜻이지!" },
