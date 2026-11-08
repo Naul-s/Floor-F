@@ -206,7 +206,16 @@ namespace FloorF.Core
                 var at = "stickers[" + i + "] '" + s.id + "'";
                 if (string.IsNullOrWhiteSpace(s.id)) { e.Add("stickers[" + i + "]: empty id"); continue; }
                 if (!ids.Add(s.id.Trim())) e.Add(at + ": duplicate id");
-                if (string.IsNullOrWhiteSpace(s.to)) e.Add(at + ": empty 'to' label");
+                if (s.IsCharm)
+                {
+                    string fx = (s.effect ?? "").Trim();
+                    if (fx != StickerEffects.Patience && fx != StickerEffects.Speed && fx != StickerEffects.Shield && fx != StickerEffects.Tips)
+                        e.Add(at + ": charm needs a known 'effect' (patience, speed, shield, tips)");
+                    if (!(s.amount > 0f)) e.Add(at + ": charm 'amount' must be > 0");
+                }
+                else if (!string.Equals((s.kind ?? "").Trim(), StickerKinds.Label, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(s.kind))
+                    e.Add(at + ": unknown kind '" + s.kind + "' (label or charm)");
+                else if (string.IsNullOrWhiteSpace(s.to)) e.Add(at + ": label sticker needs 'to'");
                 if (s.price < 0) e.Add(at + ": price must be >= 0");
                 if (s.stock < -1) e.Add(at + ": stock must be -1 (unlimited) or >= 0");
             }
