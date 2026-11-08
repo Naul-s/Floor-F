@@ -6,6 +6,8 @@ namespace FloorF.Core
     //
     // Ordering guarantees Gameplay must keep (presentation modules rely on them):
     //   ElevatorArrived -> DoorsOpened -> (LuckJudged for riders, FloorLabel source)* -> GuestExited* -> GuestBoarded*
+    //   per rider stepping out at their destination:
+    //     GuestExited -> (LuckJudged RideDistance, if not Neutral) -> GuestDelivered (tip) -> TipsChanged
     //   DoorsClosed -> (LuckJudged for riders, Occupancy source)* -> ElevatorDeparted
     //   Every LuckJudged that changes Luck is followed by LuckChanged; tips by TipsChanged.
     //   DayStarted comes after DayPhaseChanged(Intro->Running); DayEnded before DayPhaseChanged(->Summary).
@@ -105,7 +107,10 @@ namespace FloorF.Core
         public GuestExited(GuestId guest, FloorIndex floor, bool atDestination, int occupancy) { Guest = guest; Floor = floor; AtDestination = atDestination; Occupancy = occupancy; }
     }
 
-    /// <summary>Guest reached their destination and paid. Comes right after GuestExited(AtDestination=true).</summary>
+    /// <summary>
+    /// Guest reached their destination and paid. Comes after GuestExited(AtDestination=true) and that guest's
+    /// LuckJudged(RideDistance) (+ its LuckChanged / streak / speech), if any. Not published if that verdict hit Haunted.
+    /// </summary>
     public readonly struct GuestDelivered
     {
         public readonly GuestId Guest;
