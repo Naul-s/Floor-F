@@ -36,7 +36,14 @@ namespace FloorF.Audio
             new Entry(typeof(WishStarAppeared), AudioCue.WishStar),
             new Entry(typeof(WishMade), AudioCue.Wish),
             new Entry(typeof(LuckJudged), AudioCue.StarSparkle),
+            new Entry(typeof(ShopRerolled), AudioCue.ShopReroll),
+            new Entry(typeof(CharmBought), AudioCue.CharmBought),
+            new Entry(typeof(CharmTriggered), AudioCue.CharmShield),
+            new Entry(typeof(StickersExpired), AudioCue.StickersPeel),
         };
+
+        /// <summary>Day-end expiry peels only when something actually expired.</summary>
+        public static AudioCue For(in StickersExpired e) => e.Labels + e.Charms > 0 ? AudioCue.StickersPeel : AudioCue.None;
 
         /// <summary>Star night: a Lucky judgement also gets the quiet star sparkle layer.</summary>
         public static AudioCue StarNightLayer(AudioCue judged, bool starNight)

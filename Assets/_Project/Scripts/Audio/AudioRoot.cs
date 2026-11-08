@@ -25,6 +25,9 @@ namespace FloorF.Audio
     /// <see cref="AudioLibrary.doorCutFadeSeconds"/>) and are played lower right after the arrival ding.
     /// The elevator travel hum has one dedicated looping voice (<see cref="TravelHum"/>): in on ElevatorDeparted, out
     /// before the predicted arrival (speed measured from IElevatorQuery.Position), paused with the game / coach-mark hold.
+    /// Rainy days (<see cref="WeatherRules.RainAudible"/>): a looping rain bed on its own voice fading with the day, plus
+    /// distant thunder on another own voice on a seeded schedule (<see cref="ThunderSchedule"/>, never two at once);
+    /// both are ducked with the music on pause / coach-mark hold and no new rumble is scheduled while paused.
     /// The AudioListener is on the scene's Main Camera.
     /// </summary>
     sealed class AudioRoot : MonoBehaviour
@@ -92,6 +95,16 @@ namespace FloorF.Audio
         bool carSeenMoving;
         float humEta = -1f;
 
+        readonly RainBed rain = new RainBed();
+        readonly ThunderSchedule thunder = new ThunderSchedule();
+        AudioSource rainSource;
+        AudioSource thunderSource;
+        bool rainOn;
+        /// <summary>Volume of the current rumble before master / duck / rain fade (its cue volume).</summary>
+        float thunderLevel;
+        /// <summary>Unscaled time the current rumble ends (length / pitch): "still sounding" even without an audio device.</summary>
+        float thunderEndsAt = float.NegativeInfinity;
+
         // ------------------------------------------------------------------ test hooks (internal)
         internal AudioLibrary Library => lib;
         internal IReadOnlyList<CueRecord> Played => played;
@@ -121,6 +134,7 @@ namespace FloorF.Audio
         {
             played.Clear(); SuppressedCount = 0; throttle.Clear(); pendingStreak = 0;
             DoorCutCount = 0; lastDingTime = float.NegativeInfinity; HumStarts = 0;
+            ThunderStrikes = 0; ThunderSkipped = 0;
         }
 
         /// <summary>The travel hum's own looping voice (never one of <see cref="SfxSources"/>).</summary>
@@ -136,6 +150,22 @@ namespace FloorF.Audio
         internal int HumStarts { get; private set; }
         /// <summary>Hum level without the fade: master x travelHumVolume x title scale.</summary>
         internal float HumFullVolume => master * lib.travelHumVolume * (phase == DayPhase.Title ? lib.titleSfxScale : 1f);
+
+        /// <summary>Test override of IDayQuery.IsRainy (null = ask the day).</summary>
+        internal bool? ForceRainy { get; set; }
+        internal AudioSource RainSource => rainSource;
+        internal AudioSource ThunderSource => thunderSource;
+        internal float RainGain => rain.Gain;
+        internal bool RainWanted => rain.Wanted;
+        /// <summary>Play() was called on the rain voice and it was not stopped since.</summary>
+        internal bool RainOn => rainOn;
+        /// <summary>Rain level without the fade: master x rainVolume x music duck.</summary>
+        internal float RainFullVolume => master * lib.rainVolume * duck;
+        internal ThunderSchedule Thunder => thunder;
+        /// <summary>Rumbles started / rumbles dropped because one was still sounding (since the last ClearRecords).</summary>
+        internal int ThunderStrikes { get; private set; }
+        internal int ThunderSkipped { get; private set; }
+        internal bool ThunderSounding => Time.unscaledTime < thunderEndsAt;
 
         internal bool TryGetLastPlayed(AudioCue cue, out CueRecord record)
         {
@@ -175,6 +205,13 @@ namespace FloorF.Audio
             humGo.transform.SetParent(transform, false);
             humSource = MakeSource(humGo, loop: true, priority: 64);
             humSource.clip = lib.travelHum;
+            var rainGo = new GameObject("Rain");
+            rainGo.transform.SetParent(transform, false);
+            rainSource = MakeSource(rainGo, loop: true, priority: 64);
+            rainSource.clip = lib.rainLoop;
+            var thunderGo = new GameObject("Thunder");
+            thunderGo.transform.SetParent(transform, false);
+            thunderSource = MakeSource(thunderGo, loop: false, priority: 96);
             for (int i = 0; i < 2; i++)
             {
                 var go = new GameObject(i == 0 ? "Music A" : "Music B");
@@ -216,6 +253,10 @@ namespace FloorF.Audio
             subs.Add(bus.Subscribe<LuckStreakChanged>(OnStreak));
             subs.Add(bus.Subscribe<TutorialHoldChanged>(e => held = e.Held));
             subs.Add(bus.Subscribe<SettingsChanged>(e => SetMaster(e.MasterVolume)));
+            subs.Add(bus.Subscribe<ShopRerolled>(_ => Play(AudioCue.ShopReroll)));
+            subs.Add(bus.Subscribe<CharmBought>(_ => Play(AudioCue.CharmBought)));
+            subs.Add(bus.Subscribe<CharmTriggered>(_ => Play(AudioCue.CharmShield)));
+            subs.Add(bus.Subscribe<StickersExpired>(e => Play(AudioEventMap.For(e))));
             subs.Add(bus.Subscribe<UiSound>(e => Play(e.Kind == UiSoundKind.Error ? AudioCue.Error : e.Kind == UiSoundKind.Confirm ? AudioCue.DayStart : AudioCue.UiClick)));
         }
 
@@ -237,6 +278,7 @@ namespace FloorF.Audio
             UpdateMusic(Time.unscaledTime, Time.unscaledDeltaTime);
             StepCutFades(Time.unscaledDeltaTime);
             UpdateHum(Time.unscaledDeltaTime);
+            UpdateWeather(Time.unscaledDeltaTime);
         }
 
         /// <summary>After every Update (Core ticks in Gameplay's Update): one StreakUp note for this frame's increases.</summary>
@@ -317,6 +359,7 @@ namespace FloorF.Audio
             master = Mathf.Clamp01(v);
             for (int i = 0; i < sfx.Length; i++) sfx[i].volume = sfxBaseVolume[i] * sfxFade[i] * master;
             UpdateMusic(Time.unscaledTime, 0f);
+            ApplyWeatherVolumes();
         }
 
         void Unlock()
@@ -484,6 +527,72 @@ namespace FloorF.Audio
             haveCarPos = true;
             if (carSpeed <= 0f || !q.HasTarget) return -1f;
             return Mathf.Abs(q.TargetFloor.Value - pos) / carSpeed;
+        }
+
+        // ------------------------------------------------------------------ rain & thunder
+
+        /// <summary>
+        /// Rain fades with the day (<see cref="WeatherRules.RainAudible"/>), thunder rumbles on the day's seeded schedule
+        /// while the rain is wanted. Paused / held: both keep sounding under the music duck, the schedule waits.
+        /// Call after UpdateMusic (uses its duck gain).
+        /// </summary>
+        internal void UpdateWeather(float dt)
+        {
+            bool rainy = ForceRainy ?? (GameServices.TryGet<IDayQuery>(out var day) && day.IsRainy);
+            bool want = WeatherRules.RainAudible(rainy, phase) && unlock.IsUnlocked && lib.rainLoop != null;
+            rain.Step(dt, want, lib.rainFadeInSeconds, lib.rainFadeOutSeconds);
+            if (rain.Active && !rainOn)
+            {
+                rainSource.clip = lib.rainLoop;
+                rainSource.time = 0f;
+                rainSource.Play();
+                rainOn = true;
+            }
+            else if (!rain.Active && rainOn)
+            {
+                rainSource.Stop();
+                rainOn = false;
+            }
+
+            var ts = ThunderSettings.From(lib);
+            if (want && !thunder.Armed)
+            {
+                int dayNumber = GameServices.TryGet<IDayQuery>(out var q) ? q.CurrentDay.Number : 0;
+                thunder.Reset(ThunderSchedule.SeedFor(dayNumber), ts); // a new rainy stretch: the day's schedule from the top
+            }
+            else if (!want && rain.Gain <= 0f) thunder.Disarm();
+            if (want && !paused && !held && thunder.Step(dt, ts)) StrikeThunder();
+            ApplyWeatherVolumes();
+        }
+
+        /// <summary>One rumble on the thunder voice - dropped (counted in ThunderSkipped) while the previous still sounds.</summary>
+        internal void StrikeThunder()
+        {
+            float now = Time.unscaledTime;
+            if (now < thunderEndsAt) { ThunderSkipped++; return; }
+            var def = lib.Find(AudioCue.Thunder);
+            if (def == null || def.clips == null || def.clips.Length == 0) return;
+            var clip = def.clips[rng.Next(def.clips.Length)];
+            if (clip == null) return;
+            float pitch = AudioRules.PickPitch(def.pitch, def.pitchJitter, rng);
+            thunderSource.Stop();
+            thunderSource.clip = clip;
+            thunderSource.pitch = pitch;
+            thunderLevel = def.volume;
+            thunderEndsAt = now + clip.length / Mathf.Max(0.01f, pitch);
+            ApplyWeatherVolumes();
+            thunderSource.Play();
+            ThunderStrikes++;
+            if (played.Count >= MaxRecords) played.RemoveAt(0);
+            played.Add(new CueRecord(AudioCue.Thunder, clip, pitch, thunderSource.volume, now));
+        }
+
+        void ApplyWeatherVolumes()
+        {
+            if (rainSource == null) return;
+            rainSource.volume = RainFullVolume * rain.Gain;
+            // the rumble belongs to the rain: it fades with it (and with the pause duck)
+            thunderSource.volume = master * thunderLevel * duck * rain.Gain;
         }
 
         // ------------------------------------------------------------------ music

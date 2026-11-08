@@ -47,6 +47,19 @@ namespace FloorF.Audio
         Wish = 17,
         /// <summary>Star night only: a quiet high sparkle layered on every Lucky judgement (the wish-star twinkle, pitched up).</summary>
         StarSparkle = 18,
+        /// <summary>ShopRerolled: Kenney card shuffle (offers redrawn). The TipsChanged spend that follows is silent.</summary>
+        ShopReroll = 19,
+        /// <summary>CharmBought: soft two-note bell (procedural).</summary>
+        CharmBought = 20,
+        /// <summary>CharmTriggered (e.g. the talisman ate an Unlucky verdict): protective shimmering "shield" chime (procedural).</summary>
+        CharmShield = 21,
+        /// <summary>StickersExpired with at least one label/charm: quiet sticker peel at day end (procedural).</summary>
+        StickersPeel = 22,
+        /// <summary>
+        /// Rainy days: a distant thunder rumble (procedural variants) on its own voice, on a seeded schedule
+        /// (<see cref="ThunderSchedule"/>), never two at once. Not tied to an event.
+        /// </summary>
+        Thunder = 23,
     }
 
     public enum MusicTrack
@@ -143,6 +156,22 @@ namespace FloorF.Audio
         /// <summary>Pitch at arrival, dipping (smoothstep) over the last <see cref="travelSpinDownSeconds"/> ("braking").</summary>
         public float travelPitchArrive = 0.95f;
         public float travelSpinDownSeconds = 0.4f;
+
+        /// <summary>
+        /// Rainy days (IDayQuery.IsRainy, Intro/Running/Summary): one dedicated looping voice with the procedural rain bed,
+        /// fading in/out with the day, ducked with the music on pause / coach-mark hold.
+        /// </summary>
+        public AudioClip rainLoop;
+        /// <summary>Rain level at full fade (x MasterVolume): an ambience under the music.</summary>
+        public float rainVolume = 0.12f;
+        public float rainFadeInSeconds = 3f;
+        public float rainFadeOutSeconds = 2.5f;
+        /// <summary>Implied lightning flashes every min..max seconds (uniform, seeded per day) ...</summary>
+        public float thunderMinGap = 8f;
+        public float thunderMaxGap = 20f;
+        /// <summary>... each heard as a rumble this many seconds after its flash (sound travels slower than light).</summary>
+        public float thunderDelayMin = 1f;
+        public float thunderDelayMax = 3f;
 
         public CueDef Find(AudioCue cue)
         {

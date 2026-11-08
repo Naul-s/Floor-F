@@ -32,6 +32,28 @@ namespace FloorF.EditorTools
         public const float WishVolume = 0.5f;
         // star-night Lucky layer (max100ms -11.7, 2.6-4 kHz, sounds loud): 0.12 -> -30.1, like the Lucky glass layer (-29.2)
         public const float StarSparkleVolume = 0.12f;
+        // Rainy day ambience (played = file x volume). Rain bed (file rms -19.9 / max100ms -17.9, droplets peak -6.6):
+        // 0.12 -> rms -38.3 / max100ms -36.3, a steady bed ~7 dB under the music (rms -31.5) and far under every effect.
+        public const float RainVolume = 0.12f;
+        // Distant thunder (max100ms -10.7..-12.1, bass-heavy, 0.35-0.6 s rises): 0.25 -> max100ms -22.7..-24.2, under the
+        // ding (-17.8) and, being mostly < 300 Hz, much softer by ear than those numbers. Fades with the rain.
+        public const float ThunderVolume = 0.25f;
+        // Shop. Reroll = Kenney card shuffle (3.1 s, quiet: max100ms -21.6 imported): 0.7 at pitch 1.1 -> ~-24.7, a riffle
+        // next to the click. Charm bell (max100ms -11.0): 0.35 -> -20.1, soft, under the ding. Shield chime (-12.7):
+        // 0.5 -> -18.7 - it plays next to the guest's Unlucky gasp (-24.1) and must read as "saved". Sticker peel (-15.8):
+        // 0.2 -> -29.7, quiet (day end, under the summary).
+        public const float RerollVolume = 0.7f;
+        public const float RerollPitch = 1.1f;
+        public const float CharmBellVolume = 0.35f;
+        public const float ShieldVolume = 0.5f;
+        public const float PeelVolume = 0.2f;
+
+        static string[] ThunderClips()
+        {
+            var a = new string[ProceduralSfxSynth.ThunderVariants];
+            for (int i = 0; i < a.Length; i++) a[i] = ProceduralSfxSynth.ThunderPath(i);
+            return a;
+        }
 
         [MenuItem("Floor F/Audio/Rebuild Audio Library")]
         public static void Build()
@@ -99,6 +121,15 @@ namespace FloorF.EditorTools
                 Cue(AudioCue.WishStar, new[] { ProceduralSfxSynth.WishStarPath }, WishStarVolume, 1f, 0.05f, 0.5f),
                 Cue(AudioCue.Wish, new[] { ProceduralSfxSynth.WishChimePath }, WishVolume, 1f, 0.05f, 0.3f),
                 Cue(AudioCue.StarSparkle, new[] { ProceduralSfxSynth.StarSparklePath }, StarSparkleVolume, 1f, 0.08f, 0.15f),
+                // shop: offers redrawn = a card riffle; a charm = a soft bell; the talisman eating a bad-luck verdict = a
+                // shimmering shield chime (it plays next to the guest's Unlucky gasp); one-day purchases running out at
+                // day end = a quiet peel
+                Cue(AudioCue.ShopReroll, new[] { Casino + "card-shuffle.ogg" }, RerollVolume, RerollPitch, 0.05f, 0.3f),
+                Cue(AudioCue.CharmBought, new[] { ProceduralSfxSynth.CharmBellPath }, CharmBellVolume, 1f, 0.05f, 0.3f),
+                Cue(AudioCue.CharmShield, new[] { ProceduralSfxSynth.ShieldChimePath }, ShieldVolume, 1f, 0.05f, 0.4f),
+                Cue(AudioCue.StickersPeel, new[] { ProceduralSfxSynth.StickerPeelPath }, PeelVolume, 1f, 0.06f, 0.5f),
+                // rainy-day distant thunder: played by AudioRoot's own thunder voice on the seeded schedule (not an event)
+                Cue(AudioCue.Thunder, ThunderClips(), ThunderVolume, 1f, 0.08f, 6f),
             };
             lib.tracks = new[]
             {
@@ -141,6 +172,16 @@ namespace FloorF.EditorTools
             lib.travelSpinUpSeconds = 0.5f;
             lib.travelPitchArrive = 0.95f;
             lib.travelSpinDownSeconds = 0.4f;
+
+            // rainy days (Day 5, Friday the 13th): rain bed + seeded distant thunder, see AudioLibrary
+            lib.rainLoop = C(ProceduralSfxSynth.RainPath);
+            lib.rainVolume = RainVolume;
+            lib.rainFadeInSeconds = 3f;
+            lib.rainFadeOutSeconds = 2.5f;
+            lib.thunderMinGap = 8f;
+            lib.thunderMaxGap = 20f;
+            lib.thunderDelayMin = 1f;
+            lib.thunderDelayMax = 3f;
 
             if (missing.Count > 0)
                 throw new FileNotFoundException("[AudioLibraryBuilder] missing clips:\n" + string.Join("\n", missing));
