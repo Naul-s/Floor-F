@@ -415,6 +415,7 @@ namespace FloorF.UI
                 if (owned) { sub = ctx.S(UIStrings.Owned); subColor = UIStyle.Good; }
                 else if (soldOut) { sub = ctx.S(UIStrings.SoldOut); subColor = UIStyle.Unlucky; }
                 else if (broke) { sub = string.Format(ctx.S(UIStrings.NeedMore), (offer.Price - tipsNow).ToString(CultureInfo.InvariantCulture)); subColor = UIStyle.Unlucky; }
+                else if (IsStaple(def)) { sub = ctx.S(UIStrings.Staple); subColor = UIStyle.Lucky; }
                 else if (offer.Remaining > 0) { sub = string.Format(ctx.S(UIStrings.StockLeft), offer.Remaining.ToString(CultureInfo.InvariantCulture)); subColor = UIStyle.InkDim; }
                 else { sub = ""; subColor = UIStyle.InkDim; }
                 c.Sub.text = sub;
@@ -430,6 +431,17 @@ namespace FloorF.UI
                 // unaffordable: still clickable (labels: to see the floors; charms: says what is missing), never when gone
                 c.Parts.Button.interactable = !soldOut && !owned;
             }
+        }
+
+        /// <summary>
+        /// Gameplay's staple (GameSession.Shop): a label sticker for the real 4th floor's original label (4 -> F) is offered
+        /// every visit and survives rerolls.
+        /// </summary>
+        bool IsStaple(StickerDef s)
+        {
+            if (s == null || s.IsCharm || s.MatchesAnyLabel || ctx.Building == null) return false;
+            var original = ctx.Building.GetOriginalLabel(StoryRules.RealFourthFloor);
+            return !original.IsEmpty && (s.from ?? "").Trim() == original.Text;
         }
 
         static readonly Color LabelPill = UIStyle.Hex("#C9A15A"), CharmPill = UIStyle.Hex("#7FDBFF"), DayPill = UIStyle.Hex("#F4EEDC");
@@ -581,6 +593,7 @@ namespace FloorF.UI
         public string OfferSub(int i) => i >= 0 && i < shownCount ? cells[i].Sub.text : null;
         public bool OfferInteractable(int i) => i >= 0 && i < shownCount && cells[i].Parts.Button.interactable;
         public float OfferHeadlineSize(int i) => i >= 0 && i < shownCount ? cells[i].Headline.fontSize : 0f;
+        public string OfferId(int i) => i >= 0 && i < shownCount ? cells[i].Id.Value : null;
         public int OfferIndex(string id)
         {
             for (int i = 0; i < shownCount; i++) if (cells[i].Id.Value == id) return i;

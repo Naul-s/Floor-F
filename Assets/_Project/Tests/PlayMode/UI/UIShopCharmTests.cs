@@ -414,6 +414,96 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.LessOrEqual(mark.xMax, label.center.x - textHalf + 0.5f, "mark clear of the big label's glyphs");
         }
 
+        // ------------------------------------------------------------------ the real shop (Gameplay)
+
+        [UnityTest]
+        public IEnumerator RealShop_Charm_And_Label_LastOneDay_ThenTheNote()
+        {
+            yield return ToShop(900);
+            var ui = UITestDriver.UI();
+            var shopService = GameServices.Get<IShopService>();
+            var building = GameServices.Get<IBuildingQuery>();
+            Assert.AreEqual(4, ui.ShopOfferCount, "rules.shopOfferCount");
+            Assert.IsNull(ui.ShopDescriptionProblem(), "real offers fit");
+            int staple = ui.ShopOfferIndex("four_to_f");
+            Assert.GreaterOrEqual(staple, 0, "the 4 -> F staple is always offered");
+            Assert.AreEqual("always here", ui.ShopOfferSub(staple));
+            Assert.AreEqual("REROLL $20 (3)", ui.ShopRerollText);
+
+            // a charm: reroll until one shows (the staple survives)
+            int charm = -1;
+            for (int roll = 0; roll <= 3 && charm < 0; roll++)
+            {
+                for (int i = 0; i < ui.ShopOfferCount; i++)
+                    if (ui.ShopOfferKind(i) == "CHARM") { charm = i; break; }
+                if (charm < 0) { ui.ClickShopReroll(); yield return null; Assert.GreaterOrEqual(ui.ShopOfferIndex("four_to_f"), 0, "staple survives the reroll"); }
+            }
+            Assert.GreaterOrEqual(charm, 0, "a charm on offer");
+            Assert.IsNull(ui.ShopDescriptionProblem(), "after rerolls");
+            string charmId = ui.ShopOfferId(charm);
+            StringAssert.DoesNotContain("→", ui.ShopOfferHeadline(charm), "charms have no label arrow");
+            ui.ClickShopOffer(charm);
+            yield return null;
+            Assert.AreEqual(1, shopService.ActiveCharms.Count, "one click bought it");
+            ui.ClickShopOffer(ui.ShopOfferIndex("four_to_f"));
+            var fourth = FloorIndex.FromPhysicalNumber(4);
+            ui.ClickFloor(fourth.Value);
+            yield return null;
+            Assert.AreEqual("4", ui.OriginalMarkText(fourth.Value));
+            string strip = Plain(ui.ShopTomorrowText);
+            StringAssert.Contains("4→F", strip);
+            StringAssert.Contains(GameServices.Get<GameData>().GetSticker(new StickerId(charmId)).name, strip);
+
+            ui.ClickShopDone();
+            yield return null;
+            yield return UITestDriver.ClickStart();
+            yield return UITestDriver.Frames(3);
+            Assert.IsTrue(ui.CharmsVisible, "the charm is active today");
+            Assert.IsNull(ui.CharmsOverflow());
+            Assert.AreEqual("4", ui.OriginalMarkText(fourth.Value));
+
+            UITestDriver.Session().EndDayNow();
+            yield return null;
+            Assert.AreEqual(DayPhase.Summary, ui.VisibleFlowScreen);
+            StringAssert.Contains("Stickers and charms wore off", ui.FlowExtra);
+            Assert.IsNull(ui.OriginalMarkText(fourth.Value), "label expired: the mark is gone");
+            Assert.AreEqual(building.GetOriginalLabel(fourth).Text, ui.FloorButtonText(fourth.Value));
+            Assert.IsFalse(ui.CharmsVisible);
+        }
+
+        [UnityTest]
+        public IEnumerator RainyDay_IntroMentionsTheRain_FridayLookHolds()
+        {
+            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
+            yield return UITestDriver.LoadMain();
+            var ui = UITestDriver.UI();
+            var day = GameServices.Get<IDayQuery>();
+            var s = UITestDriver.Session();
+            for (int guard = 0; guard < 40 && !(day.Phase == DayPhase.Intro && day.IsRainy); guard++)
+            {
+                switch (day.Phase)
+                {
+                    case DayPhase.Intro: s.BeginDay(); break;
+                    case DayPhase.Running: s.EndDayNow(); break;
+                    case DayPhase.Summary: s.ContinueFromSummary(); break;
+                    case DayPhase.Shop: s.FinishShopping(); break;
+                }
+            }
+            Assert.IsTrue(day.IsRainy, "a rainy day exists in days.json");
+            yield return UITestDriver.Frames(2);
+            foreach (bool ko in new[] { false, true })
+            {
+                GameServices.Get<IGameSettings>().UseKorean = ko;
+                yield return UITestDriver.Frames(2);
+                StringAssert.Contains(ko ? "오늘 밤은 비" : "Rain tonight", ui.FlowExtra);
+                if (day.IsFriday13) Assert.IsTrue(ui.FlowFridayLook, "Friday-13 red card still applies");
+                var card = ui.FlowCardRect;
+                Assert.Greater(card.yMin, 0f);
+                Assert.Less(card.yMax, ui.CanvasSize.y);
+            }
+            GameServices.Get<IGameSettings>().UseKorean = false;
+        }
+
         // ------------------------------------------------------------------ captures (-Filter Capture)
 
         [UnityTest]
@@ -492,16 +582,29 @@ namespace FloorF.Tests.PlayMode.UI
 
         static IEnumerator PanelCapture(bool ko)
         {
-            yield return ToShop(600, ko);
+            yield return ToShop(900, ko);
             var ui = UITestDriver.UI();
             ui.ClickShopOffer(ui.ShopOfferIndex("four_to_f"));
             ui.ClickFloor(FloorIndex.FromPhysicalNumber(4).Value);
-            int any8 = ui.ShopOfferIndex("any_to_8");
-            ui.ClickShopOffer(any8);
-            ui.ClickFloor(FloorIndex.FromPhysicalNumber(2).Value);
-            yield return null;
-            ui.ClickFloor(FloorIndex.FromPhysicalNumber(6).Value); // still picked: 2 more in stock
-            yield return null;
+            // two "any" stickers from the real random offers (stock 1 each) on floors 2 and 6
+            var targets = new[] { FloorIndex.FromPhysicalNumber(2), FloorIndex.FromPhysicalNumber(6) };
+            int stuck = 0;
+            for (int roll = 0; roll <= 3 && stuck < 2; roll++)
+            {
+                for (int i = 0; i < ui.ShopOfferCount && stuck < 2; i++)
+                {
+                    string id = ui.ShopOfferId(i);
+                    if (id == null || !id.StartsWith("any_to_")) continue;
+                    var building = GameServices.Get<IBuildingQuery>();
+                    if (building.IsRelabelled(targets[stuck])) break;
+                    ui.ClickShopOffer(i);
+                    ui.ClickFloor(targets[stuck].Value);
+                    if (building.IsRelabelled(targets[stuck])) stuck++;
+                    yield return null;
+                }
+                if (stuck < 2) { ui.ClickShopReroll(); yield return null; }
+            }
+            Assert.AreEqual(2, stuck, "two any-stickers bought");
             Assert.AreEqual("2", ui.OriginalMarkText(1));
             ui.ClickShopDone();
             yield return null;
@@ -510,11 +613,12 @@ namespace FloorF.Tests.PlayMode.UI
             yield return UITestDriver.Frames(10);
             Time.captureDeltaTime = 0f;
             yield return null;
-            // after the merge the labels last exactly this day: still on now
-            Assert.AreEqual("8", ui.FloorButtonText(1));
+            // the labels last exactly this day: still on now
             Assert.AreEqual("2", ui.OriginalMarkText(1));
             Assert.AreEqual("6", ui.OriginalMarkText(5));
+            Assert.AreEqual("4", ui.OriginalMarkText(3));
             AssertMarkPlacement(ui, 1);
+            AssertMarkPlacement(ui, 5);
             Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_panel_original_floor" + (ko ? "_ko" : ""))));
             GameServices.Get<IGameSettings>().UseKorean = false;
         }

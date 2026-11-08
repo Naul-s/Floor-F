@@ -302,6 +302,7 @@ namespace FloorF.UI
             if (built) { panel.RefreshLabels(); shop.RefreshLanguage(); }
         }
         internal int ShopOfferIndex(string id) => shop.OfferIndex(id);
+        internal string ShopOfferId(int i) => shop.OfferId(i);
         internal string ShopOfferHeadline(int i) => shop.OfferHeadline(i);
         internal string ShopOfferKind(int i) => shop.OfferKind(i);
         internal string ShopOfferDayTag(int i) => shop.OfferDayTag(i);

@@ -35,6 +35,9 @@ namespace FloorF.UI
         public static readonly Loc Friday13Intro = new Loc("Today every UNLUCKY moment costs {0}x the Luck - and travelling 13 floors is unlucky for EVERYONE.",
             "오늘은 불길한 판정마다 운이 {0}배로 깎여요 - 그리고 13층을 이동하면 누구에게나 불길해요.");
 
+        /// <summary>Rainy day intro line (IDayQuery.IsRainy, presentation only).</summary>
+        public static readonly Loc RainIntro = new Loc("Rain tonight - thunder rolls in the distance.", "오늘 밤은 비 - 멀리서 천둥이 울려요.");
+
         // ---- star night (IDayQuery.IsStarNight, Day 7): 7 is lucky for everyone, wish stars
         /// <summary>Star-night rule-box line.</summary>
         public static readonly Loc RuleStarNight = new Loc("Star night: 7 = lucky for ALL", "별의 밤: 7 = 모두 행운");
@@ -123,6 +126,8 @@ namespace FloorF.UI
         public static readonly Loc OneDay = new Loc("1 DAY", "하루");
         public static readonly Loc StockLeft = new Loc("{0} left", "{0}개 남음");
         public static readonly Loc Owned = new Loc("BOUGHT", "구입함");
+        /// <summary>The staple (4 -> F for the real 4th floor): offered every visit, survives rerolls.</summary>
+        public static readonly Loc Staple = new Loc("always here", "항상 있음");
         /// <summary>Shop hint: labels need a floor, charms are bought with one click; everything lasts tomorrow only.</summary>
         public static readonly Loc ShopHintCharms = new Loc("Stickers: pick one, then a glowing floor. Charms: one click. Everything lasts TOMORROW only.",
             "스티커: 고른 뒤 빛나는 층 버튼. 부적: 한 번 클릭. 모두 내일 하루만!");

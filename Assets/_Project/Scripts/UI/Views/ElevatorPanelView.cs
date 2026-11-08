@@ -26,7 +26,7 @@ namespace FloorF.UI
             public TextMeshProUGUI Label;
             /// <summary>Top-left corner: the floor's ORIGINAL label, struck through in red, while a sticker relabels it.</summary>
             public TextMeshProUGUI Original;
-            public RectTransform Strike;
+            public RectTransform OriginalPlate, Strike;
             public DestinationBadge Badge;
             public Mark Mark = (Mark)(-1);
         }
@@ -135,30 +135,35 @@ namespace FloorF.UI
             brt.offsetMin = new Vector2(2f, 3f);
             brt.offsetMax = new Vector2(-2f, BadgeH);
 
-            // "the real floor" mark: "4" with a red diagonal strike, top-left, only while relabelled (e.g. Any -> 8)
-            fb.Original = UIBuild.Text("Original", fb.Parts.Rect, "", OriginalSize, OriginalInk, TextAlignmentOptions.Center);
-            UIBuild.Place(fb.Original.rectTransform, new Vector2(0f, 1f), new Vector2(3f, -1f), new Vector2(OriginalW, OriginalH));
+            // "the real floor" mark, same look as the building's signs (render-dev): the old dark plate peeking out
+            // top-left with the ORIGINAL number in warm ink, struck by a red diagonal - only while relabelled (Any -> 8)
+            fb.OriginalPlate = UIBuild.Box("OriginalPlate", fb.Parts.Rect, OriginalPlate).rectTransform;
+            UIBuild.Place(fb.OriginalPlate, new Vector2(0f, 1f), new Vector2(3f, -3f), new Vector2(OriginalW, OriginalH));
+            fb.Original = UIBuild.Text("Original", fb.OriginalPlate, "", OriginalSize, OriginalInk, TextAlignmentOptions.Center);
+            UIBuild.Stretch(fb.Original.rectTransform);
             fb.Original.textWrappingMode = TextWrappingModes.NoWrap;
-            fb.Strike = UIBuild.Box("Strike", fb.Original.rectTransform, UIStyle.Unlucky).rectTransform;
-            fb.Original.gameObject.SetActive(false);
+            fb.Strike = UIBuild.Box("Strike", fb.OriginalPlate, OriginalStrike).rectTransform;
+            fb.OriginalPlate.gameObject.SetActive(false);
             return fb;
         }
 
-        const float OriginalSize = 24f, OriginalW = 26f, OriginalH = 26f, StrikeW = 3f;
-        static readonly Color OriginalInk = new Color(UIStyle.Ink.r, UIStyle.Ink.g, UIStyle.Ink.b, 0.85f);
+        const float OriginalSize = 24f, OriginalW = 24f, OriginalH = 26f, StrikeW = 3f;
+        /// <summary>RenderingStyle.SignPlate / OriginalMarkInk / OriginalMarkStrike (modules may not reference each other).</summary>
+        static readonly Color OriginalPlate = new Color(0.08f, 0.07f, 0.06f, 1f), OriginalInk = new Color(0.95f, 0.85f, 0.62f, 1f),
+            OriginalStrike = new Color(0.92f, 0.16f, 0.12f, 1f);
 
         void SetOriginal(FloorButton b, string original)
         {
             bool show = !string.IsNullOrEmpty(original);
-            if (b.Original.gameObject.activeSelf != show) b.Original.gameObject.SetActive(show);
+            if (b.OriginalPlate.gameObject.activeSelf != show) b.OriginalPlate.gameObject.SetActive(show);
             if (!show) return;
             if (string.Equals(b.Original.text, original, StringComparison.Ordinal)) return;
             b.Original.text = original;
             if (b.Original.font != null) b.Original.font.TryAddCharacters(original);
-            float w = Mathf.Max(OriginalW, Mathf.Ceil(b.Original.GetPreferredValues(original, float.PositiveInfinity, float.PositiveInfinity).x) + 6f);
-            b.Original.rectTransform.sizeDelta = new Vector2(w, OriginalH);
-            // bottom-left -> top-right across the digits (canvas-local to the mark's own rect)
-            UIBuild.SetLine(b.Strike, new Vector2(1f, 4f), new Vector2(w - 1f, OriginalH - 4f), StrikeW);
+            float w = Mathf.Max(OriginalW, Mathf.Ceil(b.Original.GetPreferredValues(original, float.PositiveInfinity, float.PositiveInfinity).x) + 8f);
+            b.OriginalPlate.sizeDelta = new Vector2(w, OriginalH);
+            // bottom-left -> top-right across the digits (local to the plate)
+            UIBuild.SetLine(b.Strike, new Vector2(2f, 3f), new Vector2(w - 2f, OriginalH - 3f), StrikeW);
         }
 
         void OnFloorClicked(FloorIndex floor)
@@ -237,8 +242,7 @@ namespace FloorF.UI
                     var bg = m == Mark.Target ? UIStyle.BtnTarget : m == Mark.Applicable ? UIStyle.BtnApplicable : m == Mark.Blocked ? UIStyle.BtnBlocked : UIStyle.Btn;
                     b.Parts.Background.color = bg;
                     b.Label.color = m == Mark.Blocked ? UIStyle.InkDim : UIStyle.InkOn(bg);
-                    var ink = UIStyle.InkOn(bg);
-                    b.Original.color = m == Mark.Blocked ? UIStyle.InkDim : ink == UIStyle.Dark ? UIStyle.Dark : OriginalInk;
+                    b.Original.alpha = m == Mark.Blocked ? 0.55f : 1f; // on its own dark plate: readable on any button colour
                 }
                 if (m == Mark.Applicable) b.Parts.Background.color = Color.Lerp(UIStyle.Btn, UIStyle.BtnApplicable, pulse);
             }
@@ -265,8 +269,8 @@ namespace FloorF.UI
         public string ButtonText(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Label.text : null;
         /// <summary>The struck-through original label shown on that button, or null when hidden.</summary>
         public string OriginalMarkText(int floor) =>
-            floor >= 0 && floor < buttons.Length && buttons[floor].Original.gameObject.activeSelf ? buttons[floor].Original.text : null;
-        public RectTransform OriginalMarkRect(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Original.rectTransform : null;
+            floor >= 0 && floor < buttons.Length && buttons[floor].OriginalPlate.gameObject.activeSelf ? buttons[floor].Original.text : null;
+        public RectTransform OriginalMarkRect(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].OriginalPlate : null;
         public RectTransform LabelRect(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Label.rectTransform : null;
         public float LabelPreferredWidth(int floor) =>
             floor >= 0 && floor < buttons.Length ? buttons[floor].Label.GetPreferredValues(buttons[floor].Label.text, float.PositiveInfinity, float.PositiveInfinity).x : 0f;

@@ -247,7 +247,8 @@ namespace FloorF.UI
             body.gameObject.SetActive(!string.IsNullOrEmpty(intro));
             // Day 0 teaches step by step in the game itself; the real Day 1 gets the list as a recap (hints on)
             bool howTo = !tutorial && ctx.Settings != null && ctx.Settings.ShowTutorialHints && ctx.Day.DisplayDay == 1;
-            extra.gameObject.SetActive(howTo || fridayCard || starCard);
+            bool rain = !tutorial && ctx.Day.IsRainy;
+            extra.gameObject.SetActive(howTo || fridayCard || starCard || rain);
             extra.text = "";
             if (howTo)
                 extra.text = "<b><color=#C9A15A>" + ctx.S(UIStrings.HowToTitle) + "</color></b>\n" +
@@ -265,8 +266,16 @@ namespace FloorF.UI
                 extra.text += (howTo ? "\n\n" : "") + "<color=" + StarInkHex + ">" + ctx.F(UIStrings.StarNightIntro, bonus) + "</color>";
                 if (!howTo) extra.alignment = TextAlignmentOptions.Center;
             }
+            if (rain)
+            {
+                // presentation only (rain + distant lightning): a quiet line under whatever the day says
+                extra.text += (extra.text.Length > 0 ? "\n" : "") + "<color=" + RainHex + ">" + ctx.S(UIStrings.RainIntro) + "</color>";
+                if (!howTo) extra.alignment = TextAlignmentOptions.Center;
+            }
             action.Label.text = ctx.S(UIStrings.Start);
         }
+
+        public const string RainHex = "#8FB8E8";
 
         public static readonly Color StarTitle = UIStyle.Hex("#FFF1B0");
         const string StarInkHex = "#DCD4FF";
