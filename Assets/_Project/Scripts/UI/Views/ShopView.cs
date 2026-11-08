@@ -412,8 +412,8 @@ namespace FloorF.UI
                 // stock / need / bought (right of the badges)
                 string sub;
                 Color subColor;
-                if (soldOut) { sub = ctx.S(UIStrings.SoldOut); subColor = UIStyle.Unlucky; }
-                else if (owned) { sub = ctx.S(UIStrings.Owned); subColor = UIStyle.Good; }
+                if (owned) { sub = ctx.S(UIStrings.Owned); subColor = UIStyle.Good; }
+                else if (soldOut) { sub = ctx.S(UIStrings.SoldOut); subColor = UIStyle.Unlucky; }
                 else if (broke) { sub = string.Format(ctx.S(UIStrings.NeedMore), (offer.Price - tipsNow).ToString(CultureInfo.InvariantCulture)); subColor = UIStyle.Unlucky; }
                 else if (offer.Remaining > 0) { sub = string.Format(ctx.S(UIStrings.StockLeft), offer.Remaining.ToString(CultureInfo.InvariantCulture)); subColor = UIStyle.InkDim; }
                 else { sub = ""; subColor = UIStyle.InkDim; }
