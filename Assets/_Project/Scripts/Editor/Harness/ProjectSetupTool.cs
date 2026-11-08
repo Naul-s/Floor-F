@@ -39,6 +39,8 @@ namespace FloorF.EditorTools
             PlayerSettings.WebGL.decompressionFallback = true;
             PlayerSettings.defaultWebScreenWidth = 1280;
             PlayerSettings.defaultWebScreenHeight = 720;
+            // (4) game-themed loading page (Assets/WebGLTemplates/FloorF): elevator floor indicator 1..9, 16:9 fit-to-window
+            PlayerSettings.WebGL.template = "PROJECT:FloorF";
 
             var tmp = AssetDatabase.LoadMainAssetAtPath(TmpSettingsAsset);
             if (tmp == null) throw new System.IO.FileNotFoundException("ProjectSetupTool: missing " + TmpSettingsAsset);

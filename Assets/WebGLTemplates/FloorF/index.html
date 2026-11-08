@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <title>{{{ PRODUCT_NAME }}}</title>
+    <link rel="shortcut icon" href="TemplateData/favicon.ico">
+    <link rel="stylesheet" href="TemplateData/style.css">
+  </head>
+  <body>
+    <div id="stage">
+      <canvas id="unity-canvas" width={{{ WIDTH }}} height={{{ HEIGHT }}} tabindex="-1"></canvas>
+      <div id="loading">
+        <div id="logo">FLOOR <span>F</span></div>
+        <div id="panel">
+          <div id="indicator"><span id="arrow">&#9650;</span><span id="floor">1</span></div>
+          <div id="shaft"><div id="car"></div></div>
+        </div>
+        <div id="hint">Going up&hellip; / 올라가는 중&hellip;</div>
+      </div>
+      <div id="warning"></div>
+      <button id="fullscreen" title="Fullscreen / 전체 화면" aria-label="Fullscreen">&#x26F6;</button>
+    </div>
+    <script>
+      // Floor F loading page: an elevator floor indicator counts up 1..9 (the 4th floor reads "F") as the build loads.
+      var canvas = document.querySelector("#unity-canvas");
+      var stage = document.querySelector("#stage");
+      var loading = document.querySelector("#loading");
+      var floorEl = document.querySelector("#floor");
+      var carEl = document.querySelector("#car");
+      var LABELS = ["1", "2", "3", "F", "5", "6", "7", "8", "9"];
+
+      // keep 16:9 and fit the window (itch.io iframe or a full tab)
+      function fit() {
+        var w = window.innerWidth, h = window.innerHeight;
+        var s = Math.min(w / 16, h / 9);
+        stage.style.width = Math.floor(16 * s) + "px";
+        stage.style.height = Math.floor(9 * s) + "px";
+      }
+      window.addEventListener("resize", fit);
+      fit();
+
+      function showBanner(msg, type) {
+        var box = document.querySelector("#warning");
+        var div = document.createElement("div");
+        div.innerHTML = msg;
+        div.className = type == "error" ? "error" : "warn";
+        box.appendChild(div);
+        if (type != "error") setTimeout(function () { box.removeChild(div); }, 5000);
+      }
+
+      var buildUrl = "Build";
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/{{{ DATA_FILENAME }}}",
+        frameworkUrl: buildUrl + "/{{{ FRAMEWORK_FILENAME }}}",
+#if USE_THREADS
+        workerUrl: buildUrl + "/{{{ WORKER_FILENAME }}}",
+#endif
+#if USE_WASM
+        codeUrl: buildUrl + "/{{{ CODE_FILENAME }}}",
+#endif
+#if SYMBOLS_FILENAME
+        symbolsUrl: buildUrl + "/{{{ SYMBOLS_FILENAME }}}",
+#endif
+        streamingAssetsUrl: "StreamingAssets",
+        companyName: {{{ JSON.stringify(COMPANY_NAME) }}},
+        productName: {{{ JSON.stringify(PRODUCT_NAME) }}},
+        productVersion: {{{ JSON.stringify(PRODUCT_VERSION) }}},
+        showBanner: showBanner,
+      };
+
+      function setProgress(p) {
+        var i = Math.max(0, Math.min(8, Math.floor(p * 9)));
+        floorEl.textContent = LABELS[i];
+        floorEl.className = LABELS[i] == "F" ? "f" : "";
+        carEl.style.bottom = (i * 100 / 9) + "%";
+      }
+
+      var script = document.createElement("script");
+      script.src = buildUrl + "/{{{ LOADER_FILENAME }}}";
+      script.onload = function () {
+        createUnityInstance(canvas, config, function (progress) {
+          setProgress(progress);
+        }).then(function (unityInstance) {
+          loading.style.display = "none";
+          document.querySelector("#fullscreen").onclick = function () { unityInstance.SetFullscreen(1); };
+        }).catch(function (message) {
+          showBanner(message, "error");
+        });
+      };
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>
