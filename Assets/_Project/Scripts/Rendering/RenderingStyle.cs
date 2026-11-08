@@ -85,6 +85,9 @@ namespace FloorF.Rendering
         public static readonly Color LuckyFlash = new Color(1.00f, 0.85f, 0.30f);
         public const float UnluckyFlashSeconds = 1.1f;
         public const float LuckyFlashSeconds = 0.6f;
+        /// <summary>"666" (unlucky 6 from a devout guest): one red pulse on every floor.</summary>
+        public const float CurseFlashSeconds = 1.3f;
+        public const float CurseFlashStrength = 0.75f;
         public const float FloorLightIntensity = 6f;
         public const float FloorLightRange = 6.5f;
         public static readonly Color CarLight = new Color(1.00f, 0.90f, 0.70f);

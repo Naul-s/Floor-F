@@ -50,7 +50,27 @@ namespace FloorF.EditorTools
             ("visor", 0, "character-female-f", "#2E8B57"),         // gambler
             ("glasses", 0, "character-male-e", "#708090"),         // glasses + shirt -> accountant
             ("hood", 0, "character-male-a", "#2B2B2B"),            // darkened, hooded, glowing eyes
+            ("collar", 0, "character-male-c", "#4B2C6F"),          // priest: dark cassock tile (+ white collar at runtime)
+            ("flat_cap", 0, "character-male-b", "#D9A441"),        // nonno: bald + beard, beard greyed (+ cap, cane at runtime)
         };
+
+        /// <summary>How an archetype's atlas tile is dressed beyond the shirt tint.</summary>
+        enum Dress { Plain, Mystery, Cassock, GreyHair }
+
+        static Dress DressOf(string accessory)
+        {
+            switch (accessory)
+            {
+                case "hood": return Dress.Mystery;
+                case "collar": return Dress.Cassock;
+                case "flat_cap": return Dress.GreyHair;
+                default: return Dress.Plain;
+            }
+        }
+
+        /// <summary>Cassock: every non-skin swatch darkened to this factor, shirt = tint * <see cref="CassockShirt"/>.</summary>
+        const float CassockDarken = 0.25f, CassockShirt = 0.3f;
+        static readonly Color SilverHair = new Color(0.82f, 0.82f, 0.84f);
 
         static readonly string[] FurnitureProps =
         {
@@ -172,20 +192,34 @@ namespace FloorF.EditorTools
                 // tint = guests.json colour of the archetype wearing this accessory (map value is only a fallback)
                 var def = guestDefs?.guests?.FirstOrDefault(d => d.accessory == g.accessory);
                 var tint = GuestFigure.Vivid(CoreUnityExtensions.ParseColor(def != null && !string.IsNullOrEmpty(def.color) ? def.color : g.colorHex));
-                bool mystery = g.accessory == "hood";
+                var dress = DressOf(g.accessory);
                 // the shirt swatch is often shared with hair/eyes on the head mesh: copy it into an unused swatch of
                 // this character's tile, recolour the copy and point only the BODY mesh's shirt UVs at it
                 var shirt = ShirtCell(body);
                 var tilePx = (Color32[])baseTile.Clone();
-                if (mystery) for (int i = 0; i < tilePx.Length; i++) tilePx[i] = Darken(tilePx[i], 0.22f);
+                if (dress == Dress.Mystery) for (int i = 0; i < tilePx.Length; i++) tilePx[i] = Darken(tilePx[i], 0.22f);
+                if (dress == Dress.Cassock) DarkenClothes(tilePx, CassockDarken);
+                var hair = new Vector2Int(-1, -1);
+                if (dress == Dress.GreyHair)
+                {
+                    // the beard swatch may be shared with skin elsewhere: grey a copy, point only the HEAD mesh at it
+                    hair = HairCell(head, report);
+                    if (hair.x >= 0)
+                    {
+                        CopyCell(tilePx, hair, HairSpareCell);
+                        RecolorCell(tilePx, HairSpareCell, SilverHair);
+                    }
+                }
                 CopyCell(tilePx, shirt, SpareCell);
-                RecolorCell(tilePx, SpareCell, mystery ? tint * 0.9f : tint);
+                var shirtColor = dress == Dress.Mystery ? tint * 0.9f : dress == Dress.Cassock ? tint * CassockShirt : tint;
+                shirtColor.a = 1f;
+                RecolorCell(tilePx, SpareCell, shirtColor);
                 BlitTile(atlas, tile, tilePx);
                 var shirtUV = RemapToTile(new Vector2((SpareCell.x + 0.5f) / 16f, (SpareCell.y + 0.5f) / 4f), tile);
 
                 var entry = new KenneyCatalog.GuestModel
                 {
-                    Accessory = g.accessory, Variant = g.variant, Character = g.character, Tile = tile, Tint = tint, ShirtUV = shirtUV,
+                    Accessory = g.accessory, Variant = g.variant, Character = g.character, Tile = tile, Tint = tint, Shirt = shirtColor, ShirtUV = shirtUV,
                 };
                 var bounds = new Bounds();
                 bool first = true;
@@ -200,6 +234,8 @@ namespace FloorF.EditorTools
                         var uv = uvs[i];
                         if (s == body && CellOf(uv) == shirt)
                             uv = new Vector2((SpareCell.x + Frac(uv.x * 16f)) / 16f, (SpareCell.y + Frac(uv.y * 4f)) / 4f);
+                        else if (s == head && hair.x >= 0 && CellOf(uv) == hair)
+                            uv = new Vector2((HairSpareCell.x + Frac(uv.x * 16f)) / 16f, (HairSpareCell.y + Frac(uv.y * 4f)) / 4f);
                         uvs[i] = RemapToTile(uv, tile);
                     }
                     m.SetUVs(0, uvs);
@@ -411,6 +447,46 @@ namespace FloorF.EditorTools
             }
             if (area.Count == 0) return new Vector2Int(8, 1);
             return area.OrderByDescending(kv => kv.Value).First().Key;
+        }
+
+        /// <summary>Second-largest swatch of the head mesh (the largest is the face): hair or beard, (-1,-1) if none.</summary>
+        static Vector2Int HairCell(SkinnedMeshRenderer head, System.Text.StringBuilder report)
+        {
+            var m = head.sharedMesh;
+            var verts = m.vertices;
+            var uvs = m.uv;
+            var tris = m.triangles;
+            var area = new Dictionary<Vector2Int, float>();
+            for (int i = 0; i < tris.Length; i += 3)
+            {
+                int a = tris[i], b = tris[i + 1], c = tris[i + 2];
+                var cell = CellOf((uvs[a] + uvs[b] + uvs[c]) / 3f);
+                area.TryGetValue(cell, out var sum);
+                area[cell] = sum + Vector3.Cross(verts[b] - verts[a], verts[c] - verts[a]).magnitude;
+            }
+            var sorted = area.OrderByDescending(kv => kv.Value).ToList();
+            report.AppendLine("  head cells: " + string.Join(" ", sorted.Select(kv => kv.Key + "=" + kv.Value.ToString("0"))));
+            return sorted.Count < 2 ? new Vector2Int(-1, -1) : sorted[1].Key;
+        }
+
+        /// <summary>Unused black swatch (top band) the greyed hair copy goes to (head mesh only).</summary>
+        static readonly Vector2Int HairSpareCell = new Vector2Int(14, 3);
+
+        /// <summary>Darkens every non-skin swatch of a tile (clothes, shoes, hair) to <paramref name="k"/>.</summary>
+        static void DarkenClothes(Color32[] tile, float k)
+        {
+            int w = Tile / 16, h = Tile / 4;
+            for (int cy = 0; cy < 4; cy++)
+                for (int cx = 0; cx < 16; cx++)
+                {
+                    if (IsSkinCell(new Vector2Int(cx, cy))) continue;
+                    for (int y = 0; y < h; y++)
+                        for (int x = 0; x < w; x++)
+                        {
+                            int i = (cy * h + y) * Tile + cx * w + x;
+                            tile[i] = Darken(tile[i], k);
+                        }
+                }
         }
 
         /// <summary>Kenney colormap skin swatches: cream (band 1, columns 0-1), salmon/brown/tan (band 0, columns 10-15).</summary>

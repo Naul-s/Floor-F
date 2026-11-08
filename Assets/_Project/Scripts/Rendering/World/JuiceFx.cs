@@ -86,10 +86,16 @@ namespace FloorF.Rendering
                 p.Velocity += new Vector3(-p.Velocity.x * 2.5f * dt, Gravity * dt, 0f);
                 p.T.position += p.Velocity * dt;
                 float k = 1f - p.Age / p.Life;
-                bool twinkle = Mathf.Repeat(p.Age * 14f + i * 0.37f, 1f) < 0.5f;
+                bool twinkle = Twinkle(p.Age, i);
                 p.T.localScale = Vector3.one * (p.Size * (0.4f + 0.6f * k) * (twinkle ? 1f : 0.55f));
             }
         }
+
+        /// <summary>Spark twinkle cycles per second: 2 size changes per cycle, &lt;= 3 per second (photosensitivity).</summary>
+        public const float TwinkleRate = 1.4f;
+
+        /// <summary>Big (true) or small twinkle phase of spark <paramref name="index"/> at <paramref name="age"/> seconds.</summary>
+        public static bool Twinkle(float age, int index) => Mathf.Repeat(age * TwinkleRate + index * 0.37f, 1f) < 0.5f;
 
         /// <summary>Position of the first active spark (tests: checks that sparks freeze while paused).</summary>
         public bool TryGetFirstActive(out Vector3 position)

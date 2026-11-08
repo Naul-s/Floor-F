@@ -7,8 +7,8 @@ namespace FloorF.Rendering
     /// Pure, seeded light schedules (EditMode-tested): city windows switching on/off, rare fluorescent-start flickers,
     /// the HOTEL sign losing a letter now and then, marquee bulbs, the antenna beacon. Everything is a function of
     /// (seed, index, time) - no RNG state - so the same seed shows the same city at the same time.
-    /// Photosensitivity: windows change every 40-150 s, flickers are short, rare, small and stay at or below ~2 changes
-    /// per second; nothing ever strobes.
+    /// Photosensitivity (WCAG 2.3.1): windows change every 40-150 s, flickers are short, rare, small and never make more
+    /// than 3 bright/dark transitions in any second (PhotosensitivityTests); nothing ever strobes.
     /// </summary>
     static class LightSchedule
     {
@@ -56,7 +56,7 @@ namespace FloorF.Rendering
             bool on = Hash(seed, index, 3, k) < onRatio;
             if (!on) return false;
             bool wasOn = Hash(seed, index, 3, k - 1) < onRatio;
-            if (!wasOn && Hash(seed, index, 4, k) < StartFlickerChance && u < 1.1f) return StartFlicker(u);
+            if (!wasOn && Hash(seed, index, 4, k) < StartFlickerChance && u < StartFlickerSeconds) return StartFlicker(u);
             if (Hash(seed, index, 5, k) < DropChance)
             {
                 float at = period * (0.25f + 0.5f * Hash(seed, index, 6, k));
@@ -76,8 +76,10 @@ namespace FloorF.Rendering
             return u >= at && u < at + DropSeconds;
         }
 
-        /// <summary>Fluorescent start, 1.1 s: blip on, off, blip on, off, on (never more than 4 changes in any second).</summary>
-        public static bool StartFlicker(float u) => u < 0.12f || (u >= 0.45f && u < 0.57f) || u >= 1.1f;
+        public const float StartFlickerSeconds = 0.8f;
+
+        /// <summary>Fluorescent start, 0.8 s: blip on, off, on (3 changes, never more than 3 in any second).</summary>
+        public static bool StartFlicker(float u) => u < 0.2f || u >= StartFlickerSeconds;
 
         /// <summary>
         /// HOTEL sign letter brightness (1 = lit, <see cref="SignDim"/> = out). Every ~11 s slot there may be one event on
@@ -98,11 +100,11 @@ namespace FloorF.Rendering
             float r = u - start;
             if (r < 0f) return 1f;
             bool longOut = Hash(seed, 70, k, 3) < 0.3f;
-            if (r < 0.15f) return SignDim;
-            if (r < 0.45f) return 1f;
-            if (r < 0.80f) return SignDim;
-            if (r < 1.20f) return 1f;
-            if (longOut && r < 4.2f) return SignDim;
+            // out, back, out again (and maybe stays out): transitions at 0, 0.3, 0.95, 1.3 -> at most 3 in any second
+            if (r < 0.30f) return SignDim;
+            if (r < 0.95f) return 1f;
+            if (r < 1.30f) return SignDim;
+            if (longOut && r < 4.3f) return SignDim;
             return 1f;
         }
 

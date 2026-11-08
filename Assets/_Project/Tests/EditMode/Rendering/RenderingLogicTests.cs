@@ -182,10 +182,17 @@ namespace FloorF.Tests.EditMode.Rendering
         [Test]
         public void Flicker_IsMostlyOn_ButDropsOut()
         {
-            int off = 0, n = 2000;
-            for (int i = 0; i < n; i++) if (FloorLighting.FlickerValue(i * 0.013f, 3) < 0.5f) off++;
-            Assert.Greater(off, n / 50, "drops out sometimes");
-            Assert.Less(off, n / 2, "mostly on");
+            int off = 0, dim = 0, n = 30000;
+            for (int i = 0; i < n; i++)
+            {
+                float v = FloorLighting.FlickerValue(i * 0.01f, FloorLighting.WiringSeed);
+                Assert.That(v, Is.InRange(0f, 1f));
+                if (v < 0.35f) off++;
+                else if (v < 0.75f) dim++;
+            }
+            Assert.Greater(off, n / 100, "drops out sometimes");
+            Assert.Greater(dim, n / 100, "sags now and then");
+            Assert.Less(off + dim, n / 5, "mostly on");
         }
 
         [Test]
