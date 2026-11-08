@@ -155,6 +155,46 @@ namespace FloorF.Tests.PlayMode.Rendering
         }
 
         [UnityTest]
+        public IEnumerator Neighbours_HaveShopsSignsAndRooftops_InTheOneCityMesh_ThenCaptures()
+        {
+            yield return RenderingTestDriver.LoadMain();
+            Assert.IsTrue(GameServices.Get<IGameFlow>().BeginDay());
+            var root = RenderingTestDriver.Rendering();
+            var d = root.City.Dressing;
+            Assert.IsNotNull(d);
+            Assert.GreaterOrEqual(d.SignCount, 10, "neon signs on the shops and the billboard");
+            Assert.Greater(d.NeonTexelCount, 30);
+            Assert.AreEqual(1, root.City.Root.GetComponentsInChildren<Renderer>().Length, "still one city draw call");
+            Assert.Less(root.Palette.Used, PaletteAtlas.Size * PaletteAtlas.Size / 2, "palette has room left");
+
+            // the neon hums through palette texels: uploads, no rebuilds
+            int uploads = root.Palette.Uploads;
+            var mesh = root.City.Renderer.GetComponent<MeshFilter>().sharedMesh;
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < 20; i++) yield return null;
+            Assert.Greater(root.Palette.Uploads, uploads);
+            Assert.AreSame(mesh, root.City.Renderer.GetComponent<MeshFilter>().sharedMesh);
+
+            yield return RenderingTestDriver.Freeze();
+            HideOtherCanvases(true);
+            Assert.IsTrue(File.Exists(FrameCapture.Capture("render_neighbours")));
+            HideOtherCanvases(false);
+            Vector3 W(float x, float y) => SkyView.ViewportToWorld(root.Rig.Current, new Vector2(x, y), 0f);
+            Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_neighbours_left", W(0f, 0f), W(0.3f, 0.75f), 3)));
+            Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_neighbours_right", W(0.68f, 0f), W(1f, 0.75f), 3)));
+            RenderingTestDriver.Unfreeze();
+
+            // the wide title frame shows the whole street
+            yield return RenderingTestDriver.LoadTitle();
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < 10; i++) yield return null;
+            yield return RenderingTestDriver.Freeze();
+            HideOtherCanvases(true);
+            Assert.IsTrue(File.Exists(FrameCapture.Capture("render_neighbours_title")));
+            HideOtherCanvases(false);
+        }
+
+        [UnityTest]
         public IEnumerator Capture_OriginalFloorMarks()
         {
             yield return RenderingTestDriver.LoadMain();

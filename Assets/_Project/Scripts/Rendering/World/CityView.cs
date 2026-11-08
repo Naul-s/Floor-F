@@ -82,15 +82,26 @@ namespace FloorF.Rendering
         /// <summary>Screen-plane rectangles of the buildings (tests: no overlap with the hotel).</summary>
         public readonly List<Rect> BuildingRects = new List<Rect>();
         public int WindowCount { get; private set; }
+        /// <summary>Shops, signs, rooftops, fire escapes... (null before Build).</summary>
+        public CityDressing Dressing { get; private set; }
+        readonly float pixelsPerUnit;
 
-        public CityView(Transform parent, PaletteAtlas atlas, LivingLights lights, Vector2 shear, float shearDepth)
+        /// <param name="pixelsPerUnit">Gameplay frame's pixels per unit: neon letters are whole pixels of it.</param>
+        public CityView(Transform parent, PaletteAtlas atlas, LivingLights lights, Vector2 shear, float shearDepth, float pixelsPerUnit = 11f)
         {
             this.atlas = atlas;
             this.lights = lights;
             this.shear = shear;
+            this.pixelsPerUnit = pixelsPerUnit;
             z0 = shearDepth;
             Root = new GameObject("City").transform;
             Root.SetParent(parent, false);
+        }
+
+        /// <summary>Neon hum + sign stutters (juice clock + prewarm).</summary>
+        public void Tick(float time)
+        {
+            Dressing?.Tick(time, RenderingStyle.CitySeed);
         }
 
         float WX(float screenX, float z) => PixelGrid.WorldX(screenX, z, shear, z0);
@@ -125,14 +136,16 @@ namespace FloorF.Rendering
                 b.Box(new Vector3(x + 0.3f, g + 3.12f, lampZ - 0.12f), new Vector3(x + 0.72f, g + 3.3f, lampZ + 0.12f), head, pole, head);
             }
 
-            foreach (var blk in Blocks) BuildBlock(b, blk);
+            Dressing = new CityDressing(atlas, lights, WX, WY, pixelsPerUnit);
+            for (int i = 0; i < Blocks.Length; i++) BuildBlock(b, Blocks[i], i);
 
             var mesh = b.Build("City");
             Renderer = PaletteRenderer.Create(Root, "City Mesh", mesh, atlas.Material);
         }
 
-        void BuildBlock(PaletteMeshBuilder b, in Block blk)
+        void BuildBlock(PaletteMeshBuilder b, in Block blk, int index)
         {
+            var look = index < CityDressing.Looks.Length ? CityDressing.Looks[index] : default;
             float g = RenderingStyle.GroundY;
             float z = blk.Z;
             float depth = blk.Z > 6f ? 6f : 4.5f;
@@ -146,7 +159,7 @@ namespace FloorF.Rendering
             var cap = PaletteMeshBuilder.Top(blk.Color);
             b.Front(x0, yTop - 0.2f, x1, yTop, z - 0.01f, atlas.Static(cap));
             int seed = blk.X0 * 31 + blk.X1;
-            if (LightSchedule.Hash(RenderingStyle.CitySeed, seed, 11, 0) < 0.6f)
+            if (look.Roof == CityDressing.Roof.None && LightSchedule.Hash(RenderingStyle.CitySeed, seed, 11, 0) < 0.6f)
             {
                 float tx = Mathf.Lerp(x0 + 1f, x1 - 2f, LightSchedule.Hash(RenderingStyle.CitySeed, seed, 12, 0));
                 b.Box(new Vector3(tx, yTop, z + 1f), new Vector3(tx + 1.2f, yTop + 1.1f, z + 2.2f), blk.Color * 1.15f);
@@ -157,7 +170,11 @@ namespace FloorF.Rendering
             var off = back ? new Color(0.10f, 0.11f, 0.18f) : Color.Lerp(blk.Color, new Color(0.15f, 0.16f, 0.25f), 0.7f);
             float wz = z - 0.01f;
             int winW = blk.Style == 1 ? 2 : 1, pitch = blk.Style == 1 ? 3 : 2;
-            int firstRow = blk.Style == 2 ? 3 : 1; // style 2: shop front on the ground floor
+            bool shop = !back && look.Shop != CityDressing.Shop.None;
+            int firstRow = !shop ? 1 : look.Shop == CityDressing.Shop.Lotto ? 5 : 3; // shop front (+ the 로또 neon) on the ground floor
+            int sill = back ? -1 : atlas.Static(PaletteMeshBuilder.Top(blk.Color));
+            int mullion = atlas.Static(blk.Color * 0.8f);
+            float px = 1f / Mathf.Max(1f, pixelsPerUnit);
             for (int y = Mathf.CeilToInt(g) + firstRow; y + 1 <= top - 1; y += 2)
                 for (int x = blk.X0 + 1; x + winW <= blk.X1 - 1; x += pitch)
                 {
@@ -165,23 +182,12 @@ namespace FloorF.Rendering
                     var on = WindowWarm[hue < 0.55f ? 0 : hue < 0.8f ? 1 : hue < 0.93f ? 2 : 3] * (back ? 0.8f : 1f);
                     int texel = lights.Add(LivingLights.Kind.Window, on, off, onRatio);
                     b.Front(WX(x, wz), WY(y, wz), WX(x + winW, wz), WY(y + 1, wz), wz, texel);
+                    // near row: a 1-px sill under each window, a mullion splitting the wide ones
+                    if (sill >= 0) b.Front(WX(x - px, wz - 0.002f), WY(y - px, wz - 0.002f), WX(x + winW + px, wz - 0.002f), WY(y, wz - 0.002f), wz - 0.002f, sill);
+                    if (winW == 2 && !back) b.Front(WX(x + 1 - px * 0.5f, wz - 0.002f), WY(y, wz - 0.002f), WX(x + 1 + px * 0.5f, wz - 0.002f), WY(y + 1, wz - 0.002f), wz - 0.002f, mullion);
                     WindowCount++;
                 }
-            if (blk.Style == 2)
-            {
-                // little shop: lit display window + striped awning
-                int shop = lights.Add(LivingLights.Kind.Lamp, new Color(0.95f, 0.72f, 0.40f), new Color(0.3f, 0.22f, 0.14f));
-                float sy = Mathf.Ceil(g);
-                b.Front(WX(blk.X0 + 1, wz), WY(sy, wz), WX(blk.X1 - 1, wz), WY(sy + 1.6f, wz), wz, shop);
-                int red = atlas.Static(new Color(0.55f, 0.12f, 0.12f)), white = atlas.Static(new Color(0.62f, 0.58f, 0.52f));
-                float az = z - 0.9f;
-                for (int i = 0; blk.X0 + 0.5f + i < blk.X1 - 0.5f; i++)
-                {
-                    float ax = blk.X0 + 0.5f + i;
-                    int tex = (i & 1) == 0 ? red : white;
-                    b.Box(new Vector3(WX(ax, az), WY(sy + 2.0f, az), az), new Vector3(WX(ax + 1f, az), WY(sy + 2.4f, az), z), tex, tex, tex);
-                }
-            }
+            Dressing.Dress(b, blk, look, g, top, depth, index);
         }
     }
 }

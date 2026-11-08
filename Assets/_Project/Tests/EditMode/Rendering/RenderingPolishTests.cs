@@ -104,6 +104,45 @@ namespace FloorF.Tests.EditMode.Rendering
         }
     }
 
+    /// <summary>Neighbour neon signs: slow hum below the flash threshold, stutter signs like the HOTEL sign.</summary>
+    public class NeonHumTests
+    {
+        [Test]
+        public void NeonHum_IsSlowAndShallow_StutterSignsStayGentle()
+        {
+            for (int sign = 0; sign < 12; sign++)
+            {
+                int s = sign;
+                var hum = PhotosensitivityTests.Transitions(t => CityDressing.NeonLevel(1408, s, 0, 1, false, t), 0f, 300f);
+                Assert.AreEqual(0, hum.Count, "the hum alone never counts as a flash (sign " + sign + ")");
+                for (int letter = 0; letter < 5; letter++)
+                {
+                    int l = letter;
+                    PhotosensitivityTests.AssertAtMostThreePerSecond(
+                        PhotosensitivityTests.Transitions(t => CityDressing.NeonLevel(1408, s, l, 5, true, t), 0f, 600f), "stutter sign " + s + " letter " + l);
+                }
+            }
+            float lo = 1f, hi = 0f;
+            for (float t = 0f; t < 20f; t += 0.05f)
+            {
+                float v = CityDressing.NeonLevel(1408, 3, 0, 1, false, t);
+                lo = Mathf.Min(lo, v); hi = Mathf.Max(hi, v);
+            }
+            Assert.Greater(hi - lo, 0.05f, "but it does breathe");
+            Assert.AreEqual(CityDressing.NeonLevel(1408, 3, 0, 1, false, 7.7f), CityDressing.NeonLevel(1408, 3, 0, 1, false, 7.7f), "deterministic");
+        }
+
+        [Test]
+        public void EveryBlockHasALook()
+        {
+            Assert.AreEqual(CityView.Blocks.Length, CityDressing.Looks.Length);
+            int shops = 0;
+            for (int i = 0; i < CityView.Blocks.Length; i++)
+                if (CityView.Blocks[i].Z < 6f && CityDressing.Looks[i].Shop != CityDressing.Shop.None) shops++;
+            Assert.GreaterOrEqual(shops, 8, "every near building has a shop front");
+        }
+    }
+
     /// <summary>Original-floor marks on sticker signs (struck-out tiny original number beside the sticker).</summary>
     public class OriginalFloorMarkTests
     {

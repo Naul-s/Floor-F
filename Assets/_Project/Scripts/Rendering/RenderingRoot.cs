@@ -187,7 +187,7 @@ namespace FloorF.Rendering
             float z0 = -layout.Depth * 0.5f;
             palette = new PaletteAtlas(assets, "City Palette");
             livingLights = new LivingLights(palette, RenderingStyle.CitySeed);
-            city = new CityView(world, palette, livingLights, RenderingStyle.CameraShear, z0);
+            city = new CityView(world, palette, livingLights, RenderingStyle.CameraShear, z0, frame.PixelsPerUnit);
             city.Build(z0 - 0.15f);
             facade = new HotelFacade(world, assets, layout, building, palette, livingLights);
             facade.Build();
@@ -225,6 +225,7 @@ namespace FloorF.Rendering
             bool eerie = dayQuery != null && dayQuery.IsFriday13;
             livingLights.Eerie = eerie;
             livingLights.Tick(t);
+            city.Tick(t);
             for (int i = 0; i < letterLevels.Length; i++)
                 letterLevels[i] = LightSchedule.SignLetterLevel(RenderingStyle.CitySeed, i, letterLevels.Length, t, eerie);
             building.SetHotelLetterLevels(letterLevels);
