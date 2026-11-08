@@ -177,11 +177,11 @@ namespace FloorF.Tests.EditMode.Core
             Assert.IsTrue(sim.Events<GuestDelivered>().All(d => d.Tip == 24), "10 x 2 x 1.2");
 
             sim.Close();
-            sim.Spawn("granny", 7, 4);
+            sim.Spawn("biz", 7, 4); // 3 floors: a neutral ride distance for biz (granny would cheer a lucky 3)
             sim.Open();
             sim.Close();
             sim.GoTo(4);
-            sim.Open(); // granny: 4 unlucky
+            sim.Open(); // biz: 4 unlucky
             Assert.AreEqual(0, sim.S.Score.LuckStreak);
             Assert.AreEqual(2, sim.S.Score.BestStreakToday);
 
