@@ -129,6 +129,8 @@ namespace FloorF.Tests.PlayMode.Audio
                 yield return null;
             }
             Assert.IsTrue(root.TryGetLastPlayed(AudioCue.Ding, out _), "arrived");
+            Debug.LogFormat("[TravelHumPlayTests] real trip: max gain {0:0.000}, max pitch {1:0.000}, min eta {2:0.000}s, gain the frame before the ding {3:0.000}, pitch at arrival {4:0.000}",
+                maxGain, maxPitch, minEta, gainBeforeDing, root.HumPitch);
             Assert.AreEqual(1f, maxGain, 1e-3f, "full level while travelling (4 floors)");
             Assert.AreEqual(1f, maxPitch, 0.01f, "spun up to pitch 1");
             Assert.IsTrue(sawEta, "arrival predicted from the measured car speed");
