@@ -315,6 +315,8 @@ namespace FloorF.UI
                 Row(ctx.S(UIStrings.LuckLine), N(s.LuckAtStart) + " → " + N(s.LuckAtEnd) + "  <color=" + luckColor + ">(" + UIFormat.Signed(s.LuckDelta) + ")</color>") + "\n" +
                 Row(ctx.S(UIStrings.Judgements), "<color=" + UIFormat.LuckyHex + ">" + N(s.LuckyJudgements) + "</color> / <color=" + UIFormat.UnluckyHex + ">" + N(s.UnluckyJudgements) + "</color>") + "\n" +
                 Row(ctx.S(UIStrings.BestStreak), (s.BestStreak > 0 ? "<color=" + UIFormat.LuckyHex + ">x" : "<color=#F4EEDC>x") + N(s.BestStreak) + "</color>");
+            string expired = ExpiredNote(ExpiredLabels, ExpiredCharms, ko);
+            if (expired != null) extra.text += "\n\n<color=" + UIFormat.ShieldHex + ">" + expired + "</color>";
             if (!tutorial) FillStamp(UIFormat.DayGrade(s));
             if (tutorial)
             {
@@ -324,6 +326,22 @@ namespace FloorF.UI
             }
             action.Label.text = ctx.S(UIStrings.Continue);
         }
+
+        /// <summary>StickersExpired of the day just ended (UIRoot sets it; a new Intro clears it). 0/0 = nothing to say.</summary>
+        public int ExpiredLabels, ExpiredCharms;
+
+        public void OnStickersExpired(StickersExpired e)
+        {
+            ExpiredLabels = e.Labels;
+            ExpiredCharms = e.Charms;
+            if (Shown == DayPhase.Summary) Refresh(); // it may arrive after the card is up
+        }
+
+        public static string ExpiredNote(int labels, int charms, bool ko) =>
+            labels > 0 && charms > 0 ? UIStrings.StickersExpired.Get(ko)
+            : labels > 0 ? UIStrings.StickersExpiredLabels.Get(ko)
+            : charms > 0 ? UIStrings.CharmsExpired.Get(ko)
+            : null;
 
         void FillEnding(bool ko)
         {

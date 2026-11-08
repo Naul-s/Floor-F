@@ -24,10 +24,12 @@ namespace FloorF.UI
         {
             public RectTransform Rect;
             public CanvasGroup Group;
-            public TextMeshProUGUI Number, Verdict, Caption;
+            public TextMeshProUGUI Number, Verdict, Caption, Charm;
             public LuckSource Source;
             public int NumberValue;
             public LuckVerdict Kind;
+            /// <summary>An Unlucky verdict a shield charm ate (CharmTriggered right before it): "BLOCKED!" in shield cyan.</summary>
+            public bool Shielded;
             public int Count;
             public float Age;
             public Vector2 Origin;
@@ -70,6 +72,9 @@ namespace FloorF.UI
         public int ActivePopupCount => popups.Count;
         public int ActiveSpeechCount => speeches.Count;
         public string LastPopupText { get; private set; } = "";
+        public Color LastPopupColor { get; private set; }
+        /// <summary>Canvas rect of the newest visible luck popup (largest box), or default.</summary>
+        public Rect LastPopupRect => popups.Count > 0 ? PopupBox(popups[popups.Count - 1]) : default;
 
         public string SpeechTexts
         {
@@ -83,15 +88,26 @@ namespace FloorF.UI
 
         // ------------------------------------------------------------------ luck popups
 
-        public void OnLuckJudged(LuckJudged e)
+        public static readonly Color Shield = UIStyle.Hex(UIFormat.ShieldHex);
+
+        string VerdictWord(LuckVerdict v, bool shielded) => shielded ? ctx.S(UIStrings.BlockedWord) : UIFormat.Verdict(v, ctx.Korean);
+
+        const float PopupW = 170f, PopupH = 104f, CharmLineH = 30f;
+
+        /// <param name="shieldLine">
+        /// Non-null: a shield charm ate this Unlucky verdict (CharmTriggered right before it) - no red alarm, a cyan
+        /// "BLOCKED!" popup with this line under it ("◈ Talisman blocked it!").
+        /// </param>
+        public void OnLuckJudged(LuckJudged e, string shieldLine = null)
         {
             if (e.Verdict == LuckVerdict.Neutral) return;
+            bool shielded = shieldLine != null && e.Verdict == LuckVerdict.Unlucky;
             foreach (var p in popups)
             {
-                if (p.Age <= MergeWindow && p.Source == e.Source && p.NumberValue == e.Number && p.Kind == e.Verdict)
+                if (p.Age <= MergeWindow && p.Source == e.Source && p.NumberValue == e.Number && p.Kind == e.Verdict && p.Shielded == shielded)
                 {
                     p.Count++;
-                    p.Verdict.text = UIFormat.Verdict(e.Verdict, ctx.Korean) + "  x" + p.Count;
+                    p.Verdict.text = VerdictWord(e.Verdict, shielded) + "  x" + p.Count;
                     LastPopupText = p.Number.text + " " + p.Verdict.text + " " + p.Caption.text;
                     return;
                 }
@@ -102,14 +118,17 @@ namespace FloorF.UI
             pop.Source = e.Source;
             pop.NumberValue = e.Number;
             pop.Kind = e.Verdict;
+            pop.Shielded = shielded;
             pop.Count = 1;
             pop.Age = 0f;
             string label = ctx.Building != null && e.Floor.IsValidFor(ctx.Building.FloorCount) ? ctx.Building.GetLabel(e.Floor).Text : "";
             pop.Number.text = UIFormat.JudgedNumber(e.Source, e.Number, label);
-            pop.Verdict.text = UIFormat.Verdict(e.Verdict, ctx.Korean);
+            pop.Verdict.text = VerdictWord(e.Verdict, shielded);
             pop.Caption.text = UIFormat.JudgedCaption(e.Source, e.Number, label, ctx.Korean);
-            var color = e.Verdict == LuckVerdict.Lucky ? UIStyle.Lucky : UIStyle.Unlucky;
+            if (shielded) pop.Caption.text = ctx.S(UIStrings.NoLuckLost); // the number says what was judged
+            var color = shielded ? Shield : e.Verdict == LuckVerdict.Lucky ? UIStyle.Lucky : UIStyle.Unlucky;
             pop.Number.color = pop.Verdict.color = color;
+            SetCharmLine(pop, shielded ? shieldLine : null);
 
             // above the car, in the shaft column; lucky slightly left, unlucky slightly right, stacked upward
             var origin = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.5f);
@@ -124,7 +143,8 @@ namespace FloorF.UI
             pop.Origin = origin;
             popups.Add(pop);
             pop.Rect.SetAsLastSibling();
-            LastPopupText = pop.Number.text + " " + pop.Verdict.text + " " + pop.Caption.text;
+            LastPopupText = pop.Number.text + " " + pop.Verdict.text + " " + pop.Caption.text + (pop.Charm.gameObject.activeSelf ? " " + pop.Charm.text : "");
+            LastPopupColor = pop.Verdict.color;
             Animate(pop);
             LayoutSpeech();
         }
@@ -150,7 +170,30 @@ namespace FloorF.UI
             p.Caption = UIBuild.Text("Caption", p.Rect, "", 12f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
             UIBuild.Place(p.Caption.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 4f), new Vector2(170f, 18f));
             p.Caption.textWrappingMode = TextWrappingModes.NoWrap;
+            p.Charm = UIBuild.Text("Charm", p.Rect, "", 24f, Shield, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(p.Charm.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(PopupW, CharmLineH));
+            p.Charm.textWrappingMode = TextWrappingModes.NoWrap;
+            p.Charm.gameObject.SetActive(false);
             return p;
+        }
+
+        /// <summary>Shielded popups grow a line under the caption naming the charm; the box widens to fit it.</summary>
+        void SetCharmLine(Popup p, string line)
+        {
+            bool on = !string.IsNullOrEmpty(line);
+            p.Charm.gameObject.SetActive(on);
+            float w = PopupW, lift = 0f;
+            if (on)
+            {
+                p.Charm.text = line;
+                if (p.Charm.font != null) p.Charm.font.TryAddCharacters(line);
+                w = Mathf.Max(PopupW, Mathf.Ceil(p.Charm.GetPreferredValues(line, float.PositiveInfinity, float.PositiveInfinity).x) + 16f);
+                p.Charm.rectTransform.sizeDelta = new Vector2(w, CharmLineH);
+                lift = CharmLineH;
+            }
+            p.Rect.sizeDelta = new Vector2(w, PopupH + lift);
+            p.Verdict.rectTransform.anchoredPosition = new Vector2(0f, 22f + lift);
+            p.Caption.rectTransform.anchoredPosition = new Vector2(0f, 4f + lift);
         }
 
         void Animate(Popup p)
@@ -160,7 +203,7 @@ namespace FloorF.UI
             p.Rect.localScale = new Vector3(punch, punch, 1f);
             p.Rect.anchoredPosition = p.Origin + new Vector2(0f, Mathf.Min(t, 1f) * 40f);
             p.Group.alpha = t > PopupLife - 0.5f ? Mathf.Clamp01((PopupLife - t) / 0.5f) : 1f;
-            if (p.Kind == LuckVerdict.Unlucky && t < 0.4f) p.Rect.anchoredPosition += new Vector2(Mathf.Sin(t * 90f) * 4f, 0f);
+            if (p.Kind == LuckVerdict.Unlucky && !p.Shielded && t < 0.4f) p.Rect.anchoredPosition += new Vector2(Mathf.Sin(t * 90f) * 4f, 0f);
         }
 
         /// <summary>Popup's on-canvas box at its largest (punch scale included).</summary>

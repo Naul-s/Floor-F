@@ -401,6 +401,23 @@ namespace FloorF.UI
             if (!visible) { rulesBox.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); fridayBadge.gameObject.SetActive(false); starBadge.gameObject.SetActive(false); }
         }
 
+        /// <summary>
+        /// Px from the canvas top under the lowest visible box of the right column (tips, streak slot, rule box, event
+        /// badge) - the charm row stacks under it.
+        /// </summary>
+        public float RightColumnBottom
+        {
+            get
+            {
+                float y = StreakTop + StreakH;
+                if (rulesBox.gameObject.activeSelf) y = Mathf.Max(y, RulesTop + rulesBox.sizeDelta.y);
+                if (fridayBadge.gameObject.activeSelf) y = Mathf.Max(y, -fridayBadge.anchoredPosition.y + BadgeH);
+                if (starBadge.gameObject.activeSelf) y = Mathf.Max(y, -starBadge.anchoredPosition.y + StarBadgeH);
+                return y;
+            }
+        }
+        public const float ColumnWidth = MeterW + 32f;
+
         // coach-mark targets + test hooks
         public RectTransform RulesBox => rulesBox;
         public RectTransform FridayBadge => fridayBadge;

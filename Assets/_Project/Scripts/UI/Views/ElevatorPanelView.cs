@@ -24,6 +24,9 @@ namespace FloorF.UI
             public FloorIndex Floor;
             public UIBuild.ButtonParts Parts;
             public TextMeshProUGUI Label;
+            /// <summary>Top-left corner: the floor's ORIGINAL label, struck through in red, while a sticker relabels it.</summary>
+            public TextMeshProUGUI Original;
+            public RectTransform Strike;
             public DestinationBadge Badge;
             public Mark Mark = (Mark)(-1);
         }
@@ -131,7 +134,31 @@ namespace FloorF.UI
             brt.pivot = new Vector2(0.5f, 0f);
             brt.offsetMin = new Vector2(2f, 3f);
             brt.offsetMax = new Vector2(-2f, BadgeH);
+
+            // "the real floor" mark: "4" with a red diagonal strike, top-left, only while relabelled (e.g. Any -> 8)
+            fb.Original = UIBuild.Text("Original", fb.Parts.Rect, "", OriginalSize, OriginalInk, TextAlignmentOptions.Center);
+            UIBuild.Place(fb.Original.rectTransform, new Vector2(0f, 1f), new Vector2(3f, -1f), new Vector2(OriginalW, OriginalH));
+            fb.Original.textWrappingMode = TextWrappingModes.NoWrap;
+            fb.Strike = UIBuild.Box("Strike", fb.Original.rectTransform, UIStyle.Unlucky).rectTransform;
+            fb.Original.gameObject.SetActive(false);
             return fb;
+        }
+
+        const float OriginalSize = 24f, OriginalW = 26f, OriginalH = 26f, StrikeW = 3f;
+        static readonly Color OriginalInk = new Color(UIStyle.Ink.r, UIStyle.Ink.g, UIStyle.Ink.b, 0.85f);
+
+        void SetOriginal(FloorButton b, string original)
+        {
+            bool show = !string.IsNullOrEmpty(original);
+            if (b.Original.gameObject.activeSelf != show) b.Original.gameObject.SetActive(show);
+            if (!show) return;
+            if (string.Equals(b.Original.text, original, StringComparison.Ordinal)) return;
+            b.Original.text = original;
+            if (b.Original.font != null) b.Original.font.TryAddCharacters(original);
+            float w = Mathf.Max(OriginalW, Mathf.Ceil(b.Original.GetPreferredValues(original, float.PositiveInfinity, float.PositiveInfinity).x) + 6f);
+            b.Original.rectTransform.sizeDelta = new Vector2(w, OriginalH);
+            // bottom-left -> top-right across the digits (canvas-local to the mark's own rect)
+            UIBuild.SetLine(b.Strike, new Vector2(1f, 4f), new Vector2(w - 1f, OriginalH - 4f), StrikeW);
         }
 
         void OnFloorClicked(FloorIndex floor)
@@ -154,7 +181,16 @@ namespace FloorF.UI
             var b = buttons[floor.Value];
             string text = ctx.Building.GetLabel(floor).Text;
             if (!string.Equals(b.Label.text, text, StringComparison.Ordinal)) { b.Label.text = text; UIBuild.Fit(b.Label, LabelSize); }
+            SetOriginal(b, OriginalIfRelabelled(ctx.Building, floor));
             b.Badge.Set(ctx, ctx.Building.GetDestination(floor));
+        }
+
+        /// <summary>The floor's original label while a sticker shows something else on it, else null.</summary>
+        public static string OriginalIfRelabelled(IBuildingQuery building, FloorIndex floor)
+        {
+            if (building == null) return null;
+            string now = building.GetLabel(floor).Text, original = building.GetOriginalLabel(floor).Text;
+            return string.IsNullOrEmpty(original) || string.Equals(now, original, StringComparison.Ordinal) ? null : original;
         }
 
         public void RefreshLanguage()
@@ -201,6 +237,8 @@ namespace FloorF.UI
                     var bg = m == Mark.Target ? UIStyle.BtnTarget : m == Mark.Applicable ? UIStyle.BtnApplicable : m == Mark.Blocked ? UIStyle.BtnBlocked : UIStyle.Btn;
                     b.Parts.Background.color = bg;
                     b.Label.color = m == Mark.Blocked ? UIStyle.InkDim : UIStyle.InkOn(bg);
+                    var ink = UIStyle.InkOn(bg);
+                    b.Original.color = m == Mark.Blocked ? UIStyle.InkDim : ink == UIStyle.Dark ? UIStyle.Dark : OriginalInk;
                 }
                 if (m == Mark.Applicable) b.Parts.Background.color = Color.Lerp(UIStyle.Btn, UIStyle.BtnApplicable, pulse);
             }
@@ -225,6 +263,13 @@ namespace FloorF.UI
         // ------------------------------------------------------------------ test hooks
 
         public string ButtonText(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Label.text : null;
+        /// <summary>The struck-through original label shown on that button, or null when hidden.</summary>
+        public string OriginalMarkText(int floor) =>
+            floor >= 0 && floor < buttons.Length && buttons[floor].Original.gameObject.activeSelf ? buttons[floor].Original.text : null;
+        public RectTransform OriginalMarkRect(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Original.rectTransform : null;
+        public RectTransform LabelRect(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Label.rectTransform : null;
+        public float LabelPreferredWidth(int floor) =>
+            floor >= 0 && floor < buttons.Length ? buttons[floor].Label.GetPreferredValues(buttons[floor].Label.text, float.PositiveInfinity, float.PositiveInfinity).x : 0f;
         public bool IsApplicable(int floor) => floor >= 0 && floor < buttons.Length && buttons[floor].Mark == Mark.Applicable;
         public void Click(int floor) { if (floor >= 0 && floor < buttons.Length) buttons[floor].Parts.Button.onClick.Invoke(); }
         public void ClickOpen() => openButton.Button.onClick.Invoke();
