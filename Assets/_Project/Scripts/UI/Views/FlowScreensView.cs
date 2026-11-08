@@ -189,6 +189,7 @@ namespace FloorF.UI
         {
             shown = phase;
             shownDay = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
+            card.anchoredPosition = Vector2.zero; // a stamp jolt never carries over
             bool modal = phase == DayPhase.Intro || phase == DayPhase.Summary || phase == DayPhase.Ending;
             dim.gameObject.SetActive(modal);
             bool graded = modal && phase == DayPhase.Summary && !ctx.Day.IsTutorial;
@@ -356,6 +357,9 @@ namespace FloorF.UI
             float scale = Mathf.Lerp(2.4f, 1f, k * k); // accelerates into the card
             if (t > 1f && t < 1.6f) scale = 1f + 0.06f * Mathf.Sin((t - 1f) / 0.6f * Mathf.PI); // a small bounce on impact
             stamp.localScale = new Vector3(scale, scale, 1f);
+            // the impact jolts the card down a few pixels, settling in ~0.25 s
+            float jolt = t > 1f && t < 1f + 0.25f / StampSlam ? Mathf.Round(-5f * (1f - (t - 1f) * StampSlam / 0.25f)) : 0f;
+            card.anchoredPosition = new Vector2(0f, jolt);
         }
 
         public bool StampVisible => stamp.gameObject.activeInHierarchy;
