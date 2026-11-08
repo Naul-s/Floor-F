@@ -82,7 +82,7 @@ namespace FloorF.Tests.EditMode.Content
         // ------------------------------------------------------------ tests
 
         /// <summary>
-        /// LuckAware play, greedy shopper: day 1 pays for 4 -> F; every shop sells it something; on average 2+ things per
+        /// LuckAware play, greedy shopper: every shop sells it something; on average 2+ things per
         /// visit; money (an item or a reroll it still wanted) is the limit at every visit.
         /// </summary>
         [Test]
@@ -96,7 +96,6 @@ namespace FloorF.Tests.EditMode.Content
                 var visits = days.Select(d => d.Visit).ToList();
                 Assert.AreEqual(data.PlayableDayCount - 1, visits.Count(v => v != null), "seed " + seed + ": one shop after every real day but the last");
 
-                Assert.IsTrue(visits[0].Bought.Any(b => b.StartsWith(FourToF)), "seed " + seed + ": 4 -> F not bought after day 1");
                 foreach (var v in visits)
                 {
                     Assert.IsNotEmpty(v.Bought, "seed " + seed + ": could not afford anything - " + v);

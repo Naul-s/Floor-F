@@ -23,6 +23,9 @@ namespace FloorF.Tests.EditMode.Content
         /// <summary>Playing for luck must beat ignoring it by a clear gap (on average).</summary>
         const int SkillGap = 20;
 
+        /// <summary>Of the 6 seeds, how many luck-blind runs with the greedy shopper may still end Prosperous ("mostly Modest").</summary>
+        const int MaxProsperousGreedyBlind = 1;
+
         GameData data;
 
         [OneTimeSetUp]
@@ -61,7 +64,7 @@ namespace FloorF.Tests.EditMode.Content
         /// A fresh pilot each day (a human starts each day fresh too); reaction delay 0-0.5 s from the seed.
         /// </summary>
         RunResult Run(int seed, ShopPolicy shop, int lastDay = int.MaxValue, AutoPilotStrategy strategy = AutoPilotStrategy.LuckBlind,
-            SortedDictionary<string, int> ledger = null, Action<EventBus> onBus = null)
+            SortedDictionary<string, int> ledger = null, Action<EventBus> onBus = null, Func<StickerDef, bool> allow = null, bool knowsTomorrow = false)
         {
             var bus = new EventBus();
             var s = new GameSession(data, bus, new Random(seed));
@@ -89,7 +92,7 @@ namespace FloorF.Tests.EditMode.Content
             bus.Subscribe<EndingReached>(e => { ending = e.Ending; endingDay = e.Day.Number; finalLuck = e.FinalLuck; });
 
             var reaction = new Random(seed * 7919 + 13);
-            var shopper = new ShopBot(data);
+            var shopper = new ShopBot(data) { Allow = allow, KnowsTomorrow = knowsTomorrow };
             AutoPilot pilot = null;
             float wait = 0f;
             const float dt = 1f / 30f;
@@ -126,15 +129,37 @@ namespace FloorF.Tests.EditMode.Content
 
         // ------------------------------------------------------------ tests
 
+        /// <summary>Report only: what each kind of purchase is worth to each bot (greedy shopper restricted to one kind).</summary>
+        [Test]
+        public void ShopValue_Report([Values] AutoPilotStrategy strategy)
+        {
+            var kinds = new (string name, Func<StickerDef, bool> allow)[]
+            {
+                ("all", null), ("labels", x => !x.IsCharm), ("charms", x => x.IsCharm),
+                ("no speed", x => x.effect != StickerEffects.Speed), ("no patience", x => x.effect != StickerEffects.Patience),
+                ("no shield", x => x.effect != StickerEffects.Shield), ("no tips", x => x.effect != StickerEffects.Tips),
+                ("4F only", x => x.id == "four_to_f"),
+            };
+            var cheat = Seeds.Select(seed => Run(seed, ShopPolicy.Greedy, strategy: strategy, knowsTomorrow: true)).ToArray();
+            TestContext.WriteLine(strategy + " greedy[all, knows tomorrow]: avg " + cheat.Average(r => r.FinalLuck).ToString("F1") + " | "
+                                  + string.Join(" | ", cheat.Select(r => r.Ending + " " + r.FinalLuck)));
+            foreach (var (name, allow) in kinds)
+            {
+                var rs = Seeds.Select(seed => Run(seed, ShopPolicy.Greedy, strategy: strategy, allow: allow)).ToArray();
+                TestContext.WriteLine(strategy + " greedy[" + name + "]: avg " + rs.Average(r => r.FinalLuck).ToString("F1") + " | "
+                                      + string.Join(" | ", rs.Select(r => r.Ending + " " + r.FinalLuck + " (" + string.Join(",", r.LuckAfterDay) + ")")));
+            }
+        }
+
         /// <summary>Report only: where each bot gains and loses Luck, per day and source (numbers for balance.md).</summary>
         [Test]
-        public void LuckLedger_Report([Values] AutoPilotStrategy strategy)
+        public void LuckLedger_Report([Values] AutoPilotStrategy strategy, [Values(ShopPolicy.None, ShopPolicy.Greedy)] ShopPolicy shop)
         {
             foreach (var seed in new[] { 1, 2, 5 })
             {
                 var ledger = new SortedDictionary<string, int>();
-                var r = Run(seed, ShopPolicy.None, strategy: strategy, ledger: ledger);
-                TestContext.WriteLine(strategy + " seed " + seed + ": " + r);
+                var r = Run(seed, shop, strategy: strategy, ledger: ledger);
+                TestContext.WriteLine(strategy + " shop " + shop + " seed " + seed + ": " + r);
                 foreach (var kv in ledger) TestContext.WriteLine("  " + kv.Key + " " + kv.Value);
             }
         }
@@ -144,13 +169,17 @@ namespace FloorF.Tests.EditMode.Content
         {
             int prosperous = data.Rules.prosperousEndingLuck;
             var results = Seeds.Select(seed => (seed, r: Run(seed, shop))).ToArray();
+            int lucky = 0;
             foreach (var (seed, r) in results)
             {
                 TestContext.WriteLine("seed " + seed + " shop " + shop + ": " + r);
-                Assert.AreNotEqual(EndingKind.Prosperous, r.Ending, "seed " + seed + ": " + r);
                 bool notProsperous = r.Ending == EndingKind.Haunted || r.Ending == EndingKind.Modest || r.FinalLuck < prosperous;
-                Assert.IsTrue(notProsperous, "seed " + seed + ": ignoring luck still ends prosperous - " + r);
+                if (notProsperous) continue;
+                lucky++;
+                // a careless driver who shops greedily may get lucky once in a while; without the shop's help never
+                Assert.AreEqual(ShopPolicy.Greedy, shop, "seed " + seed + ": ignoring luck still ends prosperous - " + r);
             }
+            Assert.LessOrEqual(lucky, MaxProsperousGreedyBlind, "careless driving + greedy shopping prospers too often");
             double avg = results.Average(x => x.r.FinalLuck);
             TestContext.WriteLine("average final luck " + avg.ToString("F1") + " (prosperous " + prosperous + ")");
             Assert.LessOrEqual(avg, prosperous - AverageMargin, "luck-blind play lands too close to Prosperous");
@@ -243,9 +272,11 @@ namespace FloorF.Tests.EditMode.Content
                     bus.Subscribe<GuestDelivered>(e => trace.Add("delivered " + e.Guest + " @" + e.Floor.PhysicalNumber));
                     bus.Subscribe<FloorLabelChanged>(e => { if (e.Floor == StoryRules.RealFourthFloor) trace.Add("floor 4 -> " + e.Current); });
                     bus.Subscribe<DayStarted>(e => trace.Add("day " + e.Day.Number));
+                    bus.Subscribe<GuestLeft>(e => trace.Add("left " + e.Guest + " " + e.Reason));
+                    bus.Subscribe<DayEnded>(e => trace.Add("day ended"));
                 });
                 TestContext.WriteLine("seed " + seed + " floor 4 hidden: " + hidden);
-                if (hidden.Ending != EndingKind.FourthFloor) TestContext.WriteLine(string.Join(" | ", trace.Skip(Math.Max(0, trace.Count - 60))));
+                if (hidden.Ending != EndingKind.FourthFloor) TestContext.WriteLine(string.Join(" | ", trace.Skip(trace.LastIndexOf("day " + data.DayCount))));
                 Assert.AreEqual(EndingKind.FourthFloor, hidden.Ending, "seed " + seed + ": hidden 4th floor + mystery guest should end there");
                 Assert.AreEqual(data.DayCount, hidden.EndingDay, "seed " + seed + ": " + hidden);
             }

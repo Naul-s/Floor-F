@@ -6,8 +6,9 @@ using FloorF.Core;
 namespace FloorF.Tests.EditMode.Content
 {
     /// <summary>
-    /// Greedy shopper for balance runs (public IShopService API only). It looks at TOMORROW's schedule: a label sticker is
-    /// worth (lucky - 2 x unlucky - honest) guest-arrivals it changes on its best floor, a charm has a fixed value. It
+    /// Greedy shopper for balance runs (public IShopService API only). Like a player it forecasts tomorrow from the day it
+    /// just played (<see cref="KnowsTomorrow"/> = cheat and read tomorrow's schedule): a label sticker is worth
+    /// (lucky - 2 x unlucky - honest) guest-arrivals it changes on its best floor, a charm has a fixed value. It
     /// buys the most valuable affordable thing with a positive value until nothing is left, then rerolls while it can
     /// afford one and still keep <see cref="KeepAfterReroll"/> tips to spend. Deterministic.
     /// </summary>
@@ -24,6 +25,10 @@ namespace FloorF.Tests.EditMode.Content
         };
 
         readonly GameData data;
+        /// <summary>Optional filter: only these stickers are considered (balance experiments).</summary>
+        public Func<StickerDef, bool> Allow;
+        /// <summary>True = values labels with tomorrow's real schedule (perfect knowledge); false = with today's guests.</summary>
+        public bool KnowsTomorrow;
         public ShopBot(GameData data) { this.data = data; }
 
         public sealed class Visit
@@ -69,9 +74,11 @@ namespace FloorF.Tests.EditMode.Content
         {
             var list = new List<(ShopOffer, FloorIndex, float, int)>();
             var tomorrow = data.GetDay(s.CurrentDay.Next);
+            var forecast = KnowsTomorrow ? tomorrow.spawns : data.GetDay(s.CurrentDay).spawns;
+            bool starNight = tomorrow.starNight; // announced in the day intros
             foreach (var o in s.Offers)
             {
-                if (o.Remaining == 0) continue;
+                if (o.Remaining == 0 || (Allow != null && !Allow(o.Sticker))) continue;
                 if (o.Sticker.IsCharm)
                 {
                     if (s.CanBuy(o.Id) == StickerApplyResult.AlreadyActive) continue;
@@ -85,8 +92,8 @@ namespace FloorF.Tests.EditMode.Content
                     var floor = new FloorIndex(f);
                     var r = s.CanBuyAndApply(o.Id, floor);
                     if (r != StickerApplyResult.Applied && r != StickerApplyResult.NotEnoughTips) continue;
-                    float gain = FloorValue(s.Building, tomorrow, floor, o.Sticker.ResultLabel, true)
-                                 - FloorValue(s.Building, tomorrow, floor, s.Building.GetLabel(floor), s.Building.IsRelabelled(floor));
+                    float gain = FloorValue(s.Building, forecast, starNight, floor, o.Sticker.ResultLabel, true)
+                                 - FloorValue(s.Building, forecast, starNight, floor, s.Building.GetLabel(floor), s.Building.IsRelabelled(floor));
                     if (gain > best) { best = gain; bestFloor = floor; }
                 }
                 if (best >= MinLabelValue) list.Add((o, bestFloor, best, o.Price));
@@ -94,17 +101,17 @@ namespace FloorF.Tests.EditMode.Content
             return list.OrderByDescending(w => w.Item3).ThenBy(w => w.Item4).ToList();
         }
 
-        /// <summary>Expected verdict value of tomorrow's arrivals at <paramref name="floor"/> under <paramref name="label"/>.</summary>
-        float FloorValue(IBuildingQuery building, DayDef day, FloorIndex floor, FloorLabel label, bool relabelled)
+        /// <summary>Expected verdict value of the forecast arrivals at <paramref name="floor"/> under <paramref name="label"/>.</summary>
+        float FloorValue(IBuildingQuery building, SpawnDef[] spawns, bool starNight, FloorIndex floor, FloorLabel label, bool relabelled)
         {
             float sum = 0f;
-            foreach (var sp in day.spawns)
+            foreach (var sp in spawns)
             {
                 if (!data.TryGetGuest(sp.Guest, out var g)) continue;
                 float share = ArrivalShare(building, sp, g, floor);
                 if (share <= 0f) continue;
                 var p = data.GetLuckProfile(g.Id);
-                if (day.starNight) p = StarNightRules.Apply(p);
+                if (starNight) p = StarNightRules.Apply(p);
                 var verdict = LabelNumbers.Judge(p, label, out _);
                 float v = verdict == LuckVerdict.Lucky ? 1f : verdict == LuckVerdict.Unlucky ? -2f : 0f;
                 if (relabelled && g.HasTrait(GuestTraits.Honest)) v -= 1f;
