@@ -310,7 +310,7 @@ namespace FloorF.UI
                 float remaining = phase == DayPhase.Running ? ctx.Day.RemainingSeconds : phase == DayPhase.Intro ? ctx.Day.DurationSeconds : 0f;
                 string clock = UIFormat.Clock(remaining);
                 if (!string.Equals(clockText.text, clock, System.StringComparison.Ordinal)) { clockText.text = clock; clockText.fontSize = 36f; clockText.rectTransform.sizeDelta = new Vector2(ClockW, 48f); }
-                clockText.color = phase == DayPhase.Running && remaining <= 10f && Mathf.Repeat(Time.unscaledTime, 0.6f) < 0.3f ? UIStyle.Unlucky : UIStyle.Ink;
+                clockText.color = phase == DayPhase.Running && remaining <= 10f && Mathf.Repeat(Time.unscaledTime, 1.2f) < 0.6f /* <= 3 flashes/s */ ? UIStyle.Unlucky : UIStyle.Ink;
             }
 
             if (ctx.Score != null)

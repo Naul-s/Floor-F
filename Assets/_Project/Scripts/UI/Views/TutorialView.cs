@@ -853,16 +853,20 @@ namespace FloorF.UI
         {
             floor = default;
             destination = default;
+            // nearest stop first (Day 0 wave 3: floor 4 before 7, so grandma's 3-floor ride shows a lucky rule-3 verdict)
             var riders = ctx.Elevator.Riders;
+            int here = ctx.Elevator.CurrentFloor.Value, best = int.MaxValue;
             for (int i = 0; i < riders.Count; i++)
             {
                 if (!ctx.Guests.TryGet(riders[i], out var info)) continue;
                 if (info.DestinationFloor == ctx.Elevator.CurrentFloor) continue;
+                int d = System.Math.Abs(info.DestinationFloor.Value - here);
+                if (d >= best) continue;
+                best = d;
                 floor = info.DestinationFloor;
                 destination = info.Destination;
-                return true;
             }
-            return false;
+            return best != int.MaxValue;
         }
 
         static void Show(RectTransform rt, bool on)

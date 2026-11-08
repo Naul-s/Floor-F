@@ -124,11 +124,12 @@ namespace FloorF.UI
             textRoot.localScale = new Vector3(punch, punch, 1f);
             float shake = 12f * (1f - t / Life);
             textRoot.anchoredPosition = new Vector2(Mathf.Sin(t * 83f) * shake, Mathf.Cos(t * 71f) * shake * 0.6f);
-            bool flash = t < FlashTime && Mathf.Repeat(t, 0.12f) < 0.06f;
+            // photosensitivity (WCAG 2.3.1, <= 3 flashes/s): one white pop at the start, no strobing
+            bool flash = t < Mathf.Min(FlashTime, 0.12f);
             number.color = flash ? Color.white : UIStyle.Unlucky;
-            // vignette: in fast, two heartbeat pulses, out with the group
+            // vignette: in fast, one slow heartbeat (0.75 cycles/s), out with the group
             float env = t < 0.1f ? t / 0.1f : 1f;
-            float beat = 0.55f + 0.45f * Mathf.Abs(Mathf.Cos(t * Mathf.PI * 2f));
+            float beat = 0.55f + 0.45f * (0.5f + 0.5f * Mathf.Cos(t * Mathf.PI * 2f * 0.75f));
             vignette.color = new Color(0.85f, 0.02f, 0.02f, 0.9f * env * beat);
             group.alpha = t > Life - FadeTime ? Mathf.Clamp01((Life - t) / FadeTime) : 1f;
         }
