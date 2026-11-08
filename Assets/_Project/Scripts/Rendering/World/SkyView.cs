@@ -120,6 +120,8 @@ namespace FloorF.Rendering
         public bool BandVisible => bandRenderer != null && bandRenderer.enabled;
         /// <summary>Tests: force star night on/off (null = follow IDayQuery.IsStarNight).</summary>
         public bool? ForceStarNight { get; set; }
+        /// <summary>Rainy night: clouds hide the moon, the stars and the glints (set by the weather every frame).</summary>
+        public bool Overcast { get; set; }
         public bool MeteorActive { get; private set; }
         /// <summary>The meteor in flight (valid while <see cref="MeteorActive"/>).</summary>
         public SkySchedule.MeteorPose Meteor { get; private set; }
@@ -163,6 +165,13 @@ namespace FloorF.Rendering
         {
             float h = 2f * f.OrthographicSize;
             return LayerOrigin(f, z) + new Vector3(viewport.x * h * Aspect, viewport.y * h, 0f);
+        }
+
+        /// <summary>Viewport pixel (0..640 x 0..360, float) that world point <paramref name="w"/> projects onto.</summary>
+        public static Vector2 WorldToPixels(CameraFrame f, Vector3 w)
+        {
+            var o = f.ToScreenPlane(LayerOrigin(f, w.z));
+            return (f.ToScreenPlane(w) - o) * f.PixelsPerUnit;
         }
 
         static void Place(Transform layer, CameraFrame f, float z)
@@ -487,6 +496,7 @@ namespace FloorF.Rendering
             StarNight = ForceStarNight ?? starNight;
             if (StarNight) EnsureBand();
             if (bandRenderer != null) bandRenderer.enabled = StarNight;
+            starRenderer.enabled = !Overcast;
 
             Place(starLayer, frame, StarDepth);
             Place(bandLayer, frame, BandDepth);
@@ -517,7 +527,8 @@ namespace FloorF.Rendering
             fxQuads.Clear();
             wishQuads.Clear();
             target = fxQuads;
-            float glint = SkySchedule.Glint(seed, glints.Count, time, out int gi);
+            int gi = -1;
+            float glint = Overcast ? 0f : SkySchedule.Glint(seed, glints.Count, time, out gi);
             ActiveGlint = gi;
             if (gi >= 0)
             {

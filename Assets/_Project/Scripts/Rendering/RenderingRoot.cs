@@ -33,6 +33,7 @@ namespace FloorF.Rendering
         HotelFacade facade;
         StreetLife street;
         SkyView sky;
+        WeatherView weather;
         readonly float[] letterLevels = new float[BuildingView.HotelText.Length];
         readonly System.Collections.Generic.Dictionary<int, GuestArchetypeId> archetypes = new System.Collections.Generic.Dictionary<int, GuestArchetypeId>();
         Transform world;
@@ -74,6 +75,7 @@ namespace FloorF.Rendering
         internal HotelFacade Facade => facade;
         internal StreetLife Street => street;
         internal SkyView Sky => sky;
+        internal WeatherView Weather => weather;
         /// <summary>Wish stars freeze with the simulation: menu pause or the Day 0 coach-mark hold.</summary>
         internal bool IsSimHeld => IsPaused || eventHeld || (gameFlow != null && gameFlow.TutorialHold);
         /// <summary>Seconds of street/city time before the first frame (busy street, lights already mixed).</summary>
@@ -194,6 +196,9 @@ namespace FloorF.Rendering
             street.Prewarm(StreetPrewarmSeconds, frame.Grid);
             sky = new SkyView(world, assets, palette, RenderingStyle.CitySeed);
             sky.Build();
+            weather = new WeatherView(world, assets, palette, layout, RenderingStyle.CitySeed);
+            weather.Build();
+            TickWeather(StreetPrewarmSeconds);
             sky.Tick(StreetPrewarmSeconds, 0f, rig.Current, IsStarNightNow);
             TickExterior(0f);
         }
@@ -224,6 +229,17 @@ namespace FloorF.Rendering
                 letterLevels[i] = LightSchedule.SignLetterLevel(RenderingStyle.CitySeed, i, letterLevels.Length, t, eerie);
             building.SetHotelLetterLevels(letterLevels);
             palette.Flush();
+        }
+
+        /// <summary>Day 5 rain (never on the title): rain, splashes, wet street, lightning; the sky goes overcast.</summary>
+        bool IsRainyNow => dayQuery != null && dayQuery.IsRainy && dayQuery.Phase != DayPhase.Title;
+
+        void TickWeather(float time)
+        {
+            weather.Tick(time, rig.Current, IsRainyNow);
+            sky.Overcast = weather.Raining;
+            var cam = pipeline.WorldCamera;
+            if (cam != null && cam.backgroundColor != weather.SkyColor) cam.backgroundColor = weather.SkyColor;
         }
 
         /// <summary>Day 7 "star night" (never on the title, whose attract demo is an ordinary night).</summary>
@@ -283,6 +299,7 @@ namespace FloorF.Rendering
             var grid = rig.Current.Grid;
             building.ApplyPixelGrid(grid);
             street.Tick(jdt, grid);
+            TickWeather(juiceTime + StreetPrewarmSeconds);
             sky.Tick(juiceTime + StreetPrewarmSeconds, IsSimHeld ? 0f : jdt, rig.Current, IsStarNightNow);
             TickExterior(juiceTime);
         }
