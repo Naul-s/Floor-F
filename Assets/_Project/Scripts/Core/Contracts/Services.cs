@@ -162,6 +162,12 @@ namespace FloorF.Core
         /// and a ride distance of 13 is Unlucky for EVERY guest (on top of their own numbers; their own lucky 13 loses).
         /// </summary>
         bool IsFriday13 { get; }
+        /// <summary>
+        /// "Star night" (DayDef.starNight, Day 7): 7 is Lucky for EVERY guest from every source (floor, head count,
+        /// distance; a guest's own unlucky 7 loses), and wish stars cross the sky (<see cref="WishStarAppeared"/>).
+        /// Presentation: moon, Milky Way, meteor shower.
+        /// </summary>
+        bool IsStarNight { get; }
         float DurationSeconds { get; }
         float ElapsedSeconds { get; }
         float RemainingSeconds { get; }
@@ -195,6 +201,12 @@ namespace FloorF.Core
         bool TutorialHold { get; }
         /// <summary>Returns true if the hold is now as requested (false = refused, e.g. not a tutorial day).</summary>
         bool SetTutorialHold(bool held);
+        /// <summary>
+        /// Star night (Day 7): the player clicked a shooting star that is still crossing (<see cref="WishStarAppeared"/>).
+        /// Publishes <see cref="WishMade"/> and adds rules.wishLuckBonus Luck. False if the id is unknown, already wished on,
+        /// already gone, or the game is paused / not Running.
+        /// </summary>
+        bool MakeWish(int starId);
     }
 
     public readonly struct ShopOffer

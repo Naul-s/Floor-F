@@ -300,6 +300,36 @@ namespace FloorF.Core
         public bool Broken => Streak == 0 && Previous > 0;
     }
 
+    /// <summary>
+    /// Star night: a wish star starts crossing the sky. Positions are world-camera VIEWPORT coordinates (0..1, origin
+    /// bottom-left; keep to the upper sky, y >= 0.6) so Rendering draws the streak and UI places the click target in the
+    /// same spot (PresentationContract.ViewportToScreen). It travels From -> To linearly in <see cref="Seconds"/>
+    /// (unscaled by pause: it freezes while paused, like the day clock). Ends with WishMade or WishStarFaded.
+    /// </summary>
+    public readonly struct WishStarAppeared
+    {
+        public readonly int Id;
+        public readonly float FromX, FromY, ToX, ToY;
+        public readonly float Seconds;
+        public WishStarAppeared(int id, float fromX, float fromY, float toX, float toY, float seconds)
+        { Id = id; FromX = fromX; FromY = fromY; ToX = toX; ToY = toY; Seconds = seconds; }
+    }
+
+    /// <summary>The player wished on a star in time (IGameFlow.MakeWish). Followed by LuckChanged(Story) if Luck changed.</summary>
+    public readonly struct WishMade
+    {
+        public readonly int Id;
+        public readonly int LuckGain;
+        public WishMade(int id, int luckGain) { Id = id; LuckGain = luckGain; }
+    }
+
+    /// <summary>A wish star finished crossing without a wish (or the day ended under it).</summary>
+    public readonly struct WishStarFaded
+    {
+        public readonly int Id;
+        public WishStarFaded(int id) { Id = id; }
+    }
+
     /// <summary>Day 0 coach-mark hold toggled (see <see cref="IGameFlow.SetTutorialHold"/>).</summary>
     public readonly struct TutorialHoldChanged
     {

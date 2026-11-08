@@ -138,6 +138,9 @@ namespace FloorF.Core
         public bool IsTutorial => dayDef != null && dayDef.tutorial;
         /// <summary>Friday the 13th event day: Unlucky penalties x rules.friday13PenaltyMultiplier, ride distance 13 Unlucky for all.</summary>
         public bool IsFriday13 => dayDef != null && dayDef.friday13;
+        // TODO(gameplay-dev): star night rules + wish stars (contract stubs)
+        public bool IsStarNight => dayDef != null && dayDef.starNight;
+        public bool MakeWish(int starId) => false;
         public float DurationSeconds => dayDef != null ? dayDef.durationSeconds : 0f;
         public float ElapsedSeconds => elapsed;
         /// <summary>Tutorial days have no clock: stays at <see cref="DurationSeconds"/>.</summary>

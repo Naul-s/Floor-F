@@ -96,6 +96,11 @@ namespace FloorF.Core
         // "Friday the 13th" event day
         public float friday13PenaltyMultiplier = 1.5f;
 
+        // "Star night" wish stars
+        /// <summary>Seconds a wish star takes to cross the sky (the click window).</summary>
+        public float wishStarSeconds = 3f;
+        public int wishLuckBonus = 4;
+
         // endings
         /// <summary>Luck at the end of the last day needed for the Prosperous ending (else Modest).</summary>
         public int prosperousEndingLuck = 70;
@@ -247,6 +252,10 @@ namespace FloorF.Core
         public bool tutorial;
         /// <summary>"Friday the 13th" event day (see IDayQuery.IsFriday13).</summary>
         public bool friday13;
+        /// <summary>"Star night" (see IDayQuery.IsStarNight).</summary>
+        public bool starNight;
+        /// <summary>Wish stars that cross the sky during this day (spread over the clock, seeded). 0 = none.</summary>
+        public int wishStars;
         /// <summary>Sticker ids offered in the shop AFTER this day.</summary>
         public string[] shopStickers = Array.Empty<string>();
         public SpawnDef[] spawns = Array.Empty<SpawnDef>();
