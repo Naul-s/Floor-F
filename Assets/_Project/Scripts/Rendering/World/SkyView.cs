@@ -26,7 +26,9 @@ namespace FloorF.Rendering
         /// Top left corner: above the left neighbours in the gameplay frame (their roofs reach ~0.88), left of the HUD
         /// panels (from ~0.14 at 16:9) and of the title logo (top centre), never behind the hotel.
         /// </summary>
-        public static readonly Vector2 MoonViewport = new Vector2(0.07f, 0.935f);
+        // between the HUD day box (ends ~0.22) and the hotel / title logo (start ~0.27) at a real 16:9 canvas;
+        // 0.07 hid it under the day box in play (batch captures letterbox the world and didn't show that)
+        public static readonly Vector2 MoonViewport = new Vector2(0.245f, 0.925f);
         public const int MoonRadius = 10;
         public const int HaloRadius = MoonRadius + 7;
         const int RampSteps = 12;
