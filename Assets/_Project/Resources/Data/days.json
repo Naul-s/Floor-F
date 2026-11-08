@@ -130,7 +130,7 @@
         { "time": 26, "guest": "western_tourist", "floor": 1, "destination": "bar" },
         { "time": 36, "guest": "chinese_businessman", "floor": 9, "destination": "lobby" },
         { "time": 46, "guest": "korean_grandma", "floor": 7, "destination": "rooms" },
-        { "time": 46, "guest": "italian_nonno", "floor": 9, "destination": "restaurant" },
+        { "time": 46, "guest": "italian_nonno", "floor": 9, "destination": "rooms" },
         { "time": 56, "guest": "honest_accountant", "floor": 3, "destination": "rooftop" },
         { "time": 56, "guest": "western_priest", "floor": 3, "destination": "rooftop" },
         { "time": 72, "guest": "japanese_couple", "floor": 1, "destination": "rooms" },

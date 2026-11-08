@@ -208,8 +208,8 @@ namespace FloorF.Tests.EditMode.Content
                 Assert.Greater(r.LuckAfterDay[0], 0, "seed " + seed + ": haunted in the tutorial");
             }
 
-            // Worst case on paper: every tutorial guest suffers every unlucky label once and every reachable unlucky
-            // headcount once (or walks out) - the hotel must still stand.
+            // Worst case on paper: every tutorial guest suffers every unlucky label once, every reachable unlucky
+            // headcount once and an unlucky ride distance (one a straight ride can reach) - or walks out. The hotel must still stand.
             var day1 = data.GetDay(firstReal);
             int people = day1.spawns.Sum(sp => data.GetGuest(sp.Guest).partySize);
             int worst = 0;
@@ -221,7 +221,13 @@ namespace FloorF.Tests.EditMode.Content
                 for (int f = 0; f < data.FloorCount; f++)
                     if (data.GetFloor(new FloorIndex(f)).InitialLabel.TryGetNumber(out var n) && p.Judge(n) == LuckVerdict.Unlucky) labels++;
                 int heads = Enumerable.Range(1, people).Count(n => p.Judge(n) == LuckVerdict.Unlucky);
-                int ride = labels * r0.unluckyFloorLuckPenalty + heads * r0.unluckyOccupancyLuckPenalty;
+                // a ride of n floors is possible when n >= the straight distance and has its parity (detours add 2k floors)
+                int dest = sp.HasDestinationFloor ? sp.destinationFloor
+                    : data.TryFindDestinationFloor(new DestinationId(sp.destination), out var df) ? df.PhysicalNumber : -1;
+                int straight = dest > 0 ? Math.Abs(dest - sp.floor) : 1;
+                bool distance = g.unlucky.Any(n => n >= 1 && (dest < 0 || (n >= straight && (n - straight) % 2 == 0)));
+                int ride = labels * r0.unluckyFloorLuckPenalty + heads * r0.unluckyOccupancyLuckPenalty
+                           + (distance ? r0.unluckyDistanceLuckPenalty : 0);
                 worst += g.partySize * Math.Max(ride, r0.patienceOutLuckPenalty);
             }
             Assert.Less(worst, r0.startLuck, "day 1 worst case (" + worst + ") could haunt the hotel");
