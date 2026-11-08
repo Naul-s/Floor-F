@@ -194,6 +194,69 @@ namespace FloorF.Tests.PlayMode.Rendering
             HideOtherCanvases(false);
         }
 
+        static float ImageBrightness(string path)
+        {
+            var tex = new Texture2D(2, 2);
+            try
+            {
+                Assert.IsTrue(tex.LoadImage(File.ReadAllBytes(path)));
+                double sum = 0;
+                foreach (var c in tex.GetPixels32()) sum += c.r + c.g + c.b;
+                return (float)(sum / (tex.width * tex.height * 765.0));
+            }
+            finally { Object.Destroy(tex); }
+        }
+
+        [UnityTest]
+        public IEnumerator Glow_OnByDefault_TogglesOff_AndStaysCheap_ThenCaptures()
+        {
+            var report = new System.Collections.Generic.List<string>();
+            using (var draws = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count"))
+            {
+                yield return RenderingTestDriver.LoadMain();
+                Assert.IsTrue(GameServices.Get<IGameFlow>().BeginDay());
+                var root = RenderingTestDriver.Rendering();
+                var glow = root.Pipeline.Glow;
+                Assert.IsNotNull(glow);
+                Assert.IsTrue(glow.Available, "glow shaders in Resources/Rendering/Shaders");
+                Assert.AreEqual(PixelGlow.DefaultOn, glow.Enabled, "PixelGlow.DefaultOn decides");
+                glow.Enabled = true;
+                Assert.AreSame(glow.ScreenMaterial, root.Pipeline.Screen.Material, "pixel screen composites the glow");
+                Assert.AreEqual(RenderingStyle.PixelWidth / PixelGlow.Downsample, glow.GlowTexture.width, "quarter resolution");
+                Time.captureDeltaTime = 0.1f;
+                int passes = glow.Passes;
+                for (int i = 0; i < 10; i++) yield return null;
+                Assert.Greater(glow.Passes, passes, "runs every frame while on");
+
+                yield return RenderingTestDriver.Freeze();
+                for (int i = 0; i < 3; i++) yield return null;
+                report.Add("glow on  drawCalls=" + draws.LastValue);
+                HideOtherCanvases(true);
+                string on = FrameCapture.Capture("render_glow_on");
+                HideOtherCanvases(false);
+
+                glow.Enabled = false;
+                Assert.IsNull(root.Pipeline.Screen.Material, "default UI material when off");
+                for (int i = 0; i < 3; i++) yield return null;
+                passes = glow.Passes;
+                for (int i = 0; i < 3; i++) yield return null;
+                Assert.AreEqual(passes, glow.Passes, "no glow passes while off");
+                report.Add("glow off drawCalls=" + draws.LastValue);
+                HideOtherCanvases(true);
+                string off = FrameCapture.Capture("render_glow_off");
+                HideOtherCanvases(false);
+
+                float bOn = ImageBrightness(on), bOff = ImageBrightness(off);
+                report.Add("brightness on=" + bOn.ToString("0.0000") + " off=" + bOff.ToString("0.0000"));
+                Assert.Greater(bOn, bOff + 0.002f, "emissive pixels glow");
+                Assert.Less(bOn, bOff * 1.35f, "a glow, not a wash-out");
+                glow.Enabled = PixelGlow.DefaultOn;
+            }
+            Directory.CreateDirectory(FrameCapture.OutputDir);
+            File.WriteAllText(Path.Combine(FrameCapture.OutputDir, "render_glow_stats.txt"), string.Join("\n", report) + "\n");
+            foreach (var line in report) TestContext.WriteLine(line);
+        }
+
         [UnityTest]
         public IEnumerator Capture_OriginalFloorMarks()
         {
