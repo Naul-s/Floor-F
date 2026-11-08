@@ -88,6 +88,14 @@ namespace FloorF.Core
         public float streakTipBonusPerStep = 0.05f;
         public float streakMaxTipMultiplier = 1.15f;
 
+        // rule 3: floors travelled since boarding, judged when the guest steps out at their destination
+        public float luckyDistanceTipMultiplier = 1.5f;
+        public int luckyDistanceLuckBonus = 2;
+        public int unluckyDistanceLuckPenalty = 6;
+
+        // "Friday the 13th" event day
+        public float friday13PenaltyMultiplier = 1.5f;
+
         // endings
         /// <summary>Luck at the end of the last day needed for the Prosperous ending (else Modest).</summary>
         public int prosperousEndingLuck = 70;
@@ -191,6 +199,9 @@ namespace FloorF.Core
         public const string UnluckyFloor = "unlucky_floor";
         public const string LuckyOccupancy = "lucky_occupancy";
         public const string UnluckyOccupancy = "unlucky_occupancy";
+        /// <summary>Rule 3 (ride distance) verdicts, said when stepping out.</summary>
+        public const string LuckyDistance = "lucky_distance";
+        public const string UnluckyDistance = "unlucky_distance";
         public const string Delivered = "delivered";
         public const string Impatient = "impatient";
         public const string Left = "left";
@@ -211,6 +222,8 @@ namespace FloorF.Core
         public const string Mystery = "mystery";
         /// <summary>Tips a lot, short patience (flavour; numbers still come from fields).</summary>
         public const string VIP = "vip";
+        /// <summary>"666": an Unlucky 6 from this guest counts double (penalty x2) and presentation shows the 666 curse.</summary>
+        public const string Devout = "devout";
     }
 
     // ---------------------------------------------------------------- days.json
@@ -232,6 +245,8 @@ namespace FloorF.Core
         public string introKo = "";
         public float durationSeconds = 90f;
         public bool tutorial;
+        /// <summary>"Friday the 13th" event day (see IDayQuery.IsFriday13).</summary>
+        public bool friday13;
         /// <summary>Sticker ids offered in the shop AFTER this day.</summary>
         public string[] shopStickers = Array.Empty<string>();
         public SpawnDef[] spawns = Array.Empty<SpawnDef>();

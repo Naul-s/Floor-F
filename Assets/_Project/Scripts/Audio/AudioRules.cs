@@ -75,6 +75,20 @@ namespace FloorF.Audio
 
         public static float DbToLinear(float db) => Mathf.Pow(10f, db / 20f);
 
+        /// <summary>Cues that play on the single door voice (a new one cuts the previous, never stacks).</summary>
+        public static bool IsDoorCue(AudioCue cue) => cue == AudioCue.DoorsOpen || cue == AudioCue.DoorsClose;
+
+        /// <summary>
+        /// Door gain right after the arrival ding: <paramref name="underDingDb"/> while the door cue starts within
+        /// <paramref name="guardSeconds"/> after the ding (its loud sustain), 1 otherwise / before any ding.
+        /// </summary>
+        public static float DoorGainAfterDing(float sinceDing, float guardSeconds, float underDingDb)
+            => sinceDing >= 0f && sinceDing < guardSeconds ? DbToLinear(underDingDb) : 1f;
+
+        /// <summary>Linear cut fade: gain one <paramref name="dt"/> step later (0 = done), never above 1.</summary>
+        public static float StepCutFade(float gain, float dt, float fadeSeconds)
+            => fadeSeconds <= 0f ? 0f : Mathf.Clamp01(gain - dt / fadeSeconds);
+
         public static float SemitonesToPitch(float semitones) => Mathf.Pow(2f, semitones / 12f);
 
         /// <summary>StreakUp pitch: streak 1 = base, +<paramref name="step"/> semitones per step after that, capped at <paramref name="maxSemitones"/>.</summary>

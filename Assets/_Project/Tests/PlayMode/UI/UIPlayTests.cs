@@ -471,7 +471,8 @@ namespace FloorF.Tests.PlayMode.UI
             yield return UITestDriver.Frames(2);
             Assert.IsTrue(ui.TitleVisible, "title card");
             StringAssert.Contains("FLOOR F", ui.TitleText);
-            StringAssert.Contains("4th floor", ui.TitleText);
+            StringAssert.Contains("START", ui.TitleText);
+            StringAssert.Contains("CREDITS", ui.TitleText);
             Assert.AreEqual(DayPhase.None, ui.VisibleFlowScreen, "no day card over the title");
             Assert.IsFalse(ui.PauseButtonVisible, "no pause on the title");
 
@@ -483,7 +484,8 @@ namespace FloorF.Tests.PlayMode.UI
             ui.ClickTitleLanguage();
             yield return null;
             Assert.IsTrue(ui.Korean, "title language toggle");
-            StringAssert.Contains("4층", ui.TitleText);
+            StringAssert.Contains("시작", ui.TitleText);
+            StringAssert.Contains("크레딧", ui.TitleText);
             ui.ClickTitleLanguage();
             yield return null;
             Assert.IsFalse(ui.Korean);

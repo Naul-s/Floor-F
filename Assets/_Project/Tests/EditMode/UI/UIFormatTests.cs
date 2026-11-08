@@ -109,12 +109,8 @@ namespace FloorF.Tests.EditMode.UI
         }
 
         [Test]
-        public void TitleAndAiStrings_MatchTheGame()
+        public void AiCreditsLine_MatchesTheDisclosure()
         {
-            // the building shows a "4" from the start: the subtitle must not claim there is no 4th floor
-            StringAssert.DoesNotContain("no 4th", UIStrings.Subtitle.En);
-            StringAssert.DoesNotContain("없는", UIStrings.Subtitle.Ko);
-            StringAssert.Contains("bad luck", UIStrings.Subtitle.En);
             // Docs/AI_DISCLOSURE.md: code, text, balancing, procedural visuals
             foreach (var word in new[] { "Claude", "Anthropic", "code", "text", "balancing", "procedural visuals" })
                 StringAssert.Contains(word, UIStrings.CreditsAi.En, "en AI line: " + word);

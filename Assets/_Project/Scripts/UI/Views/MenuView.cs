@@ -7,8 +7,9 @@ using UnityEngine.UI;
 namespace FloorF.UI
 {
     /// <summary>
-    /// Title screen (DayPhase.Title: big "FLOOR F", subtitle, START -> IMenuFlow.StartGameFromTitle, language toggle,
-    /// credit line, CREDITS card; Gameplay's attract demo plays behind a full-screen dimming backdrop + translucent panel) and the pause menu (IMenuFlow.IsPaused /
+    /// Title screen (DayPhase.Title: bobbing "FLOOR F" logo at the top, a centred stack of separate START ->
+    /// IMenuFlow.StartGameFromTitle / CREDITS / language buttons, credit line, CREDITS card; Gameplay's attract demo plays
+    /// behind a full-screen dimming backdrop, no panel) and the pause menu (IMenuFlow.IsPaused /
     /// PauseChanged: RESUME, volume slider -> IGameSettings.MasterVolume, language, tutorial hints, quit to title), plus
     /// the HUD pause button. Everything is hidden while no IMenuFlow is registered. Esc / Enter stay with KeyboardInput.
     /// </summary>
@@ -19,9 +20,17 @@ namespace FloorF.UI
         /// shone through the translucent panel. The demo stays visible, just pushed back.</summary>
         public static readonly Color Backdrop = new Color(0f, 0f, 0.02f, 0.66f);
 
-        readonly RectTransform titleRoot, pauseRoot, titlePanel, creditsCard;
+        /// <summary>Title layout (1280x720 reference): logo top edge below the screen top, its font size (Galmuri grid:
+        /// one font pixel = <see cref="LogoPixel"/> units), button stack centre above the screen centre.</summary>
+        public const float LogoTop = 24f, LogoSize = 120f, LogoPixel = LogoSize / UIFonts.Grid, StackCentreY = 16f, StackGap = 16f;
+        public static readonly Vector2 StartSize = new Vector2(400f, 76f), ButtonSize = new Vector2(300f, 52f);
+        /// <summary>Idle bob of the logo face (its shadow stays put): amplitude in canvas units, period in seconds.</summary>
+        public const float LogoBob = 5f, LogoBobPeriod = 3.2f, LogoSpacing = 8f;
+        static readonly Color LogoOutline = new Color(0.03f, 0.03f, 0.06f, 1f), LogoShadow = new Color(0f, 0f, 0.02f, 0.75f);
+
+        readonly RectTransform titleRoot, pauseRoot, titleMenu, logo, logoFloat, buttonStack, creditsCard;
         readonly Image backdrop;
-        readonly TextMeshProUGUI gameName, subtitle, titleHint, credits, pauseTitle, volumeCaption, volumeValue;
+        readonly TextMeshProUGUI gameName, credits, pauseTitle, volumeCaption, volumeValue;
         readonly TextMeshProUGUI creditsTitle, musicHead, music, soundHead, sound, artHead, art, aiLine, jamLine;
         readonly UIBuild.ButtonParts start, titleLanguage, titleCredits, back, resume, pauseLanguage, hints, quit, pauseButton;
         readonly Slider volume;
@@ -35,27 +44,31 @@ namespace FloorF.UI
             titleRoot = UIBuild.Stretch(UIBuild.Rect("Title", canvas));
             backdrop = UIBuild.Box("TitleBackdrop", titleRoot, Backdrop);
             UIBuild.Stretch(backdrop.rectTransform);
-            // translucent fill + hollow gold frame (a Framed box would tint the see-through fill gold)
-            var panel = titlePanel = UIBuild.Box("TitlePanel", titleRoot, UIStyle.TitlePanel, raycast: true).rectTransform;
-            // compact, in the lower part of the screen: the lit hotel of the attract demo stays visible above it
-            UIBuild.Place(panel, new Vector2(0.5f, 0f), new Vector2(0f, 44f), new Vector2(720f, 300f));
-            UIBuild.Outline("Frame", panel, UIStyle.CardEdge, 3f, 0f);
-            var v = Column(panel, new RectOffset(36, 36, 14, 20), 6f);
-            gameName = UIBuild.Text("GameName", panel, UIStrings.GameName, 96f, UIStyle.Title, TextAlignmentOptions.Center, bold: true);
-            gameName.textWrappingMode = TextWrappingModes.NoWrap;
-            gameName.characterSpacing = 8f;
-            subtitle = UIBuild.Text("Subtitle", panel, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
-            titleHint = UIBuild.Text("Hint", panel, "", 24f, UIStyle.InkDim, TextAlignmentOptions.Center);
-            var row = Row(panel, 64f);
-            start = UIBuild.Button("Start", row, "", 36f, UIStyle.Action, OnStart);
-            start.Label.color = UIStyle.Ink;
-            start.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 2f;
-            titleCredits = UIBuild.Button("Credits", row, "", 24f, UIStyle.Btn, () => { ctx.Sound(UiSoundKind.Click); SetCredits(true); });
-            titleCredits.Label.color = UIStyle.Ink;
-            titleCredits.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            titleLanguage = UIBuild.Button("Language", row, "", 24f, UIStyle.Btn, () => ctx.ToggleLanguage());
-            titleLanguage.Label.color = UIStyle.Ink;
-            titleLanguage.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            // no shared panel: the logo floats at the top over the night sky, the buttons are a narrow centred stack, and
+            // the bottom ~20% stays clear for the street in front of the hotel (only the credit strip sits there)
+            titleMenu = UIBuild.Stretch(UIBuild.Rect("TitleMenu", titleRoot));
+            // TMP centres the line including the trailing letter spacing: shift right by half of it so the glyphs are centred
+            logo = UIBuild.Place(UIBuild.Rect("Logo", titleMenu), new Vector2(0.5f, 1f),
+                new Vector2(LogoSpacing * LogoSize / 100f * 0.5f, -LogoTop), new Vector2(900f, LogoSize));
+            // a drop shadow that stays put while the logo bobs, then a one-font-pixel dark outline (8 copies) under the face
+            LogoCopy("Shadow", logo, LogoShadow, new Vector2(0f, -LogoPixel * 2f));
+            logoFloat = UIBuild.Stretch(UIBuild.Rect("Float", logo));
+            for (int i = 0; i < 8; i++)
+            {
+                float a = i * Mathf.PI / 4f;
+                LogoCopy("Outline" + i, logoFloat, LogoOutline, new Vector2(Mathf.Round(Mathf.Cos(a)), Mathf.Round(Mathf.Sin(a))) * LogoPixel);
+            }
+            gameName = LogoCopy("GameName", logoFloat, UIStyle.Title, Vector2.zero);
+
+            float stackHeight = StartSize.y + 2f * (ButtonSize.y + StackGap);
+            var stack = buttonStack = UIBuild.Place(UIBuild.Rect("Buttons", titleMenu), new Vector2(0.5f, 0.5f),
+                new Vector2(0f, StackCentreY + stackHeight * 0.5f), new Vector2(StartSize.x, stackHeight));
+            stack.pivot = new Vector2(0.5f, 1f); // children hang from the top edge
+            start = MenuButton("Start", stack, StartSize, 0f, 36f, UIStyle.Action, UIStyle.Title, 3f, OnStart);
+            titleCredits = MenuButton("Credits", stack, ButtonSize, -(StartSize.y + StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
+                () => { ctx.Sound(UiSoundKind.Click); SetCredits(true); });
+            titleLanguage = MenuButton("Language", stack, ButtonSize, -(StartSize.y + ButtonSize.y + 2f * StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
+                () => ctx.ToggleLanguage());
 
             // ---------------------------------------------------------- credits (title -> CREDITS; Docs/CREDITS.md)
             creditsCard = UIBuild.Box("CreditsCard", titleRoot, UIStyle.TitlePanel, raycast: true).rectTransform;
@@ -120,6 +133,31 @@ namespace FloorF.UI
             RefreshLanguage();
         }
 
+        static TextMeshProUGUI LogoCopy(string name, RectTransform parent, Color color, Vector2 offset)
+        {
+            var t = UIBuild.Text(name, parent, UIStrings.GameName, LogoSize, color, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Stretch(t.rectTransform);
+            t.rectTransform.anchoredPosition = offset;
+            t.textWrappingMode = TextWrappingModes.NoWrap;
+            t.characterSpacing = LogoSpacing;
+            return t;
+        }
+
+        /// <summary>One free-standing title button (no shared panel) hanging <paramref name="y"/> below the stack top, with its own frame.</summary>
+        static UIBuild.ButtonParts MenuButton(string name, RectTransform stack, Vector2 size, float y, float font, Color bg, Color edge,
+            float edgeWidth, UnityEngine.Events.UnityAction onClick)
+        {
+            var b = UIBuild.Button(name, stack, "", font, bg, onClick);
+            b.Label.color = UIStyle.Ink;
+            b.Label.textWrappingMode = TextWrappingModes.NoWrap;
+            var rt = b.Rect;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 1f);
+            rt.anchoredPosition = new Vector2(0f, y);
+            rt.sizeDelta = size;
+            UIBuild.Outline("Frame", rt, edge, edgeWidth, 0f);
+            return b;
+        }
+
         static VerticalLayoutGroup Column(RectTransform card, RectOffset padding, float spacing)
         {
             card.GetChild(0).gameObject.AddComponent<LayoutElement>().ignoreLayout = true; // the Framed fill
@@ -176,7 +214,7 @@ namespace FloorF.UI
         {
             creditsOpen = show && titleShown;
             creditsCard.gameObject.SetActive(creditsOpen);
-            titlePanel.gameObject.SetActive(!creditsOpen);
+            titleMenu.gameObject.SetActive(!creditsOpen);
             if (creditsOpen) { RefreshLanguage(); LayoutRebuilder.ForceRebuildLayoutImmediate(creditsCard); }
         }
         void OnPause() => ctx.Sound(ctx.Menu != null && ctx.Menu.SetPaused(true));
@@ -211,12 +249,13 @@ namespace FloorF.UI
 
         public void RefreshLanguage()
         {
-            UIBuild.Set(subtitle, ctx.S(UIStrings.Subtitle));
-            UIBuild.Set(titleHint, ctx.S(UIStrings.TitleHint));
             UIBuild.Set(credits, ctx.S(UIStrings.Credits));
             UIBuild.Set(start.Label, ctx.S(UIStrings.Start));
             UIBuild.Set(titleLanguage.Label, ctx.S(UIStrings.Language));
             UIBuild.Set(titleCredits.Label, ctx.S(UIStrings.CreditsButton));
+            UIBuild.Fit(start.Label, 36f); // fixed-size buttons: one line at the biggest grid size that fits (en / ko)
+            UIBuild.Fit(titleCredits.Label, 24f);
+            UIBuild.Fit(titleLanguage.Label, 24f);
             UIBuild.Set(creditsTitle, ctx.S(UIStrings.CreditsTitle));
             UIBuild.Set(musicHead, ctx.S(UIStrings.CreditsMusicHead));
             UIBuild.Set(music, UIStrings.CreditsMusicCcBy);
@@ -253,7 +292,13 @@ namespace FloorF.UI
                 titleShown = title;
                 titleRoot.gameObject.SetActive(title);
                 if (!title) SetCredits(false);
-                if (title) { RefreshLanguage(); LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)gameName.transform.parent); }
+                if (title) RefreshLanguage();
+            }
+            if (title && !creditsOpen)
+            {
+                // gentle idle float of the logo face; the drop shadow stays where it is
+                float y = LogoBob * Mathf.Sin(Time.time * (2f * Mathf.PI / LogoBobPeriod));
+                logoFloat.anchoredPosition = new Vector2(0f, y);
             }
             if (paused != pauseShown)
             {
@@ -280,7 +325,8 @@ namespace FloorF.UI
         public bool TitleVisible => titleRoot.gameObject.activeSelf;
         public bool PauseVisible => pauseRoot.gameObject.activeSelf;
         public bool CreditsVisible => creditsCard.gameObject.activeInHierarchy;
-        public bool TitlePanelVisible => titlePanel.gameObject.activeInHierarchy;
+        /// <summary>Logo + title buttons shown (they step aside for the credits card).</summary>
+        public bool TitleMenuVisible => titleMenu.gameObject.activeInHierarchy;
         public void ClickCredits() => titleCredits.Button.onClick.Invoke();
         public void ClickCreditsBack() => back.Button.onClick.Invoke();
         public string CreditsText => string.Join("\n", creditsTitle.text, musicHead.text, music.text, soundHead.text, sound.text,
@@ -300,11 +346,58 @@ namespace FloorF.UI
             var r = UIBuild.CanvasRect(canvas, backdrop.rectTransform);
             var c = canvas.rect;
             return r.xMin <= 0.5f && r.yMin <= 0.5f && r.width >= c.width - 1f && r.height >= c.height - 1f
-                   && backdrop.transform.GetSiblingIndex() < titlePanel.GetSiblingIndex();
+                   && backdrop.transform.GetSiblingIndex() < titleMenu.GetSiblingIndex();
         }
         public bool PauseButtonVisible => pauseButton.Rect.gameObject.activeSelf;
-        public Rect TitlePanelRect(RectTransform canvas) => titlePanel.gameObject.activeInHierarchy ? UIBuild.CanvasRect(canvas, titlePanel) : default;
-        public string TitleText => gameName.text + " | " + subtitle.text + " | " + start.Label.text;
+
+        public enum TitlePart { Logo, Start, Credits, Language }
+        RectTransform Part(TitlePart p) => p == TitlePart.Logo ? (RectTransform)gameName.transform
+            : p == TitlePart.Start ? start.Rect : p == TitlePart.Credits ? titleCredits.Rect : titleLanguage.Rect;
+        /// <summary>Canvas rect of a title element (the logo: its face's rendered text bounds), default while hidden.</summary>
+        public Rect TitlePartRect(RectTransform canvas, TitlePart p)
+        {
+            if (!titleMenu.gameObject.activeInHierarchy) return default;
+            if (p != TitlePart.Logo) return UIBuild.CanvasRect(canvas, Part(p));
+            gameName.ForceMeshUpdate();
+            // the glyphs themselves (textBounds would include the trailing letter spacing)
+            var info = gameName.textInfo;
+            Vector2 lo = new Vector2(float.MaxValue, float.MaxValue), hi = new Vector2(float.MinValue, float.MinValue);
+            for (int i = 0; i < info.characterCount; i++)
+            {
+                var ch = info.characterInfo[i];
+                if (!ch.isVisible) continue;
+                lo = Vector2.Min(lo, ch.bottomLeft);
+                hi = Vector2.Max(hi, ch.topRight);
+            }
+            if (lo.x > hi.x) return default;
+            var lt = gameName.rectTransform;
+            var a = (Vector2)canvas.InverseTransformPoint(lt.TransformPoint(lo));
+            var c = (Vector2)canvas.InverseTransformPoint(lt.TransformPoint(hi));
+            var off = canvas.rect.min;
+            return Rect.MinMaxRect(Mathf.Min(a.x, c.x) - off.x, Mathf.Min(a.y, c.y) - off.y, Mathf.Max(a.x, c.x) - off.x, Mathf.Max(a.y, c.y) - off.y);
+        }
+        /// <summary>Label of a title button on one line inside its button (after the grid Fit), and its font size.</summary>
+        public bool TitleLabelFits(TitlePart p, out float fontSize)
+        {
+            var b = p == TitlePart.Start ? start : p == TitlePart.Credits ? titleCredits : titleLanguage;
+            fontSize = b.Label.fontSize;
+            return b.Label.GetPreferredValues(b.Label.text, float.PositiveInfinity, float.PositiveInfinity).x <= b.Label.rectTransform.rect.width + 0.5f;
+        }
+        /// <summary>Names of the Images under the title menu other than the buttons' own fills/frames (a shared panel or a box
+        /// behind the logo would show up here); empty when none.</summary>
+        public string TitleMenuPanels()
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var img in titleMenu.GetComponentsInChildren<Image>(true))
+            {
+                var t = img.transform;
+                bool own = t == start.Rect || t == titleCredits.Rect || t == titleLanguage.Rect
+                           || t.IsChildOf(start.Rect) || t.IsChildOf(titleCredits.Rect) || t.IsChildOf(titleLanguage.Rect);
+                if (!own) sb.Append(img.name).Append(' ');
+            }
+            return sb.ToString().Trim();
+        }
+        public string TitleText => gameName.text + " | " + start.Label.text + " | " + titleCredits.Label.text + " | " + titleLanguage.Label.text;
         public void ClickStart() => start.Button.onClick.Invoke();
         public void ClickTitleLanguage() => titleLanguage.Button.onClick.Invoke();
         public void ClickPauseButton() => pauseButton.Button.onClick.Invoke();

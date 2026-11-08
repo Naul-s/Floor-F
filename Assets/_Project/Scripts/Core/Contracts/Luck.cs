@@ -34,6 +34,11 @@ namespace FloorF.Core
         Story = 5,
         /// <summary>Day start/reset or anything else.</summary>
         Other = 6,
+        /// <summary>
+        /// Rule 3: floors the guest travelled since boarding (sum of every floor the car moved with them inside, detours
+        /// included), judged once when they step out at their destination. Can exceed the floor count (e.g. 13, 17).
+        /// </summary>
+        RideDistance = 7,
     }
 
     /// <summary>Immutable, sorted, de-duplicated set of small integers (lucky / unlucky numbers).</summary>

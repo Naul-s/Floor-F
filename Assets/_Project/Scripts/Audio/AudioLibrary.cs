@@ -9,9 +9,9 @@ namespace FloorF.Audio
         None = 0,
         /// <summary>ElevatorArrived.</summary>
         Ding = 1,
-        /// <summary>DoorsOpened.</summary>
+        /// <summary>DoorsOpened: the door latch clunk (motor run trimmed off). Door cues share one voice (no stacking).</summary>
         DoorsOpen = 2,
-        /// <summary>DoorsClosed (door sample pitched down - no dedicated closing sample).</summary>
+        /// <summary>DoorsClosed: the same clunk pitched down (no dedicated closing sample).</summary>
         DoorsClose = 3,
         /// <summary>LuckJudged Lucky.</summary>
         Lucky = 4,
@@ -112,6 +112,14 @@ namespace FloorF.Audio
         /// <summary>ClockTick: ticks over the last N whole seconds of a real day; pitch rises to 1 + rise on the last one.</summary>
         public int clockTickSeconds = 10;
         public float clockTickRise = 0.2f;
+        /// <summary>
+        /// Door cues (DoorsOpen/DoorsClose) share one voice: a new door cue fades the still-sounding previous one out over
+        /// this many seconds instead of stacking on it.
+        /// </summary>
+        public float doorCutFadeSeconds = 0.03f;
+        /// <summary>A door cue starting within this many seconds after the arrival Ding is played <see cref="doorUnderDingDb"/> lower.</summary>
+        public float dingGuardSeconds = 0.6f;
+        public float doorUnderDingDb = -6f;
 
         public CueDef Find(AudioCue cue)
         {

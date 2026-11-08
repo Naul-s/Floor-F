@@ -290,10 +290,13 @@ namespace FloorF.UI
         internal float StreakScale => hud.StreakScale;
         internal bool GradeStampVisible => flow.StampVisible;
         internal string GradeStampText => flow.StampGrade;
+        internal int GradeStampTextCount => flow.StampTextCount;
         internal bool GradeStampLanded => flow.StampLanded;
         internal Rect GradeStampRect => flow.StampRect(ctx.CanvasRect);
         internal Rect FlowCardRect => flow.CardRect(ctx.CanvasRect);
-        internal Rect TitlePanelRect => menu.TitlePanelRect(ctx.CanvasRect);
+        internal Rect TitlePartRect(MenuView.TitlePart p) => menu.TitlePartRect(ctx.CanvasRect, p);
+        internal bool TitleLabelFits(MenuView.TitlePart p, out float fontSize) => menu.TitleLabelFits(p, out fontSize);
+        internal string TitleMenuPanels => menu.TitleMenuPanels();
 
         /// <summary>Name of the topmost UI raycast target at canvas point <paramref name="p"/> (what a click there hits), or null.</summary>
         internal string RaycastAt(Vector2 p)
@@ -342,7 +345,7 @@ namespace FloorF.UI
 
         // credits / title backdrop
         internal bool CreditsVisible => menu.CreditsVisible;
-        internal bool TitlePanelVisible => menu.TitlePanelVisible;
+        internal bool TitleMenuVisible => menu.TitleMenuVisible;
         internal void ClickCredits() => menu.ClickCredits();
         internal void ClickCreditsBack() => menu.ClickCreditsBack();
         internal string CreditsText => menu.CreditsText;

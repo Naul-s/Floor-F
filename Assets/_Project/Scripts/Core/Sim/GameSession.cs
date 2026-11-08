@@ -118,6 +118,8 @@ namespace FloorF.Core
         /// <summary>Visible phase: <see cref="DayPhase.Title"/> while the title/demo runs (the demo's own day phases stay internal).</summary>
         public DayPhase Phase => onTitle ? DayPhase.Title : phase;
         public bool IsTutorial => dayDef != null && dayDef.tutorial;
+        // TODO(gameplay-dev): Friday the 13th rules (contract stub: flag only)
+        public bool IsFriday13 => dayDef != null && dayDef.friday13;
         public float DurationSeconds => dayDef != null ? dayDef.durationSeconds : 0f;
         public float ElapsedSeconds => elapsed;
         /// <summary>Tutorial days have no clock: stays at <see cref="DurationSeconds"/>.</summary>
