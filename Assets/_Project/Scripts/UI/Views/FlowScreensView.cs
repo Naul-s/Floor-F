@@ -129,6 +129,17 @@ namespace FloorF.UI
 
         /// <summary>Last GuestSpoke with trigger "special" (the mystery guest at the hidden 4th floor). Set by UIRoot.</summary>
         public string LastSpecialLine;
+        /// <summary>Who said <see cref="LastSpecialLine"/>: the card re-reads the line in the CURRENT language from data.</summary>
+        public GuestArchetypeId LastSpecialArchetype;
+
+        string SpecialLine(bool ko)
+        {
+            if (string.IsNullOrEmpty(LastSpecialLine)) return null;
+            if (!LastSpecialArchetype.IsEmpty && ctx.Data != null && ctx.Data.TryGetGuest(LastSpecialArchetype, out var def) && def.lines != null)
+                foreach (var l in def.lines)
+                    if (l != null && l.trigger == GuestLineTriggers.Special) return l.Get(ko);
+            return LastSpecialLine;
+        }
 
         void OnAction()
         {
@@ -320,8 +331,9 @@ namespace FloorF.UI
             title.text = t;
             title.color = ctx.Day.Ending == EndingKind.Haunted || ctx.Day.Ending == EndingKind.FourthFloor ? UIStyle.Unlucky : UIStyle.Lucky;
             body.gameObject.SetActive(true);
-            body.text = ctx.Day.Ending == EndingKind.FourthFloor && !string.IsNullOrEmpty(LastSpecialLine)
-                ? "<color=" + UIFormat.HiddenHex + ">“" + LastSpecialLine + "”</color>\n\n" + text
+            string quote = ctx.Day.Ending == EndingKind.FourthFloor ? SpecialLine(ko) : null;
+            body.text = !string.IsNullOrEmpty(quote)
+                ? "<color=" + UIFormat.HiddenHex + ">“" + quote + "”</color>\n\n" + text
                 : text;
             extra.gameObject.SetActive(true);
             int luck = ctx.Score != null ? ctx.Score.Luck : 0, max = ctx.Score != null ? ctx.Score.MaxLuck : 100;
