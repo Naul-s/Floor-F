@@ -31,6 +31,8 @@ namespace FloorF.Rendering
                 case "visor": return new GuestSilhouette(1.52f, 0.60f, 0.44f, 0.42f, 0.32f);
                 case "glasses": return new GuestSilhouette(1.74f, 0.48f, 0.36f, 0.40f, 0.40f);             // tallest thin
                 case "hood": return new GuestSilhouette(1.86f, 0.66f, 0.48f, 0.50f, 0.30f, cloak: true);   // looming robe
+                case "collar": return new GuestSilhouette(1.60f, 0.52f, 0.40f, 0.42f, 0.30f, cloak: true); // priest: cassock
+                case "flat_cap": return new GuestSilhouette(1.28f, 0.62f, 0.46f, 0.44f, 0.30f);            // short, stout nonno
                 default:
                 {
                     // unknown (new) archetype: stable proportions of its own from the accessory key
@@ -339,6 +341,21 @@ namespace FloorF.Rendering
                     f.HeadTop = top + 0.2f;
                     break;
                 }
+                case "collar":
+                {
+                    assets.Box(v, "Clerical Collar", new Vector3(0f, bodyY0 + bodyH - 0.06f, front - 0.02f), new Vector3(W * 0.5f, 0.1f, 0.03f), assets.Unlit(new Color(0.96f, 0.96f, 0.94f)), false);
+                    assets.Box(v, "Cross", new Vector3(0f, bodyY0 + bodyH * 0.55f, front - 0.02f), new Vector3(0.06f, 0.2f, 0.02f), assets.Unlit(new Color(1f, 0.82f, 0.25f)), false);
+                    break;
+                }
+                case "flat_cap":
+                {
+                    var cap = assets.Lit(new Color(0.42f, 0.34f, 0.26f));
+                    assets.Box(v, "Flat Cap", new Vector3(0f, top + 0.03f, 0.02f), new Vector3(head * 1.1f, 0.12f, head * 1.0f), cap);
+                    assets.Box(v, "Cap Peak", new Vector3(0f, top - 0.01f, -head * 0.6f), new Vector3(head * 0.9f, 0.05f, head * 0.35f), cap);
+                    assets.Box(v, "Moustache", new Vector3(0f, headY - head * 0.18f, -head * 0.48f), new Vector3(head * 0.6f, 0.08f, 0.02f), assets.Lit(new Color(0.94f, 0.94f, 0.92f)), false);
+                    f.HeadTop = top + 0.09f;
+                    break;
+                }
             }
             return f;
         }
@@ -484,6 +501,30 @@ namespace FloorF.Rendering
                     Part(head, "Eye L", new Vector3(-hw * 0.32f, hCy, hFront - 0.05f), new Vector3(0.1f, 0.07f, 0.02f), glow);
                     Part(head, "Eye R", new Vector3(hw * 0.32f, hCy, hFront - 0.05f), new Vector3(0.1f, 0.07f, 0.02f), glow);
                     f.HeadTop = hTop + 0.22f;
+                    break;
+                }
+                case "collar":
+                {
+                    // priest: dark cassock (atlas tile), white clerical collar at the neck, small gold cross
+                    float neckY = Mathf.Max(shoulderL.y + 0.02f, chestY + 0.14f);
+                    var white = assets.Unlit(new Color(0.96f, 0.96f, 0.94f));
+                    Part(torso, "Clerical Collar", new Vector3(0f, neckY, chestZ - 0.03f), new Vector3(bodyW * 0.5f, 0.11f, 0.03f), white);
+                    Part(torso, "Collar Tab", new Vector3(0f, neckY - 0.07f, chestZ - 0.05f), new Vector3(0.1f, 0.1f, 0.02f), white);
+                    var gold = assets.Unlit(new Color(1f, 0.82f, 0.25f));
+                    Part(torso, "Cross V", new Vector3(0f, chestY - 0.12f, chestZ - 0.06f), new Vector3(0.06f, 0.22f, 0.02f), gold);
+                    Part(torso, "Cross H", new Vector3(0f, chestY - 0.07f, chestZ - 0.06f), new Vector3(0.16f, 0.06f, 0.02f), gold);
+                    break;
+                }
+                case "flat_cap":
+                {
+                    // nonno: tweed flat cap with a peak, white moustache, walking cane
+                    var cap = assets.Lit(new Color(0.42f, 0.34f, 0.26f));
+                    Part(head, "Flat Cap", new Vector3(0f, hTop - 0.01f, hCz + 0.02f), new Vector3(hw * 2.12f, 0.13f, hd * 0.98f), cap);
+                    Part(head, "Cap Peak", new Vector3(0f, hTop - 0.05f, hFront - 0.07f), new Vector3(hw * 1.6f, 0.06f, 0.22f), cap);
+                    Part(head, "Moustache", new Vector3(0f, hCy - hh * 0.2f, hFront - 0.03f), new Vector3(hw * 1.05f, 0.09f, 0.03f), assets.Lit(new Color(0.94f, 0.94f, 0.92f)));
+                    float caneTop = Mathf.Max(0.2f, handR.y);
+                    Part(f.ArmR, "Cane", new Vector3(handR.x + 0.06f, caneTop * 0.5f, -0.06f), new Vector3(0.09f, caneTop, 0.09f), assets.Lit(new Color(0.32f, 0.19f, 0.10f)));
+                    f.HeadTop = hTop + 0.1f;
                     break;
                 }
                 default:

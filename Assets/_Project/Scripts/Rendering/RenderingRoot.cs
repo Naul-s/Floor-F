@@ -33,6 +33,7 @@ namespace FloorF.Rendering
         HotelFacade facade;
         StreetLife street;
         readonly float[] letterLevels = new float[BuildingView.HotelText.Length];
+        readonly System.Collections.Generic.Dictionary<int, GuestArchetypeId> archetypes = new System.Collections.Generic.Dictionary<int, GuestArchetypeId>();
         Transform world;
 
         IWorldLayout layout;
@@ -258,7 +259,7 @@ namespace FloorF.Rendering
             guests.Tick(dt, jdt, juiceTime, data, guestQuery, locator, elevatorQuery);
             building.Tick(jdt);
             fx.Tick(jdt);
-            ending.Tick(jdt);
+            ending.Tick(jdt, juiceTime);
             lighting.Tick(juiceTime, jdt);
             rig.SetTitle(dayQuery != null && dayQuery.Phase == DayPhase.Title);
             rig.Tick(jdt);
@@ -313,7 +314,7 @@ namespace FloorF.Rendering
         {
             eventCarFloor = e.Floor.Value;
             eventDoorsOpen = true;
-            if (IsBuilt) lighting.Flash(e.Floor, Color.white, 0.35f, 0.35f); // small "ding" brightening
+            if (IsBuilt) lighting.Flash(e.Floor, Color.white, 0.35f, FloorLighting.MinorFlashStrength); // soft "ding" glow
         }
 
         void OnDoorsClosed(DoorsClosed e)
@@ -327,6 +328,10 @@ namespace FloorF.Rendering
             if (!IsBuilt) return;
             if (e.Verdict == LuckVerdict.Unlucky)
             {
+                // "666": one red pulse through the whole hotel (one flash per floor, in step, rate-limited by
+                // FloorLighting); pulse first so the judged floor's own flash merges into it
+                if (e.Number == StoryRules.DevoutNumber && IsDevout(e.Guest))
+                    lighting.FlashAll(RenderingStyle.UnluckyFlash, RenderingStyle.CurseFlashSeconds, RenderingStyle.CurseFlashStrength);
                 lighting.Flash(e.Floor, RenderingStyle.UnluckyFlash, RenderingStyle.UnluckyFlashSeconds);
                 rig.Shake();
                 guests.Jump(e.Guest);
@@ -342,7 +347,18 @@ namespace FloorF.Rendering
 
         void OnGuestSpawned(GuestSpawned e)
         {
+            archetypes[e.Guest.Value] = e.Archetype;
             if (IsBuilt) guests.Spawn(e.Guest, e.Archetype, e.Floor, e.WaitingSlot, data);
+        }
+
+        /// <summary>Guest's archetype has GuestTraits.Devout (the "666" curse).</summary>
+        bool IsDevout(GuestId guest)
+        {
+            if (data == null) return false;
+            GuestArchetypeId archetype;
+            if (guestQuery != null && guestQuery.TryGet(guest, out var info)) archetype = info.Archetype;
+            else if (!archetypes.TryGetValue(guest.Value, out archetype)) return false;
+            return data.TryGetGuest(archetype, out var def) && def.HasTrait(GuestTraits.Devout);
         }
 
         void OnGuestLeft(GuestLeft e)

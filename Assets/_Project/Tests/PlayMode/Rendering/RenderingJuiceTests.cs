@@ -78,6 +78,10 @@ namespace FloorF.Tests.PlayMode.Rendering
             root.Guests.BuildLineup(new FloorIndex(1), data.Guests, GuestMood.Impatient);
             root.Guests.BuildLineup(new FloorIndex(2), data.Guests, GuestMood.Angry);
             root.Guests.BuildLineup(new FloorIndex(3), data.Guests, GuestMood.Scared);
+            // the newest archetypes at the front of their own queue (close-up below)
+            var newcomers = data.Guests.Where(d => d.accessory == "collar" || d.accessory == "flat_cap").ToList();
+            var closeFloor = new FloorIndex(5);
+            root.Guests.BuildLineup(closeFloor, newcomers, GuestMood.Neutral);
             Time.captureDeltaTime = 0.07f;
             for (int i = 0; i < 9; i++) yield return null;
             yield return RenderingTestDriver.Freeze();
@@ -90,6 +94,16 @@ namespace FloorF.Tests.PlayMode.Rendering
             var zoom = RenderingTestDriver.CaptureTargetCrop("render_guests_zoom",
                 new Vector3(x0, -0.3f, 0f), new Vector3(x1, layout.FloorHeight * 4f, 0f), 4);
             Assert.IsTrue(File.Exists(zoom), zoom);
+            // close-up of the newest archetypes (priest = dark cassock + white collar, nonno = flat cap + white beard)
+            if (newcomers.Count > 0)
+            {
+                var s0 = layout.GetWaitingSlot(closeFloor, 0).ToVector3();
+                var s1 = layout.GetWaitingSlot(closeFloor, newcomers.Count - 1).ToVector3();
+                float y0 = closeFloor.Value * layout.FloorHeight;
+                var close = RenderingTestDriver.CaptureTargetCrop("render_guests_new_zoom",
+                    new Vector3(Mathf.Min(s0.x, s1.x) - 0.8f, y0 - 0.1f, 0f), new Vector3(Mathf.Max(s0.x, s1.x) + 0.8f, y0 + layout.FloorHeight - 0.4f, 0f), 8);
+                Assert.IsTrue(File.Exists(close), close);
+            }
         }
 
         static void AssertWholePixelOffset(Camera cam, CameraFrame baseFrame, out Vector2Int px)
@@ -230,7 +244,7 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.AreEqual("4", root.Building.GetDisplayedText(Floor4), "sign reveals the real 4");
 
             // capture on a frame where the broken tube is on
-            for (int i = 0; i < 60 && root.Lighting.GetLightIntensity(Floor4) < RenderingStyle.FloorLightIntensity * 0.9f; i++) yield return null;
+            for (int i = 0; i < 60 && root.Lighting.GetLightIntensity(Floor4) < RenderingStyle.FloorLightIntensity * 0.8f; i++) yield return null;
             yield return RenderingTestDriver.Freeze();
             var path = FrameCapture.Capture("render_ending_4f");
             Assert.IsTrue(File.Exists(path), path);
@@ -264,6 +278,14 @@ namespace FloorF.Tests.PlayMode.Rendering
                 Assert.Greater(c.r, c.g + 0.5f, "haunted: red, floor " + f.PhysicalNumber);
                 Assert.IsTrue(root.Lighting.IsFlickering(f), "haunted: flicker, floor " + f.PhysicalNumber);
             }
+            // capture: the haunted mood (world only)
+            yield return RenderingTestDriver.Freeze();
+            foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+                if (c.isRootCanvas && c.name != RenderingNames.ScreenCanvas) c.enabled = false;
+            var haunted = FrameCapture.Capture("render_ending_haunted");
+            Assert.IsTrue(File.Exists(haunted), haunted);
+            RenderingTestDriver.Unfreeze();
+            Time.captureDeltaTime = 0.05f;
 
             GameServices.Events.Publish(new EndingReached(EndingKind.Prosperous, day.CurrentDay, 90, 500));
             for (int i = 0; i < 50; i++) yield return null;
@@ -276,7 +298,8 @@ namespace FloorF.Tests.PlayMode.Rendering
                 var c = root.Lighting.GetBaseColor(f);
                 Assert.Greater(c.r, c.b + 0.3f, "warm gold");
             }
-            for (int i = 0; i < 12; i++)
+            // slow blink (photosensitivity): warm/dim for a third of every EndingDirector.ProsperousBlinkPeriod
+            for (int i = 0; i < 40 && !signDimmedOnce; i++)
             {
                 if (root.Building.HotelSignTint.r < 0.9f) signDimmedOnce = true;
                 yield return null;

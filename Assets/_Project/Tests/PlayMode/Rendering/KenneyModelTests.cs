@@ -74,10 +74,15 @@ namespace FloorF.Tests.PlayMode.Rendering
                     Assert.IsNotNull(g.Prefab, g.Accessory + " prefab");
                     Assert.IsTrue(tiles.Add(g.Tile), g.Accessory + "/" + g.Variant + " has its own atlas tile");
                     var px = atlas.GetPixelBilinear(g.ShirtUV.x, g.ShirtUV.y);
-                    Assert.AreEqual(g.Tint.r, px.r, 0.25f, g.Character + " shirt swatch painted r");
-                    Assert.AreEqual(g.Tint.g, px.g, 0.25f, g.Character + " shirt swatch painted g");
-                    Assert.AreEqual(g.Tint.b, px.b, 0.25f, g.Character + " shirt swatch painted b");
+                    Assert.AreEqual(g.Shirt.r, px.r, 0.25f, g.Character + " shirt swatch painted r");
+                    Assert.AreEqual(g.Shirt.g, px.g, 0.25f, g.Character + " shirt swatch painted g");
+                    Assert.AreEqual(g.Shirt.b, px.b, 0.25f, g.Character + " shirt swatch painted b");
                 }
+                // priest = dark cassock (shirt far darker than the guests.json colour), every other plain guest wears its colour
+                var priest = catalog.FindGuest("collar", 0);
+                Assert.IsNotNull(priest, "western_priest has its own model");
+                Assert.Less(priest.Shirt.grayscale, 0.2f, "priest wears dark clothes");
+                Assert.IsNotNull(catalog.FindGuest("flat_cap", 0), "italian_nonno has its own model");
                 Assert.AreEqual(2, catalog.VariantCount("matching_hats"), "couple = two characters");
                 Assert.AreNotEqual(catalog.FindGuest("matching_hats", 0).Character, catalog.FindGuest("matching_hats", 1).Character);
 

@@ -7,7 +7,7 @@ namespace FloorF.Rendering
     /// GDD 7 ending lighting, driven by EndingReached (juice clock, so it holds while paused):
     ///   FourthFloor - every floor goes dark, then only the PHYSICAL 4th floor comes back cold and flickering, and its
     ///                 sticker drops off the sign to reveal the original "4".
-    ///   Haunted     - all floors red and flickering, HOTEL sign stutters.
+    ///   Haunted     - all floors red and flickering (slow sags, single drop-outs, one shared wiring), HOTEL sign with them.
     ///   Prosperous  - warm gold wave lights every floor bottom-up brighter than normal, HOTEL sign blinks.
     ///   Modest      - unchanged.
     /// Reset() (restart / back to title) restores the normal look.
@@ -64,8 +64,8 @@ namespace FloorF.Rendering
                         lighting.SetBaseColor(f, HauntedLight);
                         lighting.SetFlicker(f, true);
                         lighting.SetLevel(f, 0.85f, 2f);
-                        lighting.Flash(f, HauntedLight, 0.8f);
                     }
+                    lighting.FlashAll(HauntedLight, 0.8f);
                     elevator.SetLightLevel(0.35f);
                     break;
                 case EndingKind.Prosperous:
@@ -92,7 +92,16 @@ namespace FloorF.Rendering
             elevator.SetLightLevel(1f);
         }
 
-        public void Tick(float dt)
+        /// <summary>Haunted HOTEL sign brightness 0..1 (the floors' broken wiring, see FloorLighting.FlickerValue).</summary>
+        public static float HauntedSignLevel(float t) => FloorLighting.FlickerValue(t, FloorLighting.WiringSeed);
+
+        public const float ProsperousBlinkPeriod = 1.2f;
+
+        /// <summary>Prosperous HOTEL sign: bright 0.8 s, warm 0.4 s (2 changes per 1.2 s, photosensitivity-safe).</summary>
+        public static bool ProsperousSignLit(float t) => Mathf.Repeat(Mathf.Max(0f, t), ProsperousBlinkPeriod) < ProsperousBlinkPeriod * (2f / 3f);
+
+        /// <param name="clock">Juice clock the floor lights flicker on (the haunted sign stays in phase with them).</param>
+        public void Tick(float dt, float clock)
         {
             if (Active == EndingKind.None || dt <= 0f) return;
             t += dt;
@@ -123,8 +132,8 @@ namespace FloorF.Rendering
                 }
                 case EndingKind.Haunted:
                 {
-                    bool on = FloorLighting.FlickerValue(t, 99) > 0.5f;
-                    building.SetHotelSignTint(on ? new Color(1f, 0.55f, 0.55f) : new Color(0.25f, 0.1f, 0.1f));
+                    // same wiring as the floors: the sign sags and drops out with them (<= 3 transitions per second)
+                    building.SetHotelSignTint(Color.Lerp(new Color(0.25f, 0.1f, 0.1f), new Color(1f, 0.55f, 0.55f), HauntedSignLevel(clock)));
                     break;
                 }
                 case EndingKind.Prosperous:
@@ -137,7 +146,7 @@ namespace FloorF.Rendering
                         lighting.Flash(f, RenderingStyle.LuckyFlash, 0.6f, 0.8f);
                         wave++;
                     }
-                    bool blink = Mathf.Repeat(t, 0.5f) < 0.3f;
+                    bool blink = ProsperousSignLit(t);
                     if (building.HotelSign != null && Mathf.Repeat(t, 0.7f) < dt)
                         fx.Burst(building.HotelSign.position + new Vector3(Random.Range(-2.5f, 2.5f), 0.4f, -0.4f), RenderingStyle.LuckyFlash, 6, 2.6f);
                     building.SetHotelSignTint(blink ? Color.white : new Color(1f, 0.75f, 0.35f) * 0.6f);

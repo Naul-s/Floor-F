@@ -27,6 +27,8 @@ namespace FloorF.Rendering
             public int Tile;
             /// <summary>Colour painted into the shirt swatch of the tile (Vivid(guests.json colour)).</summary>
             public Color Tint;
+            /// <summary>Colour actually painted into the shirt swatch (= Tint, darker for the mystery hood / priest cassock).</summary>
+            public Color Shirt;
             /// <summary>Atlas UV of the shirt swatch centre (tests sample it).</summary>
             public Vector2 ShirtUV;
             /// <summary>Rest-pose bounds in model space (prefab root, model faces +Z): whole figure and head mesh.</summary>
