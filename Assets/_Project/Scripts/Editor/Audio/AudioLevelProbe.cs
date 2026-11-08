@@ -35,6 +35,7 @@ namespace FloorF.EditorTools
             }
             foreach (var t in lib.tracks)
                 if (t != null) Line(sb, "music " + t.track, t.clip, lib.musicVolume * t.volume);
+            Line(sb, "travel hum", lib.travelHum, lib.travelHumVolume);
             Debug.Log(sb.ToString());
         }
 

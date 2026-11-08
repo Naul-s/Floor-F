@@ -20,6 +20,19 @@ namespace FloorF.EditorTools
         const string Casino = "Assets/_Project/ThirdParty/Kenney/CasinoAudio/";
         const string KM = "Assets/_Project/ThirdParty/KevinMacLeod/";
 
+        // Levels of the procedural clips (AudioLevelProbe, dBFS as played = file x volume; files peak at -3 dBFS).
+        // Travel hum (file rms -10.8 / max100ms -8.1): 0.15 -> rms -27.3 / max100ms -24.6, ~7 dB under the ding (-17.8)
+        // and the door clunk (-17.7) unweighted - and it is bass-heavy (110 Hz fundamental, A-weighted ~12.5 dB below its
+        // rms), so by ear it sits ~5 dB under the music (rms -31.5, broadband) and far under every effect. It is faded out
+        // before the ding anyway; on the title demo x titleSfxScale (-9 dB) like the other SFX.
+        public const float TravelHumVolume = 0.15f;
+        // wish star appears (max100ms -12.8): 0.3 -> -23.2, a soft cue around the Lucky twinkle (-24.8)
+        public const float WishStarVolume = 0.3f;
+        // wish made (max100ms -12.5): 0.5 -> -18.5, the reward - as bright as the ding
+        public const float WishVolume = 0.5f;
+        // star-night Lucky layer (max100ms -11.7, 2.6-4 kHz, sounds loud): 0.12 -> -30.1, like the Lucky glass layer (-29.2)
+        public const float StarSparkleVolume = 0.12f;
+
         [MenuItem("Floor F/Audio/Rebuild Audio Library")]
         public static void Build()
         {
@@ -81,6 +94,11 @@ namespace FloorF.EditorTools
                 // last 10 s of a real day: soft click (quiet sample: 0.8 plays ~-28 dBFS/100 ms, a short transient over the
                 // music), pitch 0.9 rising to 0.9 x 1.2 (exact pitch, no jitter)
                 Cue(AudioCue.ClockTick, new[] { UI + "click_001.ogg" }, 0.8f, 0.9f, 0.05f, 0.25f),
+                // star night (procedural clips, ProceduralSfxSynth): a soft shimmer when a wish star appears, a bright
+                // bell arpeggio when the wish is made (nothing on fade), a quiet high sparkle layered on every Lucky
+                Cue(AudioCue.WishStar, new[] { ProceduralSfxSynth.WishStarPath }, WishStarVolume, 1f, 0.05f, 0.5f),
+                Cue(AudioCue.Wish, new[] { ProceduralSfxSynth.WishChimePath }, WishVolume, 1f, 0.05f, 0.3f),
+                Cue(AudioCue.StarSparkle, new[] { ProceduralSfxSynth.StarSparklePath }, StarSparkleVolume, 1f, 0.08f, 0.15f),
             };
             lib.tracks = new[]
             {
@@ -113,6 +131,16 @@ namespace FloorF.EditorTools
             // after arrival, i.e. inside that sustain: -6 dB keeps the clunk under the ding there
             lib.dingGuardSeconds = 0.6f;
             lib.doorUnderDingDb = -6f;
+
+            // travel hum (ProceduralSfxSynth): an ambience under the ding / doors / music - see TravelHumVolume
+            lib.travelHum = C(ProceduralSfxSynth.HumPath);
+            lib.travelHumVolume = TravelHumVolume;
+            lib.travelFadeInSeconds = 0.15f;
+            lib.travelFadeOutSeconds = 0.2f;
+            lib.travelPitchStart = 0.93f;
+            lib.travelSpinUpSeconds = 0.5f;
+            lib.travelPitchArrive = 0.95f;
+            lib.travelSpinDownSeconds = 0.4f;
 
             if (missing.Count > 0)
                 throw new FileNotFoundException("[AudioLibraryBuilder] missing clips:\n" + string.Join("\n", missing));

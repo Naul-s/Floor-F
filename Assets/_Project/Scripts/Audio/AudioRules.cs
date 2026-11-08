@@ -33,7 +33,14 @@ namespace FloorF.Audio
             new Entry(typeof(DayStarted), AudioCue.DayStart),
             new Entry(typeof(LuckStreakChanged), AudioCue.StreakUp),
             new Entry(typeof(LuckStreakChanged), AudioCue.StreakBroken),
+            new Entry(typeof(WishStarAppeared), AudioCue.WishStar),
+            new Entry(typeof(WishMade), AudioCue.Wish),
+            new Entry(typeof(LuckJudged), AudioCue.StarSparkle),
         };
+
+        /// <summary>Star night: a Lucky judgement also gets the quiet star sparkle layer.</summary>
+        public static AudioCue StarNightLayer(AudioCue judged, bool starNight)
+            => starNight && judged == AudioCue.Lucky ? AudioCue.StarSparkle : AudioCue.None;
 
         /// <summary>Streak went up -> StreakUp, broken (back to 0 from above 0) -> StreakBroken, anything else silent.</summary>
         public static AudioCue For(in LuckStreakChanged e)
@@ -200,6 +207,86 @@ namespace FloorF.Audio
             if (sec < 1 || sec >= last) return 0;
             last = sec; // a second crossed while silent is used up, not played late
             return silent ? 0 : sec;
+        }
+    }
+
+    /// <summary>Travel-hum tuning (copied from <see cref="AudioLibrary"/> so the rules stay testable without the asset).</summary>
+    readonly struct TravelHumSettings
+    {
+        public readonly float FadeIn, FadeOut, PitchStart, SpinUp, PitchArrive, SpinDown;
+        public TravelHumSettings(float fadeIn, float fadeOut, float pitchStart, float spinUp, float pitchArrive, float spinDown)
+        { FadeIn = fadeIn; FadeOut = fadeOut; PitchStart = pitchStart; SpinUp = spinUp; PitchArrive = pitchArrive; SpinDown = spinDown; }
+
+        public static TravelHumSettings From(AudioLibrary lib)
+            => new TravelHumSettings(lib.travelFadeInSeconds, lib.travelFadeOutSeconds, lib.travelPitchStart,
+                lib.travelSpinUpSeconds, lib.travelPitchArrive, lib.travelSpinDownSeconds);
+    }
+
+    /// <summary>
+    /// The elevator travel hum's state: ONE voice. <see cref="Depart"/> (ElevatorDeparted) fades it in, it fades out so it
+    /// is silent at the predicted arrival (<c>eta</c> = seconds to arrival, &lt; 0 = unknown) or, without a prediction,
+    /// after <see cref="Arrive"/>. A departure while it still sounds just keeps it going (no restart, no second voice).
+    /// Pitch: spin-up from PitchStart to 1 after departure, dip to PitchArrive over the last SpinDown seconds.
+    /// The caller does not Step it while paused/held (the voice is paused, the state frozen).
+    /// </summary>
+    sealed class TravelHum
+    {
+        /// <summary>The car is travelling (between ElevatorDeparted and ElevatorArrived).</summary>
+        public bool Moving { get; private set; }
+        /// <summary>0..1 fade gain.</summary>
+        public float Gain { get; private set; }
+        public float Pitch { get; private set; } = 1f;
+        /// <summary>Seconds since the departure that started the current sound.</summary>
+        public float SinceDepart { get; private set; }
+        /// <summary>The voice should be playing (fading in, on, or fading out).</summary>
+        public bool Active => Gain > 0f || target > 0f;
+
+        float target;
+
+        public void Depart()
+        {
+            if (!Active) SinceDepart = 0f;
+            Moving = true;
+        }
+
+        public void Arrive() => Moving = false;
+
+        /// <summary>Immediate silence (scene/phase reset of the hum).</summary>
+        public void Kill()
+        {
+            Moving = false;
+            Gain = 0f;
+            target = 0f;
+            Pitch = 1f;
+        }
+
+        public void Step(float dt, float eta, bool audible, in TravelHumSettings s)
+        {
+            if (dt < 0f) dt = 0f;
+            if (Moving) SinceDepart += dt;
+            target = audible ? TargetGain(Moving, eta, s.FadeOut) : 0f;
+            Gain = StepGain(Gain, target, dt, s.FadeIn, s.FadeOut);
+            Pitch = PitchAt(SinceDepart, Moving ? eta : 0f, s);
+        }
+
+        /// <summary>1 while travelling, 0 once the predicted arrival is within the fade-out (or after arrival).</summary>
+        public static float TargetGain(bool moving, float eta, float fadeOut)
+            => moving && !(eta >= 0f && eta <= fadeOut) ? 1f : 0f;
+
+        /// <summary>Linear fade: up at 1/fadeIn per second, down at 1/fadeOut (0 s = jump).</summary>
+        public static float StepGain(float gain, float target, float dt, float fadeIn, float fadeOut)
+        {
+            float len = target > gain ? fadeIn : fadeOut;
+            return len <= 0f ? target : Mathf.MoveTowards(gain, target, dt / len);
+        }
+
+        public static float PitchAt(float sinceDepart, float eta, in TravelHumSettings s)
+        {
+            float up = s.SpinUp <= 0f ? 1f : Mathf.SmoothStep(0f, 1f, sinceDepart / s.SpinUp);
+            float p = Mathf.Lerp(s.PitchStart, 1f, up);
+            if (eta >= 0f && s.SpinDown > 0f && eta < s.SpinDown)
+                p *= Mathf.Lerp(s.PitchArrive, 1f, Mathf.SmoothStep(0f, 1f, eta / s.SpinDown));
+            return p;
         }
     }
 
