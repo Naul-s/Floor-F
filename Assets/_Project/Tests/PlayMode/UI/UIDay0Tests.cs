@@ -419,6 +419,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(sawEveryone, "the two-rider stop says everyone judges");
             Assert.IsTrue(sawLeftColumn, "pointed at floor 4");
             Assert.IsTrue(sawUnlucky, "floor 4 was judged unlucky");
+            // rule 3 why cards: the lesson's route (7 first, then 4) gives no lucky/unlucky ride distance; the card itself
+            // is covered by UIRuleThreeTests.Capture_Day0WhyDistance
 
             // ---- three closing pages (click each), then the training summary
             yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.Closing || ui.CoachAwaitingContinue, 40);
