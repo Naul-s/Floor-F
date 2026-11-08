@@ -111,6 +111,22 @@ namespace FloorF.Rendering
             return m;
         }
 
+        /// <summary>Resources path of the "added on top of the world" palette shader (wish stars, rain).</summary>
+        public const string AdditiveShaderPath = "Rendering/Shaders/FloorF_PaletteAdditive";
+
+        /// <summary>
+        /// Palette material that ADDS its texels on top of everything the world camera drew (ZTest Always, late queue).
+        /// Null when the shader is missing (callers fall back to the opaque palette material).
+        /// </summary>
+        public Material NewAdditive(Texture texture, string name)
+        {
+            var shader = Resources.Load<Shader>(AdditiveShaderPath);
+            if (shader == null || !shader.isSupported) return null;
+            var m = Own(new Material(shader) { name = name });
+            m.mainTexture = texture;
+            return m;
+        }
+
         public static void SetColor(Material m, Color color)
         {
             if (m.HasProperty(BaseColorId)) m.SetColor(BaseColorId, color);

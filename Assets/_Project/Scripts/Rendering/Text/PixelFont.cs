@@ -59,6 +59,76 @@ namespace FloorF.Rendering
 
         public static bool HasGlyph(char c) => glyphs.ContainsKey(char.ToUpperInvariant(c));
 
+        // ---- the struck-out ORIGINAL floor number beside a sticker: the same 5x7 glyphs at 1 texel = 1 target pixel
+        // (half the size of the label's 2-pixel texels; a 3x5 font was unreadable under the slash)
+        public const int TinyWidth = GlyphWidth;
+        public const int TinyHeight = GlyphHeight;
+
+        /// <summary>Hi-res sign: 1 texel = 1 target pixel (the big label is drawn 2x2 per font texel).</summary>
+        public const int MarkedTexelScale = 2;
+        /// <summary>Left strip of a marked sign: the old plate, the original number in tiny glyphs, a red slash.</summary>
+        public static int MarkStripWidth(string original) => (string.IsNullOrEmpty(original) ? 1 : original.Length) * (TinyWidth + 1) - 1 + 5;
+
+        /// <summary>
+        /// Sticker sign that still shows the floor's ORIGINAL number: the old dark plate peeks out on the left with the
+        /// original in tiny glyphs struck through by a red diagonal, the sticker (label) fills the rest. Texels are
+        /// target pixels (<see cref="MarkedTexelScale"/> x the plain sign's), so the plain label keeps its size.
+        /// </summary>
+        public static Texture2D CreateMarkedTexture(string text, Color ink, Color plate, string original, Color oldInk, Color oldPlate, Color strike)
+        {
+            if (string.IsNullOrEmpty(original)) original = "?";
+            const int s = MarkedTexelScale;
+            var mask = Rasterize(text, 1, out var big);
+            int strip = MarkStripWidth(original);
+            int w = strip + big.x * s, h = big.y * s;
+            var px = new Color32[w * h];
+            var rim = plate * 0.6f; rim.a = 1f;
+            var oldRim = oldPlate * 0.6f; oldRim.a = 1f;
+            // sticker part: exactly the plain sign, every font texel 2x2 (rim = the outer font texel ring)
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < big.x * s; x++)
+                {
+                    int fx = x / s, fy = y / s;
+                    bool edge = fx == 0 || fy == 0 || fx == big.x - 1 || fy == big.y - 1;
+                    px[y * w + strip + x] = mask[fy * big.x + fx] ? ink : edge ? rim : plate;
+                }
+            // old plate strip (same 2-pixel rim on its outer sides)
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < strip; x++)
+                {
+                    bool edge = x < s || y < s || y >= h - s;
+                    px[y * w + x] = edge ? oldRim : oldPlate;
+                }
+            // small original, vertically centred
+            int gy0 = (h - TinyHeight) / 2;
+            for (int i = 0; i < original.Length; i++)
+            {
+                var g = Glyph(original[i]);
+                int ox = 3 + i * (TinyWidth + 1);
+                for (int row = 0; row < TinyHeight; row++)
+                    for (int col = 0; col < TinyWidth; col++)
+                        if (g[row][col] == '#') px[(gy0 + TinyHeight - 1 - row) * w + ox + col] = oldInk;
+            }
+            // red slash over it, from below-left to above-right (one pixel wide, pixel-stepped)
+            int x0 = 2, y0 = gy0 - 2, x1 = strip - 1, y1 = gy0 + TinyHeight + 1;
+            int steps = Mathf.Max(x1 - x0, y1 - y0);
+            for (int k = 0; k <= steps; k++)
+            {
+                int x = Mathf.RoundToInt(Mathf.Lerp(x0, x1, k / (float)steps));
+                int y = Mathf.RoundToInt(Mathf.Lerp(y0, y1, k / (float)steps));
+                if (x >= 0 && x < strip && y >= 0 && y < h) px[y * w + x] = strike;
+            }
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                name = "Sign_" + text + "_was_" + original,
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            tex.SetPixels32(px);
+            tex.Apply(false, false);
+            return tex;
+        }
+
         static string[] Glyph(char c) => glyphs.TryGetValue(char.ToUpperInvariant(c), out var g) ? g : glyphs['?'];
 
         /// <summary>Texture size for <paramref name="text"/> with <paramref name="padding"/> texels of plate on every side.</summary>
