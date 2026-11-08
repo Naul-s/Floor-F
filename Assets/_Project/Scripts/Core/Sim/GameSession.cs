@@ -28,7 +28,7 @@ namespace FloorF.Core
     /// them inside (detours and reversals included; <see cref="GuestInfo.FloorsTravelled"/>). When a rider steps out at
     /// the destination the distance is judged once against the same lucky/unlucky numbers as rules 1 and 2, BEFORE the tip:
     ///   GuestExited -> LuckJudged(RideDistance, distance, exit floor) -> LuckStreakChanged? -> LuckChanged? ->
-    ///   GuestMoodChanged? -> GuestSpoke(lucky_distance | unlucky_distance)? -> GuestDelivered(tip) -> LuckChanged(Delivery)? ->
+    ///   GuestMoodChanged? -> GuestSpoke(lucky_distance | unlucky_distance)? -> GuestDelivered(tip) -> CharmTriggered(tips)? -> LuckChanged(Delivery)? ->
     ///   TipsChanged -> GuestSpoke(delivered | special)
     /// Lucky: tip x rules.luckyDistanceTipMultiplier (the streak step it adds counts at this payment), Luck +luckyDistanceLuckBonus.
     /// Unlucky: Luck -unluckyDistanceLuckPenalty; if that empties the meter on a real day the hotel is Haunted at once (the
@@ -38,6 +38,8 @@ namespace FloorF.Core
     /// Unlucky penalties (every Unlucky LuckJudged: floor label, occupancy, ride distance, honest sticker):
     ///   base x <see cref="StoryRules.DevoutPenaltyFactor"/> when a devout guest's number is <see cref="StoryRules.DevoutNumber"/>
     ///   ("666"), x rules.friday13PenaltyMultiplier on a Friday-the-13th day, rounded half away from zero.
+    /// A shield charm can eat that loss (CharmTriggered instead of LuckChanged; see GameSession.Shop.cs for the shop,
+    /// one-day purchases and charms).
     /// Friday the 13th (<see cref="IsFriday13"/>): a ride distance of <see cref="StoryRules.FridayDistance"/> is Unlucky for
     /// every guest, even one whose own lucky number is 13 (no own-number line is said for that override). Patience
     /// penalties are not verdicts and are not multiplied.
@@ -99,10 +101,6 @@ namespace FloorF.Core
         readonly List<GuestRuntime> transfer = new List<GuestRuntime>();
         bool transferIsExit;
         float transferTimer;
-
-        // ---- shop
-        readonly List<ShopOffer> offers = new List<ShopOffer>();
-        readonly List<int> offerRemaining = new List<int>();
 
         readonly List<GuestRuntime> scratch = new List<GuestRuntime>();
 
@@ -179,6 +177,7 @@ namespace FloorF.Core
             lastSummary = default;
             day = DayId.First;
             CloseShop();
+            ClearCharms();
             ResetElevator();
             dayDef = data.GetDay(day);
             elapsed = 0f;
@@ -442,8 +441,9 @@ namespace FloorF.Core
                     Floor = floor,
                     Destination = dest,
                     DestinationFloor = destFloor,
-                    Patience = def.patienceSeconds,
-                    PatienceMax = def.patienceSeconds,
+                    // patience charm: x (1 + amount) for guests appearing while it is active
+                    Patience = def.patienceSeconds * PatienceFactor,
+                    PatienceMax = def.patienceSeconds * PatienceFactor,
                     Luck = data.GetLuckProfile(def.Id),
                 };
                 g.JudgeLuck = JudgingProfile(g.Luck);
@@ -602,12 +602,12 @@ namespace FloorF.Core
             {
                 case DoorState.Closed:
                     Elevator.Doors = DoorState.Opening;
-                    doorTimer = rules.doorSeconds;
+                    doorTimer = DoorSeconds;
                     closeRequested = false;
                     return true;
                 case DoorState.Closing:
                     Elevator.Doors = DoorState.Opening;
-                    doorTimer = Math.Max(0f, rules.doorSeconds - doorTimer);
+                    doorTimer = Math.Max(0f, DoorSeconds - doorTimer);
                     closeRequested = false;
                     return true;
                 default:
@@ -635,7 +635,7 @@ namespace FloorF.Core
             if (Elevator.Motion == ElevatorMotion.Idle) return;
             float pos = Elevator.Position;
             float target = Elevator.TargetFloor.Value;
-            float move = dt / Math.Max(0.0001f, rules.elevatorSecondsPerFloor);
+            float move = dt / Math.Max(0.0001f, SecondsPerFloor);
             float dist = Math.Abs(target - pos);
             bool up = target > pos;
             Elevator.Motion = up ? ElevatorMotion.MovingUp : ElevatorMotion.MovingDown;
@@ -740,7 +740,7 @@ namespace FloorF.Core
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.FloorLabel, number, verdict, floor));
                 Score.OnVerdict(verdict);
-                Score.AddLuck(-UnluckyPenalty(rules.unluckyFloorLuckPenalty, g, number), LuckSource.FloorLabel);
+                LoseLuck(g, UnluckyPenalty(rules.unluckyFloorLuckPenalty, g, number), LuckSource.FloorLabel);
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyFloor);
             }
@@ -751,7 +751,7 @@ namespace FloorF.Core
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Sticker, -1, LuckVerdict.Unlucky, floor));
                 Score.OnVerdict(LuckVerdict.Unlucky);
-                Score.AddLuck(-UnluckyPenalty(rules.honestGuestLuckPenalty, g, -1), LuckSource.Sticker);
+                LoseLuck(g, UnluckyPenalty(rules.honestGuestLuckPenalty, g, -1), LuckSource.Sticker);
                 SetMood(g, GuestMood.Angry);
             }
             // everyone comments on the first sticker they see (once per guest, after the luck line; no luck effect)
@@ -795,7 +795,7 @@ namespace FloorF.Core
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Occupancy, occupancy, verdict, floor));
                 Score.OnVerdict(verdict);
-                Score.AddLuck(-UnluckyPenalty(rules.unluckyOccupancyLuckPenalty, g, occupancy), LuckSource.Occupancy);
+                LoseLuck(g, UnluckyPenalty(rules.unluckyOccupancyLuckPenalty, g, occupancy), LuckSource.Occupancy);
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyOccupancy);
             }
@@ -854,7 +854,7 @@ namespace FloorF.Core
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.RideDistance, distance, verdict, floor));
                 Score.OnVerdict(verdict);
-                Score.AddLuck(-UnluckyPenalty(rules.unluckyDistanceLuckPenalty, g, distance), LuckSource.RideDistance);
+                LoseLuck(g, UnluckyPenalty(rules.unluckyDistanceLuckPenalty, g, distance), LuckSource.RideDistance);
                 SetMood(g, GuestMood.Scared);
                 // the Friday override is not the guest's own superstition: no own-number line (presentation shows Friday 13)
                 return !globalOverride && Speak(g, GuestLineTriggers.UnluckyDistance);
@@ -890,7 +890,7 @@ namespace FloorF.Core
                 {
                     closeRequested = false;
                     Elevator.Doors = DoorState.Closing;
-                    doorTimer = rules.doorSeconds;
+                    doorTimer = DoorSeconds;
                 }
                 return;
             }
@@ -963,8 +963,12 @@ namespace FloorF.Core
                     bool distanceLine = JudgeDistance(g, floor);
                     if (CheckHaunted()) return; // EndDay dropped everyone (this guest included): no payment
                     // lucky streak bonus taken at payment time (see ScoreKeeper)
-                    int tip = (int)Math.Round((double)g.Def.baseTip * g.TipMultiplier * Score.StreakTipMultiplier, MidpointRounding.AwayFromZero);
+                    double raw = (double)g.Def.baseTip * g.TipMultiplier * Score.StreakTipMultiplier;
+                    int plainTip = (int)Math.Round(raw, MidpointRounding.AwayFromZero);
+                    // tips charm (one day): x (1 + amount), feedback when it added something
+                    int tip = (int)Math.Round(raw * TipFactor, MidpointRounding.AwayFromZero);
                     bus.Publish(new GuestDelivered(g.Id, floor, tip));
+                    if (tip > plainTip && TipsCharm() is StickerDef tipsCharm) bus.Publish(new CharmTriggered(tipsCharm.Id, g.Id));
                     dayDelivered++;
                     Score.AddLuck(rules.deliveryLuckBonus, LuckSource.Delivery);
                     Score.AddTips(tip, earned: true);
@@ -999,7 +1003,10 @@ namespace FloorF.Core
             return true;
         }
 
-        /// <summary>Clock ran out (or an ending cut the day short): everyone still around leaves, DayEnded, then Summary or Ending.</summary>
+        /// <summary>
+        /// Clock ran out (or an ending cut the day short): everyone still around leaves, DayEnded, the one-day purchases
+        /// expire (FloorLabelChanged..., StickersExpired), then Summary or Ending.
+        /// </summary>
         void EndDay(EndingKind endingNow)
         {
             if (phase != DayPhase.Running) return;
@@ -1007,6 +1014,7 @@ namespace FloorF.Core
             FadeAllWishStars();
             lastSummary = new DaySummary(dayDelivered, dayLeft, Score.TipsEarnedToday, luckAtStart, Score.Luck, dayLucky, dayUnlucky, Score.BestStreakToday);
             PublishFlow(new DayEnded(day, lastSummary));
+            ExpirePurchases(); // one-day stickers/charms: FloorLabelChanged per floor, StickersExpired
             if (endingNow != EndingKind.None) ReachEnding(endingNow);
             else SetPhase(DayPhase.Summary);
         }
@@ -1021,86 +1029,5 @@ namespace FloorF.Core
 
         /// <summary>Ends the running day now (debug key / tests).</summary>
         internal void EndDayNow() => EndDay(EndingKind.None);
-
-        // =========================================================================================== shop
-
-        public bool IsOpen => phase == DayPhase.Shop;
-        /// <summary>Snapshot: replaced (not mutated) on purchase, so buying while iterating it is safe.</summary>
-        public IReadOnlyList<ShopOffer> Offers => offersView;
-        ShopOffer[] offersView = Array.Empty<ShopOffer>();
-
-        // TODO(gameplay-dev): shop rework (contract stubs) - one-day purchases, charms, random offers, rerolls
-        public StickerApplyResult CanBuy(StickerId charm) => StickerApplyResult.WrongKind;
-        public StickerApplyResult TryBuy(StickerId charm) => StickerApplyResult.WrongKind;
-        public int RerollsLeft => 0;
-        public int RerollCost => 0;
-        public bool Reroll() => false;
-        public IReadOnlyList<StickerDef> ActiveCharms => Array.Empty<StickerDef>();
-        public bool IsRainy => dayDef != null && string.Equals(dayDef.weather, "rain", StringComparison.OrdinalIgnoreCase);
-
-        bool OpenShop()
-        {
-            CloseShop();
-            if (dayDef == null) return false;
-            foreach (var idText in dayDef.shopStickers)
-            {
-                if (!data.TryGetSticker(new StickerId(idText), out var s)) continue;
-                bool dup = false;
-                foreach (var o in offers) if (o.Id == s.Id) dup = true;
-                if (dup) continue;
-                offers.Add(new ShopOffer(s, s.price, s.stock));
-                offerRemaining.Add(s.stock);
-            }
-            offersView = offers.ToArray();
-            return offers.Count > 0;
-        }
-
-        void CloseShop()
-        {
-            offers.Clear();
-            offersView = Array.Empty<ShopOffer>();
-            offerRemaining.Clear();
-        }
-
-        int IndexOfOffer(StickerId id)
-        {
-            for (int i = 0; i < offers.Count; i++) if (offers[i].Id == id) return i;
-            return -1;
-        }
-
-        public StickerApplyResult CanBuyAndApply(StickerId sticker, FloorIndex floor) => Evaluate(sticker, floor, out _, out _);
-
-        StickerApplyResult Evaluate(StickerId sticker, FloorIndex floor, out StickerDef def, out int offerIndex)
-        {
-            def = null;
-            offerIndex = -1;
-            if (phase != DayPhase.Shop || paused || onTitle) return StickerApplyResult.ShopClosed;
-            if (!data.TryGetSticker(sticker, out def)) return StickerApplyResult.UnknownSticker;
-            offerIndex = IndexOfOffer(sticker);
-            if (offerIndex < 0) return StickerApplyResult.NotInShop;
-            if (offerRemaining[offerIndex] == 0) return StickerApplyResult.OutOfStock;
-            if (!Building.IsValid(floor) || !def.CanApplyTo(Building.GetLabel(floor))) return StickerApplyResult.NotApplicable;
-            if (Score.Tips < offers[offerIndex].Price) return StickerApplyResult.NotEnoughTips;
-            return StickerApplyResult.Applied;
-        }
-
-        public StickerApplyResult TryBuyAndApply(StickerId sticker, FloorIndex floor)
-        {
-            var result = Evaluate(sticker, floor, out var def, out int idx);
-            if (result != StickerApplyResult.Applied) return result;
-            int price = offers[idx].Price;
-            if (offerRemaining[idx] > 0)
-            {
-                offerRemaining[idx]--;
-                offers[idx] = new ShopOffer(def, price, offerRemaining[idx]);
-                offersView = offers.ToArray();
-            }
-            var prev = Building.GetLabel(floor);
-            var next = def.ResultLabel;
-            bus.Publish(new StickerApplied(def.Id, floor, prev, next, price));
-            Building.SetLabel(floor, next);
-            Score.AddTips(-price, earned: false);
-            return StickerApplyResult.Applied;
-        }
     }
 }
