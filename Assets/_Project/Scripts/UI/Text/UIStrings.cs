@@ -128,9 +128,9 @@ namespace FloorF.UI
         public static readonly Loc Owned = new Loc("BOUGHT", "구입함");
         /// <summary>The staple (4 -> F for the real 4th floor): offered every visit, survives rerolls.</summary>
         public static readonly Loc Staple = new Loc("always here", "항상 있음");
-        /// <summary>Shop hint: labels need a floor, charms are bought with one click; everything lasts tomorrow only.</summary>
-        public static readonly Loc ShopHintCharms = new Loc("Stickers: pick one, then a glowing floor. Charms: one click. Everything lasts TOMORROW only.",
-            "스티커: 고른 뒤 빛나는 층 버튼. 부적: 한 번 클릭. 모두 내일 하루만!");
+        /// <summary>Shop hint: labels need a floor, charms are bought with one click (the 1 DAY tags + TOMORROW strip say how long).</summary>
+        public static readonly Loc ShopHintCharms = new Loc("Sticker: pick it, then a glowing floor. Charm: one click.",
+            "스티커: 고른 뒤 빛나는 층 버튼. 부적: 한 번 클릭.");
         /// <summary>{0} = charm name.</summary>
         public static readonly Loc CharmBoughtResult = new Loc("{0} bought - it works all of tomorrow!", "{0} 구입 - 내일 하루 동안 효과!");
         public static readonly Loc ResultAlreadyActive = new Loc("Already active for tomorrow.", "이미 내일 효과가 있어요.");

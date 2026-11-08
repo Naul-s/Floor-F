@@ -651,7 +651,7 @@ namespace FloorF.UI
             if (t == null || !t.gameObject.activeInHierarchy || string.IsNullOrEmpty(t.text)) return null;
             var r = t.rectTransform.rect;
             var need = wraps ? t.GetPreferredValues(t.text, r.width, float.PositiveInfinity) : t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity);
-            if (!wraps && need.x > r.width + 0.5f) return "'" + t.text + "' needs width " + need.x + " > " + r.width;
+            if (!wraps) return need.x > r.width + 0.5f ? "'" + t.text + "' needs width " + need.x + " > " + r.width : null; // one line: width
             if (need.y > r.height + 0.5f) return "'" + t.text + "' needs height " + need.y + " > " + r.height;
             return null;
         }
