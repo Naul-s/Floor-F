@@ -105,7 +105,7 @@ namespace FloorF.UI
             pop.Count = 1;
             pop.Age = 0f;
             string label = ctx.Building != null && e.Floor.IsValidFor(ctx.Building.FloorCount) ? ctx.Building.GetLabel(e.Floor).Text : "";
-            pop.Number.text = UIFormat.JudgedNumber(e.Number, label);
+            pop.Number.text = UIFormat.JudgedNumber(e.Source, e.Number, label);
             pop.Verdict.text = UIFormat.Verdict(e.Verdict, ctx.Korean);
             pop.Caption.text = UIFormat.JudgedCaption(e.Source, e.Number, label, ctx.Korean);
             var color = e.Verdict == LuckVerdict.Lucky ? UIStyle.Lucky : UIStyle.Unlucky;
@@ -252,17 +252,12 @@ namespace FloorF.UI
             var anchor = new Vector2(float.NaN, float.NaN); // NaN = nothing to point at (unknown guest)
             if (riding && ctx.Locator != null)
             {
-                float halfCar = ctx.CarWidth * 0.5f + 0.1f;
-                if (ctx.WorldToCanvas(UIContext.ToVector3(ctx.Locator.CarPosition) + new Vector3(-halfCar, 0.1f, 0f), out pos))
-                {
-                    // same left edge as the riders' chip grid (GuestBubblesView), which stays left of the signs
-                    if (ctx.CenterColumn(4f, out float cMin, out _)) pos.x = Mathf.Min(pos.x, cMin);
-                    anchor = new Vector2(pos.x - 6f - GuestBubblesView.ChipW * 0.5f, pos.y + GuestBubblesView.ChipH);
-                }
+                // same corner as the riders' chip grid (GuestBubblesView), which stays left of the signs
+                if (GuestBubblesView.RiderGridAnchor(ctx, layer.rect.height, ctx.Elevator.Occupancy, out pos, out int rows))
+                    anchor = new Vector2(pos.x - 6f - GuestBubblesView.ChipW * 0.5f, pos.y + GuestBubblesView.RiderChipH);
                 else pos = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.6f);
                 pos.x -= 6f + size.x * 0.5f;
-                int rows = Mathf.Max(1, (ctx.Elevator.Occupancy + GuestBubblesView.RiderColumns - 1) / GuestBubblesView.RiderColumns);
-                pos.y += rows * (GuestBubblesView.ChipH + 3f) + 4f;
+                pos.y += rows * (GuestBubblesView.RiderChipH + GuestBubblesView.Spacing) + 4f;
                 s.Side = -1f;
             }
             else

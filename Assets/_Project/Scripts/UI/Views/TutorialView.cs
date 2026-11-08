@@ -16,7 +16,8 @@ namespace FloorF.UI
     ///           -> CLOSE (head count) -> destination floor -> OPEN (floor number)
     ///   wave 2: "N guests together: wait until all are in, then CLOSE (N = lucky)" -> deliver
     ///   wave 3: two riders, two stops: every door-open judges everyone inside
-    ///   after the last wave: two closing pages (Luck: Haunted / prosperous endings; clock: impatient guests, reset).
+    ///   after the last wave: three closing pages (rule 3: floors travelled, at the rule box; Luck: Haunted / prosperous
+    ///   endings; clock: impatient guests, reset).
     /// Every non-neutral LuckJudged adds a "why" card (unlucky floor: + stickers can relabel it), the first streak of 2+
     /// a streak card.
     ///
@@ -37,7 +38,7 @@ namespace FloorF.UI
 
         /// <summary>Waves the lesson is written for (the last one ends with the closing pages).</summary>
         public const int LessonWaves = 3;
-        public const int ClosingPages = 2;
+        public const int ClosingPages = 3;
         /// <summary>Doors open, nobody boarded for this long (game time) -> CLOSE anyway (e.g. a guest who refuses this head count).</summary>
         public const float CloseFallback = 4f;
         /// <summary>Only when the hold is refused: how long an explain step stays before the lesson moves on.</summary>
@@ -456,15 +457,36 @@ namespace FloorF.UI
             else
             {
                 bool lucky = q.Verdict == LuckVerdict.Lucky;
-                bool floor = q.Source != LuckSource.Occupancy;
-                var template = lucky ? (floor ? UIStrings.TutWhyLuckyFloor : UIStrings.TutWhyLuckyCount)
-                    : (floor ? UIStrings.TutWhyUnluckyFloor : UIStrings.TutWhyUnluckyCount);
+                WhyTemplate(q.Source, lucky, out var template, out var caption, out var note);
                 UIBuild.Set(whyText, ctx.F(template, q.Label));
-                UIBuild.Set(whyCaption, ctx.S(floor ? UIStrings.RuleOpen : UIStrings.RuleClose));
+                UIBuild.Set(whyCaption, ctx.S(caption));
                 color = lucky ? UIStyle.Lucky : UIStyle.Unlucky;
-                SetNote(!lucky && floor ? ctx.S(UIStrings.TutWhySticker) : null);
+                SetNote(note.HasValue ? ctx.S(note.Value) : null);
             }
             whyText.color = whyCaption.color = whyEdge.color = color;
+        }
+
+        /// <summary>Why-card text per rule: 1 floor number (unlucky: + stickers), 2 head count, 3 floors travelled (+ the ↕ chip).</summary>
+        static void WhyTemplate(LuckSource source, bool lucky, out Loc template, out Loc caption, out Loc? note)
+        {
+            note = null;
+            switch (source)
+            {
+                case LuckSource.Occupancy:
+                    template = lucky ? UIStrings.TutWhyLuckyCount : UIStrings.TutWhyUnluckyCount;
+                    caption = UIStrings.RuleClose;
+                    break;
+                case LuckSource.RideDistance:
+                    template = lucky ? UIStrings.TutWhyLuckyDistance : UIStrings.TutWhyUnluckyDistance;
+                    caption = UIStrings.RuleDistance;
+                    note = UIStrings.TutWhyDistanceNote;
+                    break;
+                default:
+                    template = lucky ? UIStrings.TutWhyLuckyFloor : UIStrings.TutWhyUnluckyFloor;
+                    caption = UIStrings.RuleOpen;
+                    if (!lucky) note = UIStrings.TutWhySticker;
+                    break;
+            }
         }
 
         void SetNote(string note)
@@ -610,7 +632,7 @@ namespace FloorF.UI
                 {
                     if (closingPage >= ClosingPages) return Step.None; // read: the summary comes
                     text = ClosingPage(closingPage);
-                    Target(closingPage == 0 ? hud.LuckBox : hud.DayBox);
+                    Target(closingPage == 0 ? hud.RulesBox : closingPage == 1 ? hud.LuckBox : hud.DayBox);
                     return Step.Closing;
                 }
                 text = ctx.S(UIStrings.TutNextWave);
@@ -690,10 +712,11 @@ namespace FloorF.UI
             return Step.Floor;
         }
 
-        /// <summary>Closing page <paramref name="page"/>: 0 = Luck (endings), 1 = the clock + the practice reset.</summary>
+        /// <summary>Closing page <paramref name="page"/>: 0 = rule 3 (floors travelled), 1 = Luck (endings), 2 = the clock + the practice reset.</summary>
         string ClosingPage(int page)
         {
-            if (page == 0)
+            if (page == 0) return ctx.S(UIStrings.TutEndDistance);
+            if (page == 1)
             {
                 int lastDay = ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount;
                 int prosperous = ctx.Data != null ? ctx.Data.Rules.prosperousEndingLuck : 70;
@@ -934,12 +957,16 @@ namespace FloorF.UI
             P(ctx.S(UIStrings.TutNextWave));
             string done = ctx.S(UIStrings.TutDoneTitle) + "  " + ClosingPages + "/" + ClosingPages;
             for (int p = 0; p < ClosingPages; p++) list.Add(new CardSample { Caption = done, Body = ClosingPage(p) });
-            foreach (var t in new[] { UIStrings.TutWhyLuckyFloor, UIStrings.TutWhyLuckyCount, UIStrings.TutWhyUnluckyFloor, UIStrings.TutWhyUnluckyCount })
-                list.Add(new CardSample
+            foreach (var source in new[] { LuckSource.FloorLabel, LuckSource.Occupancy, LuckSource.RideDistance })
+                foreach (bool lucky in new[] { true, false })
                 {
-                    Why = true, Caption = ctx.S(UIStrings.RuleClose), Body = ctx.F(t, label),
-                    Note = t.En == UIStrings.TutWhyUnluckyFloor.En ? ctx.S(UIStrings.TutWhySticker) : null,
-                });
+                    WhyTemplate(source, lucky, out var t, out var caption, out var note);
+                    list.Add(new CardSample
+                    {
+                        Why = true, Caption = ctx.S(caption), Body = ctx.F(t, source == LuckSource.RideDistance ? "17" : label),
+                        Note = note.HasValue ? ctx.S(note.Value) : null,
+                    });
+                }
             list.Add(new CardSample { Why = true, Caption = ctx.S(UIStrings.Tips), Body = ctx.F(UIStrings.TutStreak, 88, UIFormat.Multiplier(1.15f)) });
             return list;
         }

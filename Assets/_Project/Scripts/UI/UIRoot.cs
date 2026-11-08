@@ -27,6 +27,7 @@ namespace FloorF.UI
         ShopView shop;
         TutorialView tutorial;
         MenuView menu;
+        CurseView curse;
         bool built;
 
         void OnEnable()
@@ -37,7 +38,7 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<LuckChanged>(e => { if (built && !OnTitle) hud.OnLuckChanged(e); }));
             subs.Add(bus.Subscribe<TipsChanged>(e => { if (built && !OnTitle) hud.OnTipsChanged(e); }));
             subs.Add(bus.Subscribe<FloorLabelChanged>(e => { if (built) panel.RefreshLabel(e.Floor); }));
-            subs.Add(bus.Subscribe<LuckJudged>(e => { if (built && !OnTitle) { popups.OnLuckJudged(e); tutorial.OnLuckJudged(e); } }));
+            subs.Add(bus.Subscribe<LuckJudged>(e => { if (built && !OnTitle) { popups.OnLuckJudged(e); tutorial.OnLuckJudged(e); curse.OnLuckJudged(e); } }));
             subs.Add(bus.Subscribe<GuestSpoke>(OnGuestSpoke));
             subs.Add(bus.Subscribe<SettingsChanged>(e => RefreshLanguage()));
             subs.Add(bus.Subscribe<DayPhaseChanged>(OnPhaseChanged));
@@ -45,7 +46,7 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<DoorsClosed>(e => { if (built) tutorial.OnDoorsClosed(e); }));
             subs.Add(bus.Subscribe<DoorsOpened>(e => { if (built) tutorial.OnDoorsOpened(e); }));
             subs.Add(bus.Subscribe<ElevatorDeparted>(e => { if (built) tutorial.OnDeparted(e); }));
-            subs.Add(bus.Subscribe<GuestSpawned>(e => { if (built) tutorial.OnGuestSpawned(e); }));
+            subs.Add(bus.Subscribe<GuestSpawned>(e => { if (built) { tutorial.OnGuestSpawned(e); curse.OnGuestSpawned(e); } }));
             subs.Add(bus.Subscribe<GuestDelivered>(e => { if (built) tutorial.OnGuestDelivered(e); }));
             subs.Add(bus.Subscribe<GuestLeft>(e => { if (built) tutorial.OnGuestLeft(e); }));
             subs.Add(bus.Subscribe<PauseChanged>(e => { if (built) menu.Tick(); }));
@@ -73,6 +74,7 @@ namespace FloorF.UI
             panel = new ElevatorPanelView(ctx, rt);
             hud = new HudView(ctx, rt, ToggleLanguage);
             shop = new ShopView(ctx, rt, panel);
+            curse = new CurseView(ctx, rt); // above the HUD / popups, under the flow cards, coach marks and menu
             flow = new FlowScreensView(ctx, rt);
             hud.BringLanguageToFront(); // above the modal flow cards, under the coach-mark overlay
             tutorial = new TutorialView(ctx, rt, panel, bubbles, hud);
@@ -146,6 +148,7 @@ namespace FloorF.UI
             hud.Tick(dt);
             bubbles.Tick();
             popups.Tick(dt);
+            curse.Tick(dt);
             shop.Tick();
             flow.Tick();
             tutorial.Tick(dt, Time.unscaledTime);
@@ -160,6 +163,7 @@ namespace FloorF.UI
             bubbles.Clear();
             popups.Clear();
             tutorial.Reset();
+            curse.Reset();
             flow.LastSpecialLine = null;
         }
 
@@ -177,6 +181,7 @@ namespace FloorF.UI
             panel.RefreshLabels();
             if (e.Current == DayPhase.Ending) popups.ClearPopups(); // keep the last speech bubble behind the card
             else if (e.Current != DayPhase.Running) popups.Clear();
+            if (e.Current != DayPhase.Running) curse.Clear();
             if (e.Current == DayPhase.Intro) flow.LastSpecialLine = null;
             if (e.Current == DayPhase.Intro || e.Current == DayPhase.Title) hud.ResetStreak(); // a new day starts at 0 silently
             // the attract demo replays a day behind the title: every tutorial day's lesson starts from wave 1
@@ -232,6 +237,25 @@ namespace FloorF.UI
         internal float ShopDescriptionContrast(int i) => shop.DescriptionContrast(i);
         internal string ShopDescriptionProblem() => shop.FirstDescriptionProblem(ctx.CanvasRect);
         internal int ActivePopupCount => popups.ActivePopupCount;
+        // rule 3 / 666 / Friday the 13th
+        internal string ChipOdometer(GuestId g) => bubbles.Odometer(g);
+        internal Color ChipOdometerColor(GuestId g) => bubbles.OdometerColor(g);
+        internal Rect ChipRect(GuestId g) => bubbles.ChipRect(g);
+        internal string ChipOdometerOverflow() => bubbles.OdometerOverflow();
+        internal bool CurseVisible => curse.Visible;
+        internal string CurseText => curse.Text;
+        internal float CurseVignetteAlpha => curse.VignetteAlpha;
+        internal Rect CurseTextRect => curse.TextRect(ctx.CanvasRect);
+        internal void PlayCurse() => curse.Play();
+        internal float CurseCaptionFontSize => curse.CaptionFontSize;
+        internal bool FridayBadgeVisible => hud.FridayBadgeVisible;
+        internal string FridayBadgeText => hud.FridayBadgeText;
+        internal float FridayBadgeFontSize => hud.FridayBadgeFontSize;
+        internal Rect FridayBadgeRect => UIBuild.CanvasRect(ctx.CanvasRect, hud.FridayBadge);
+        internal Rect RulesBoxRect => UIBuild.CanvasRect(ctx.CanvasRect, hud.RulesBox);
+        internal string RulesText => hud.RulesText;
+        internal string RulesOverflow() => hud.RulesOverflow();
+        internal bool FlowFridayLook => flow.FridayLook;
         internal int ActiveSpeechCount => popups.ActiveSpeechCount;
         internal string LastPopupText => popups.LastPopupText;
         internal int VisibleBubbleCount => bubbles.VisibleCount;

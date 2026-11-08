@@ -61,6 +61,8 @@ namespace FloorF.UI
                     return string.Format(UIStrings.FloorN.Get(ko), string.IsNullOrEmpty(floorLabel) ? N(number) : floorLabel);
                 case LuckSource.Occupancy:
                     return string.Format((number == 1 ? UIStrings.PeopleOne : UIStrings.PeopleN).Get(ko), N(number));
+                case LuckSource.RideDistance:
+                    return string.Format((number == 1 ? UIStrings.RodeOne : UIStrings.RodeN).Get(ko), N(number));
                 default:
                     return "";
             }
@@ -68,6 +70,37 @@ namespace FloorF.UI
 
         /// <summary>Big popup number: the judged number, or the label text when the source has no number.</summary>
         public static string JudgedNumber(int number, string floorLabel) => number >= 0 ? N(number) : (floorLabel ?? "?");
+
+        /// <summary>Big popup number per source: ride distances carry the chip's odometer glyph ("↕13").</summary>
+        public static string JudgedNumber(LuckSource source, int number, string floorLabel) =>
+            source == LuckSource.RideDistance && number >= 0 ? Distance(number) : JudgedNumber(number, floorLabel);
+
+        // ------------------------------------------------------------------ rule 3: ride distance
+
+        /// <summary>Odometer glyph on rider chips and distance popups (Galmuri11 has U+2195).</summary>
+        public const string DistanceGlyph = "↕";
+
+        /// <summary>Rider chip odometer: "↕5", "↕13" (never negative).</summary>
+        public static string Distance(int floors) => DistanceGlyph + N(floors < 0 ? 0 : floors);
+
+        /// <summary>
+        /// What a rider would think of <paramref name="floors"/> travelled if they stepped out now (rule 3): their own
+        /// numbers (hidden for a mystery guest), plus Friday the 13th's "13 is unlucky for everyone" (it beats their own
+        /// lucky 13). 0 floors = nothing travelled yet = Neutral.
+        /// </summary>
+        public static LuckVerdict DistanceVerdict(LuckProfile luck, bool hideNumbers, int floors, bool friday13)
+        {
+            if (floors <= 0) return LuckVerdict.Neutral;
+            if (friday13 && floors == Friday13Number) return LuckVerdict.Unlucky;
+            if (hideNumbers || luck == null) return LuckVerdict.Neutral;
+            return luck.Judge(floors);
+        }
+
+        public const int Friday13Number = 13;
+
+        /// <summary>The 666 flourish: an UNLUCKY 6 (any source) from a devout guest (GuestTraits.Devout).</summary>
+        public const int CurseNumber = 6;
+        public static bool IsCurse(LuckVerdict verdict, int number, bool devout) => devout && verdict == LuckVerdict.Unlucky && number == CurseNumber;
 
         /// <summary>
         /// Head-count preview for the panel: what the riders would think of <paramref name="occupancy"/> if the doors
