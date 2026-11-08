@@ -41,6 +41,10 @@ namespace FloorF.EditorTools
             PlayerSettings.defaultWebScreenHeight = 720;
             // (4) game-themed loading page (Assets/WebGLTemplates/FloorF): elevator floor indicator 1..9, 16:9 fit-to-window
             PlayerSettings.WebGL.template = "PROJECT:FloorF";
+            // (5) the in-engine "Made with Unity" splash ran right after the loading page and hid it (user report
+            // 2026-11-08); Unity 6 allows turning it off on every plan - the loading page is the splash now
+            PlayerSettings.SplashScreen.show = false;
+            PlayerSettings.SplashScreen.showUnityLogo = false;
 
             var tmp = AssetDatabase.LoadMainAssetAtPath(TmpSettingsAsset);
             if (tmp == null) throw new System.IO.FileNotFoundException("ProjectSetupTool: missing " + TmpSettingsAsset);

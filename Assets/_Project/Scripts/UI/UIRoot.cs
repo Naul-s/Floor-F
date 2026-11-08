@@ -183,7 +183,12 @@ namespace FloorF.UI
             if (!built || OnTitle) return;
             popups.OnGuestSpoke(e);
             // the mystery guest's last words come right before the 4th-floor ending - the ending card quotes them
-            if (e.LineTrigger == GuestLineTriggers.Special) flow.LastSpecialLine = e.Text;
+            if (e.LineTrigger == GuestLineTriggers.Special)
+            {
+                flow.LastSpecialLine = e.Text;
+                // remember WHO said it, so the card can show the line in the language shown at the ending
+                flow.LastSpecialArchetype = ctx.Guests != null && ctx.Guests.TryGet(e.Guest, out var info) ? info.Archetype : default;
+            }
         }
 
         void OnPhaseChanged(DayPhaseChanged e)
