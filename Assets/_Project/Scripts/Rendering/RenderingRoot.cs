@@ -171,7 +171,7 @@ namespace FloorF.Rendering
             rig = new CameraRig(pipeline, frame, RenderingStyle.PixelHeight);
 
             building = new BuildingView(world, assets, layout, lighting, frame.PixelsPerUnit);
-            building.Build(DestinationOf, CurrentLabel, IsRelabelled);
+            building.Build(DestinationOf, CurrentLabel, IsRelabelled, OriginalLabel);
             for (int i = 0; i < layout.FloorCount; i++) UpdateFlicker(new FloorIndex(i));
             labelsSynced = buildingQuery != null;
 
@@ -265,7 +265,7 @@ namespace FloorF.Rendering
                 for (int i = 0; i < building.FloorCount; i++)
                 {
                     var f = new FloorIndex(i);
-                    building.SetLabel(f, CurrentLabel(f), IsRelabelled(f));
+                    building.SetLabel(f, CurrentLabel(f), IsRelabelled(f), OriginalLabel(f).Text);
                     UpdateFlicker(f);
                 }
             }
@@ -318,7 +318,7 @@ namespace FloorF.Rendering
         {
             if (!IsBuilt) return;
             bool sticker = buildingQuery != null ? buildingQuery.IsRelabelled(e.Floor) : e.Current != OriginalLabel(e.Floor);
-            building.SetLabel(e.Floor, e.Current, sticker);
+            building.SetLabel(e.Floor, e.Current, sticker, OriginalLabel(e.Floor).Text);
             UpdateFlicker(e.Floor);
         }
 

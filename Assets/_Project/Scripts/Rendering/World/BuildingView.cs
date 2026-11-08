@@ -22,6 +22,10 @@ namespace FloorF.Rendering
             public Texture2D SignTexture;
             public string SignText;
             public bool SignSticker;
+            /// <summary>Struck-out original number on the sign (null = plain sign).</summary>
+            public string SignOriginal;
+            /// <summary>Sign texture texels per plain sign texel (2 for a marked sign: its texels are target pixels).</summary>
+            public int SignScale = 1;
             public Material Indicator;
             /// <summary>Sticker "slap" animation age (&gt;= StickSeconds = idle).</summary>
             public float StickAge = float.MaxValue;
@@ -120,8 +124,10 @@ namespace FloorF.Rendering
             return b;
         }
 
-        public void Build(System.Func<FloorIndex, DestinationId> destinationOf, System.Func<FloorIndex, FloorLabel> labelOf, System.Func<FloorIndex, bool> relabelledOf)
+        public void Build(System.Func<FloorIndex, DestinationId> destinationOf, System.Func<FloorIndex, FloorLabel> labelOf, System.Func<FloorIndex, bool> relabelledOf,
+            System.Func<FloorIndex, FloorLabel> originalOf = null)
         {
+            this.originalOf = originalOf;
             float w = layout.FloorWidth, h = layout.FloorHeight, d = layout.Depth, sx = layout.ShaftX;
             float left = sx - w * 0.5f, right = sx + w * 0.5f;
             int n = layout.FloorCount;
@@ -151,6 +157,15 @@ namespace FloorF.Rendering
             }
 
             BuildRoofSign(height);
+        }
+
+        System.Func<FloorIndex, FloorLabel> originalOf;
+
+        /// <summary>Text of the original label to strike out beside a sticker, or null (no sticker / same text).</summary>
+        public static string OriginalMark(string current, bool sticker, string original)
+        {
+            if (!sticker || string.IsNullOrEmpty(original) || original == current) return null;
+            return original;
         }
 
         void SlabWithShaftHole(string name, float topY, Material slab, Material edge, bool includeHole)
@@ -238,24 +253,34 @@ namespace FloorF.Rendering
             // the floor sign: front plate just left of the shaft, facing the camera
             entry.Sign = new GameObject(RenderingNames.FloorSignPrefix + f.PhysicalNumber);
             entry.Sign.transform.SetParent(floorRoot, false);
-            SetLabel(f, label, relabelled);
+            SetLabel(f, label, relabelled, originalOf != null ? originalOf(f).Text : null);
         }
 
-        /// <summary>Re-renders floor <paramref name="floor"/>'s sign. No-op when nothing changed.</summary>
-        public void SetLabel(FloorIndex floor, FloorLabel label, bool sticker)
+        /// <summary>
+        /// Re-renders floor <paramref name="floor"/>'s sign. No-op when nothing changed. A sticker whose text differs from
+        /// <paramref name="original"/> also shows the original number, small and struck out, on the old plate beside it
+        /// (with many floors relabelled "8" the player can still tell which floor is which).
+        /// </summary>
+        public void SetLabel(FloorIndex floor, FloorLabel label, bool sticker, string original = null)
         {
             if (floor.Value < 0 || floor.Value >= floors.Count) return;
             var e = floors[floor.Value];
             string text = label.IsEmpty ? FloorLabel.Original(floor).Text : label.Text;
-            if (e.SignTexture != null && e.SignText == text && e.SignSticker == sticker) return;
+            if (string.IsNullOrEmpty(original)) original = FloorLabel.Original(floor).Text;
+            string mark = OriginalMark(text, sticker, original);
+            if (e.SignTexture != null && e.SignText == text && e.SignSticker == sticker && e.SignOriginal == mark) return;
 
-            var tex = assets.Own(PixelFont.CreateTexture(text,
-                sticker ? RenderingStyle.StickerInk : RenderingStyle.SignInk,
-                sticker ? RenderingStyle.StickerPlate : RenderingStyle.SignPlate));
+            var ink = sticker ? RenderingStyle.StickerInk : RenderingStyle.SignInk;
+            var plateColor = sticker ? RenderingStyle.StickerPlate : RenderingStyle.SignPlate;
+            var tex = assets.Own(mark != null
+                ? PixelFont.CreateMarkedTexture(text, ink, plateColor, mark, RenderingStyle.OriginalMarkInk, RenderingStyle.SignPlate, RenderingStyle.OriginalMarkStrike)
+                : PixelFont.CreateTexture(text, ink, plateColor));
             if (e.SignTexture != null) Object.Destroy(e.SignTexture);
             e.SignTexture = tex;
             e.SignText = text;
             e.SignSticker = sticker;
+            e.SignOriginal = mark;
+            e.SignScale = mark != null ? PixelFont.MarkedTexelScale : 1;
 
             if (e.SignMaterial == null)
             {
@@ -273,7 +298,8 @@ namespace FloorF.Rendering
         {
             var e = floors[i];
             if (e.SignTexture == null) return;
-            float sw = e.SignTexture.width * signTexel, sh = e.SignTexture.height * signTexel;
+            float texel = signTexel / e.SignScale;
+            float sw = e.SignTexture.width * texel, sh = e.SignTexture.height * texel;
             var plateT = e.Sign.transform.GetChild(0);
             plateT.localScale = new Vector3(sw, sh, 1f);
             float h = layout.FloorHeight, d = layout.Depth, sx = layout.ShaftX;
@@ -406,6 +432,9 @@ namespace FloorF.Rendering
 
         public string GetSignText(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].SignText : null;
         public bool GetSignSticker(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count && floors[floor.Value].SignSticker;
+        /// <summary>Original number struck out beside the sticker (null = plain sign).</summary>
+        public string GetSignOriginalMark(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].SignOriginal : null;
+        public Texture2D GetSignTexture(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].SignTexture : null;
         public GameObject GetSign(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].Sign : null;
         public int FloorCount => floors.Count;
 
