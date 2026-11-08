@@ -301,6 +301,8 @@ namespace FloorF.UI
 
         /// <summary>Test hooks: forces the flicker / glint state.</summary>
         public void ForceLed(bool on) { Led.enabled = on; flickerStart = -100f; }
+        /// <summary>Test hook: the animation clock starts over (next Tick time is "0").</summary>
+        public void RestartAnimation() { nextFlicker = -1f; flickerStart = -100f; nextGlint = 1.2f; glintBand = int.MinValue; Glint.enabled = false; }
         public int FacePixelCount { get { int n = 0; foreach (bool b in face) if (b) n++; return n; } }
     }
 }
