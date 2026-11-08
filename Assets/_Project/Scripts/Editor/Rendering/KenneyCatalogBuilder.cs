@@ -158,7 +158,7 @@ namespace FloorF.EditorTools
             var guestEntries = new List<(KenneyCatalog.GuestModel entry, GameObject instance)>();
             int tile = 1;
             var guestDefs = JsonUtility.FromJson<GuestCatalogDef>(File.ReadAllText("Assets/_Project/Resources/Data/guests.json"));
-            foreach (var g in GuestMap)
+            foreach (var g in WithAutoMapped(guestDefs))
             {
                 var fbx = ThirdParty + "/MiniCharacters/" + g.character + ".fbx";
                 var src = AssetDatabase.LoadAssetAtPath<GameObject>(fbx);
@@ -321,6 +321,28 @@ namespace FloorF.EditorTools
                 for (int x = 0; x < Tile; x++)
                     o[y * Tile + x] = px[(y * step + step / 2) * src.width + x * step + step / 2];
             return o;
+        }
+
+        /// <summary>Characters not used by <see cref="GuestMap"/>, handed to new guests.json accessories in data order.</summary>
+        static readonly string[] SpareCharacters = { "character-male-c", "character-female-a", "character-female-c", "character-female-e" };
+
+        /// <summary>
+        /// <see cref="GuestMap"/> plus one entry per guests.json accessory it does not know yet (new archetypes get a
+        /// spare Kenney character tinted with their colour; runtime accessory parts come from keywords, see GuestFigure).
+        /// Atlas tiles 1..14 are available, so at most 14 guest models.
+        /// </summary>
+        static List<(string accessory, int variant, string character, string colorHex)> WithAutoMapped(GuestCatalogDef defs)
+        {
+            var list = new List<(string accessory, int variant, string character, string colorHex)>(GuestMap);
+            int spare = 0;
+            if (defs?.guests == null) return list;
+            foreach (var d in defs.guests)
+            {
+                if (d == null || string.IsNullOrEmpty(d.accessory) || list.Any(e => e.accessory == d.accessory)) continue;
+                if (spare >= SpareCharacters.Length || list.Count >= PaletteTile - 1) break;
+                list.Add((d.accessory, 0, SpareCharacters[spare++], string.IsNullOrEmpty(d.color) ? "#808080" : d.color));
+            }
+            return list;
         }
 
         static Vector2Int TileOrigin(int tile) => new Vector2Int((tile % TilesPerRow) * Tile, (tile / TilesPerRow) * Tile);

@@ -31,7 +31,15 @@ namespace FloorF.Rendering
                 case "visor": return new GuestSilhouette(1.52f, 0.60f, 0.44f, 0.42f, 0.32f);
                 case "glasses": return new GuestSilhouette(1.74f, 0.48f, 0.36f, 0.40f, 0.40f);             // tallest thin
                 case "hood": return new GuestSilhouette(1.86f, 0.66f, 0.48f, 0.50f, 0.30f, cloak: true);   // looming robe
-                default: return new GuestSilhouette(1.46f, 0.58f, 0.42f, 0.42f, 0.32f);
+                default:
+                {
+                    // unknown (new) archetype: stable proportions of its own from the accessory key
+                    if (string.IsNullOrEmpty(accessory)) return new GuestSilhouette(1.46f, 0.58f, 0.42f, 0.42f, 0.32f);
+                    uint fnv = 2166136261U;
+                    foreach (char ch in accessory) fnv = (fnv ^ ch) * 16777619U;
+                    int h = (int)(fnv & 0x7fffffff);
+                    return new GuestSilhouette(1.30f + 0.05f * (h % 9), 0.50f + 0.03f * ((h / 9) % 6), 0.42f, 0.42f, 0.32f);
+                }
             }
         }
     }
@@ -152,6 +160,8 @@ namespace FloorF.Rendering
         /// <summary>Instantiated character prefab (clips are sampled on it).</summary>
         public GameObject Rig { get; private set; }
         public bool IsModel => Rig != null;
+        /// <summary>Accessory unknown to the catalog: a closest-tint stand-in model (rebuild the catalog to give it its own).</summary>
+        public bool IsFallbackModel { get; private set; }
         public bool Walking { get; private set; }
         AnimationClip idle, walk;
         Quaternion armRestL, armRestR;
@@ -182,7 +192,18 @@ namespace FloorF.Rendering
             KenneyCatalog catalog = null, int variant = 0)
         {
             var model = catalog != null ? catalog.FindGuest(accessory ?? "", variant) : null;
-            if (model != null) return BuildModel(parent, assets, name, rawColor, accessory ?? "", catalog, model);
+            bool fallback = false;
+            if (model == null && catalog != null && !string.IsNullOrEmpty(accessory))
+            {
+                model = catalog.FindClosestTint(Vivid(rawColor));
+                fallback = model != null;
+            }
+            if (model != null)
+            {
+                var built = BuildModel(parent, assets, name, rawColor, accessory ?? "", catalog, model);
+                built.IsFallbackModel = fallback && built.IsModel;
+                return built;
+            }
             var f = new GuestFigure();
             accessory = accessory ?? "";
             f.Accessory = accessory;
@@ -463,6 +484,36 @@ namespace FloorF.Rendering
                     Part(head, "Eye L", new Vector3(-hw * 0.32f, hCy, hFront - 0.05f), new Vector3(0.1f, 0.07f, 0.02f), glow);
                     Part(head, "Eye R", new Vector3(hw * 0.32f, hCy, hFront - 0.05f), new Vector3(0.1f, 0.07f, 0.02f), glow);
                     f.HeadTop = hTop + 0.22f;
+                    break;
+                }
+                default:
+                {
+                    // new archetypes before the catalog knows them: dress by keywords in the accessory key
+                    string key = accessory.ToLowerInvariant();
+                    if (key.Contains("priest") || key.Contains("collar") || key.Contains("cross") || key.Contains("cassock") || key.Contains("devout"))
+                    {
+                        var black = assets.Lit(new Color(0.08f, 0.08f, 0.10f));
+                        Part(torso, "Cassock", new Vector3(0f, chestY - 0.05f, chestZ - 0.03f), new Vector3(bodyW * 0.8f, 0.36f, 0.03f), black);
+                        Part(torso, "Collar", new Vector3(0f, chestY + 0.14f, chestZ - 0.05f), new Vector3(0.12f, 0.05f, 0.02f), assets.Unlit(new Color(0.95f, 0.95f, 0.92f)));
+                        var gold = assets.Unlit(new Color(1f, 0.82f, 0.25f));
+                        Part(torso, "Cross V", new Vector3(0f, chestY - 0.06f, chestZ - 0.06f), new Vector3(0.04f, 0.16f, 0.02f), gold);
+                        Part(torso, "Cross H", new Vector3(0f, chestY - 0.02f, chestZ - 0.06f), new Vector3(0.11f, 0.04f, 0.02f), gold);
+                    }
+                    else if (key.Contains("nonno") || key.Contains("cap") || key.Contains("beret") || key.Contains("mustache") || key.Contains("moustache") || key.Contains("cane"))
+                    {
+                        var cap = assets.Lit(new Color(0.38f, 0.30f, 0.22f));
+                        Part(head, "Flat Cap", new Vector3(0f, hTop + 0.02f, hCz), new Vector3(hw * 2.1f, 0.12f, hd * 0.95f), cap);
+                        Part(head, "Cap Peak", new Vector3(0f, hTop - 0.02f, hFront - 0.06f), new Vector3(hw * 1.6f, 0.05f, 0.18f), cap);
+                        Part(head, "Mustache", new Vector3(0f, hCy - hh * 0.22f, hFront - 0.02f), new Vector3(hw * 0.9f, 0.07f, 0.03f), assets.Lit(new Color(0.92f, 0.92f, 0.90f)));
+                        f.HeadTop = hTop + 0.1f;
+                    }
+                    else if (key.Contains("hat"))
+                    {
+                        var hat = assets.Lit(Vivid(rawColor) * 0.6f);
+                        Part(head, "Hat Brim", new Vector3(0f, hTop - 0.03f, hCz), new Vector3(hw * 2.4f, 0.06f, hd * 1.1f), hat);
+                        Part(head, "Hat Crown", new Vector3(0f, hTop + 0.09f, hCz), new Vector3(hw * 1.6f, 0.2f, hd * 0.75f), hat);
+                        f.HeadTop = hTop + 0.19f;
+                    }
                     break;
                 }
             }

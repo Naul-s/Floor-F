@@ -69,6 +69,23 @@ namespace FloorF.Rendering
             return any;
         }
 
+        /// <summary>
+        /// Model for an accessory the catalog was not built for (new guests.json archetype before the catalog is
+        /// rebuilt): the non-mystery main model whose shirt tint is closest to <paramref name="tint"/>.
+        /// </summary>
+        public GuestModel FindClosestTint(Color tint)
+        {
+            GuestModel best = null;
+            float bestD = float.MaxValue;
+            foreach (var g in Guests)
+            {
+                if (g == null || g.Prefab == null || g.Variant != 0 || g.Accessory == "hood") continue;
+                float d = (g.Tint.r - tint.r) * (g.Tint.r - tint.r) + (g.Tint.g - tint.g) * (g.Tint.g - tint.g) + (g.Tint.b - tint.b) * (g.Tint.b - tint.b);
+                if (d < bestD) { bestD = d; best = g; }
+            }
+            return best;
+        }
+
         public int VariantCount(string accessory)
         {
             int n = 0;
