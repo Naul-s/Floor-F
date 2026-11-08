@@ -20,17 +20,20 @@ namespace FloorF.UI
         /// shone through the translucent panel. The demo stays visible, just pushed back.</summary>
         public static readonly Color Backdrop = new Color(0f, 0f, 0.02f, 0.66f);
 
-        /// <summary>Title layout (1280x720 reference): logo top edge below the screen top, its font size (Galmuri grid:
-        /// one font pixel = <see cref="LogoPixel"/> units), button stack centre above the screen centre.</summary>
-        public const float LogoTop = 24f, LogoSize = 120f, LogoPixel = LogoSize / UIFonts.Grid, StackCentreY = 16f, StackGap = 16f;
+        /// <summary>Title layout (1280x720 reference): logo top edge below the screen top, canvas units per logo pixel
+        /// (<see cref="PixelLogo"/>), the tagline plate under it, button stack centre above the screen centre.
+        /// Logo + tagline end above ~22% of the screen height (the hotel's sign sits below that in the title framing).</summary>
+        public const float LogoTop = 12f, LogoPixel = 6f, TaglineGap = 2f, TaglineH = 20f, StackCentreY = 16f, StackGap = 16f;
+        /// <summary>Pause card's mini logo: canvas units per logo pixel, gap above the card.</summary>
+        public const float PauseLogoPixel = 3f, PauseLogoGap = 10f;
         public static readonly Vector2 StartSize = new Vector2(400f, 76f), ButtonSize = new Vector2(300f, 52f);
-        /// <summary>Idle bob of the logo face (its shadow stays put): amplitude in canvas units, period in seconds.</summary>
-        public const float LogoBob = 5f, LogoBobPeriod = 3.2f, LogoSpacing = 8f;
-        static readonly Color LogoOutline = new Color(0.03f, 0.03f, 0.06f, 1f), LogoShadow = new Color(0f, 0f, 0.02f, 0.75f);
+        /// <summary>Gold-to-amber TMP vertex gradient matching the logo face (pause title).</summary>
+        public static readonly VertexGradient GoldGradient = new VertexGradient(UIStyle.Hex("#FFE066"), UIStyle.Hex("#FFE066"), UIStyle.Hex("#F0962A"), UIStyle.Hex("#F0962A"));
 
-        readonly RectTransform titleRoot, pauseRoot, titleMenu, logo, logoFloat, buttonStack, creditsCard;
+        readonly RectTransform titleRoot, pauseRoot, titleMenu, logo, tagline, buttonStack, creditsCard;
+        readonly PixelLogo titleLogo, pauseLogo;
         readonly Image backdrop;
-        readonly TextMeshProUGUI gameName, credits, pauseTitle, volumeCaption, volumeValue;
+        readonly TextMeshProUGUI taglineText, credits, pauseTitle, volumeCaption, volumeValue;
         readonly TextMeshProUGUI creditsTitle, musicHead, music, soundHead, sound, artHead, art, aiLine, jamLine;
         readonly UIBuild.ButtonParts start, titleLanguage, titleCredits, back, resume, pauseLanguage, hints, quit, pauseButton;
         readonly Slider volume;
@@ -47,18 +50,17 @@ namespace FloorF.UI
             // no shared panel: the logo floats at the top over the night sky, the buttons are a narrow centred stack, and
             // the bottom ~20% stays clear for the street in front of the hotel (only the credit strip sits there)
             titleMenu = UIBuild.Stretch(UIBuild.Rect("TitleMenu", titleRoot));
-            // TMP centres the line including the trailing letter spacing: shift right by half of it so the glyphs are centred
-            logo = UIBuild.Place(UIBuild.Rect("Logo", titleMenu), new Vector2(0.5f, 1f),
-                new Vector2(LogoSpacing * LogoSize / 100f * 0.5f, -LogoTop), new Vector2(900f, LogoSize));
-            // a drop shadow that stays put while the logo bobs, then a one-font-pixel dark outline (8 copies) under the face
-            LogoCopy("Shadow", logo, LogoShadow, new Vector2(0f, -LogoPixel * 2f));
-            logoFloat = UIBuild.Stretch(UIBuild.Rect("Float", logo));
-            for (int i = 0; i < 8; i++)
-            {
-                float a = i * Mathf.PI / 4f;
-                LogoCopy("Outline" + i, logoFloat, LogoOutline, new Vector2(Mathf.Round(Mathf.Cos(a)), Mathf.Round(Mathf.Sin(a))) * LogoPixel);
-            }
-            gameName = LogoCopy("GameName", logoFloat, UIStyle.Title, Vector2.zero);
+            // pixel-art logo (block letters + LED floor indicator "F"), then a brass tagline plate under it
+            titleLogo = new PixelLogo("Logo", titleMenu, LogoPixel);
+            logo = titleLogo.Root;
+            UIBuild.Place(logo, new Vector2(0.5f, 1f), new Vector2(0f, -LogoTop), titleLogo.Size);
+            tagline = UIBuild.Framed("Tagline", logo, new Color(0.035f, 0.03f, 0.06f, 0.9f), UIStyle.CardEdge, 1f).rectTransform;
+            UIBuild.Place(tagline, new Vector2(0.5f, 0f), new Vector2(0f, -TaglineGap), new Vector2(300f, TaglineH));
+            tagline.pivot = new Vector2(0.5f, 1f);
+            taglineText = UIBuild.Text("Text", tagline, "", 12f, UIStyle.Lucky, TextAlignmentOptions.Center);
+            UIBuild.Stretch(taglineText.rectTransform);
+            taglineText.textWrappingMode = TextWrappingModes.NoWrap;
+            taglineText.characterSpacing = 100f / UIFonts.Grid; // one font pixel at 12px: stays on the grid
 
             float stackHeight = StartSize.y + 2f * (ButtonSize.y + StackGap);
             var stack = buttonStack = UIBuild.Place(UIBuild.Rect("Buttons", titleMenu), new Vector2(0.5f, 0.5f),
@@ -106,7 +108,14 @@ namespace FloorF.UI
             var card = UIBuild.Framed("PauseCard", pauseRoot, UIStyle.Card, UIStyle.CardEdge, 3f).rectTransform;
             UIBuild.Place(card, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 400f));
             Column(card, new RectOffset(36, 36, 26, 28), 14f);
-            pauseTitle = UIBuild.Text("Title", card, "", 48f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            pauseTitle = UIBuild.Text("Title", card, "", 48f, Color.white, TextAlignmentOptions.Center, bold: true);
+            pauseTitle.enableVertexGradient = true; // the logo's gold-to-amber face
+            pauseTitle.colorGradient = GoldGradient;
+            // the title logo in miniature, sitting on top of the card (outside its layout)
+            pauseLogo = new PixelLogo("PauseLogo", card, PauseLogoPixel, glintPhase: 2f);
+            pauseLogo.Root.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            UIBuild.Place(pauseLogo.Root, new Vector2(0.5f, 1f), new Vector2(0f, PauseLogoGap), pauseLogo.Size);
+            pauseLogo.Root.pivot = new Vector2(0.5f, 0f);
             resume = Wide(card, UIStyle.Action, OnResume);
             var vrow = Row(card, 44f);
             vrow.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = false;
@@ -131,16 +140,6 @@ namespace FloorF.UI
             pauseRoot.gameObject.SetActive(false);
             pauseButton.Rect.gameObject.SetActive(false);
             RefreshLanguage();
-        }
-
-        static TextMeshProUGUI LogoCopy(string name, RectTransform parent, Color color, Vector2 offset)
-        {
-            var t = UIBuild.Text(name, parent, UIStrings.GameName, LogoSize, color, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Stretch(t.rectTransform);
-            t.rectTransform.anchoredPosition = offset;
-            t.textWrappingMode = TextWrappingModes.NoWrap;
-            t.characterSpacing = LogoSpacing;
-            return t;
         }
 
         /// <summary>One free-standing title button (no shared panel) hanging <paramref name="y"/> below the stack top, with its own frame.</summary>
@@ -249,6 +248,9 @@ namespace FloorF.UI
 
         public void RefreshLanguage()
         {
+            UIBuild.Set(taglineText, ctx.S(UIStrings.Tagline));
+            float tw = taglineText.GetPreferredValues(taglineText.text, float.PositiveInfinity, float.PositiveInfinity).x;
+            tagline.sizeDelta = new Vector2(Mathf.Ceil(tw) + 28f, TaglineH);
             UIBuild.Set(credits, ctx.S(UIStrings.Credits));
             UIBuild.Set(start.Label, ctx.S(UIStrings.Start));
             UIBuild.Set(titleLanguage.Label, ctx.S(UIStrings.Language));
@@ -294,18 +296,15 @@ namespace FloorF.UI
                 if (!title) SetCredits(false);
                 if (title) RefreshLanguage();
             }
-            if (title && !creditsOpen)
-            {
-                // gentle idle float of the logo face; the drop shadow stays where it is
-                float y = LogoBob * Mathf.Sin(Time.time * (2f * Mathf.PI / LogoBobPeriod));
-                logoFloat.anchoredPosition = new Vector2(0f, y);
-            }
+            // gentle idle float, glint and LED flicker; the drop shadow and the tagline stay where they are
+            if (title && !creditsOpen) titleLogo.Tick(Time.unscaledTime);
             if (paused != pauseShown)
             {
                 pauseShown = paused;
                 pauseRoot.gameObject.SetActive(paused);
                 if (paused) { RefreshLanguage(); LayoutRebuilder.ForceRebuildLayoutImmediate((RectTransform)pauseTitle.transform.parent); }
             }
+            if (paused) pauseLogo.Tick(Time.unscaledTime);
             var keyboard = UnityEngine.InputSystem.Keyboard.current;
             if (creditsOpen && keyboard != null && keyboard.escapeKey.wasPressedThisFrame) SetCredits(false);
             bool button = menu != null && phase == DayPhase.Running && !paused;
@@ -350,32 +349,21 @@ namespace FloorF.UI
         }
         public bool PauseButtonVisible => pauseButton.Rect.gameObject.activeSelf;
 
-        public enum TitlePart { Logo, Start, Credits, Language }
-        RectTransform Part(TitlePart p) => p == TitlePart.Logo ? (RectTransform)gameName.transform
+        /// <summary>Logo = the bobbing pixel-art face, Tagline = the plate under it.</summary>
+        public enum TitlePart { Logo, Start, Credits, Language, Tagline }
+        RectTransform Part(TitlePart p) => p == TitlePart.Logo ? titleLogo.Face.rectTransform : p == TitlePart.Tagline ? tagline
             : p == TitlePart.Start ? start.Rect : p == TitlePart.Credits ? titleCredits.Rect : titleLanguage.Rect;
-        /// <summary>Canvas rect of a title element (the logo: its face's rendered text bounds), default while hidden.</summary>
-        public Rect TitlePartRect(RectTransform canvas, TitlePart p)
-        {
-            if (!titleMenu.gameObject.activeInHierarchy) return default;
-            if (p != TitlePart.Logo) return UIBuild.CanvasRect(canvas, Part(p));
-            gameName.ForceMeshUpdate();
-            // the glyphs themselves (textBounds would include the trailing letter spacing)
-            var info = gameName.textInfo;
-            Vector2 lo = new Vector2(float.MaxValue, float.MaxValue), hi = new Vector2(float.MinValue, float.MinValue);
-            for (int i = 0; i < info.characterCount; i++)
-            {
-                var ch = info.characterInfo[i];
-                if (!ch.isVisible) continue;
-                lo = Vector2.Min(lo, ch.bottomLeft);
-                hi = Vector2.Max(hi, ch.topRight);
-            }
-            if (lo.x > hi.x) return default;
-            var lt = gameName.rectTransform;
-            var a = (Vector2)canvas.InverseTransformPoint(lt.TransformPoint(lo));
-            var c = (Vector2)canvas.InverseTransformPoint(lt.TransformPoint(hi));
-            var off = canvas.rect.min;
-            return Rect.MinMaxRect(Mathf.Min(a.x, c.x) - off.x, Mathf.Min(a.y, c.y) - off.y, Mathf.Max(a.x, c.x) - off.x, Mathf.Max(a.y, c.y) - off.y);
-        }
+        /// <summary>Canvas rect of a title element, default while hidden.</summary>
+        public Rect TitlePartRect(RectTransform canvas, TitlePart p) =>
+            titleMenu.gameObject.activeInHierarchy ? UIBuild.CanvasRect(canvas, Part(p)) : default;
+        public string TaglineText => taglineText.text;
+        public float TaglineFontSize => taglineText.fontSize;
+        /// <summary>Tagline text inside its plate on one line.</summary>
+        public bool TaglineFits => taglineText.GetPreferredValues(taglineText.text, float.PositiveInfinity, float.PositiveInfinity).x <= tagline.rect.width - 8f;
+        public PixelLogo TitleLogo => titleLogo;
+        public PixelLogo PauseLogo => pauseLogo;
+        public Rect PauseLogoRect(RectTransform canvas) => PauseVisible ? UIBuild.CanvasRect(canvas, pauseLogo.Face.rectTransform) : default;
+        public Rect PauseCardRect(RectTransform canvas) => PauseVisible ? UIBuild.CanvasRect(canvas, (RectTransform)pauseTitle.transform.parent) : default;
         /// <summary>Label of a title button on one line inside its button (after the grid Fit), and its font size.</summary>
         public bool TitleLabelFits(TitlePart p, out float fontSize)
         {
@@ -383,8 +371,8 @@ namespace FloorF.UI
             fontSize = b.Label.fontSize;
             return b.Label.GetPreferredValues(b.Label.text, float.PositiveInfinity, float.PositiveInfinity).x <= b.Label.rectTransform.rect.width + 0.5f;
         }
-        /// <summary>Names of the Images under the title menu other than the buttons' own fills/frames (a shared panel or a box
-        /// behind the logo would show up here); empty when none.</summary>
+        /// <summary>Names of the Images under the title menu other than the buttons' own fills/frames and the logo's own
+        /// tagline plate (a shared panel or a box behind the logo would show up here); empty when none.</summary>
         public string TitleMenuPanels()
         {
             var sb = new System.Text.StringBuilder();
@@ -392,12 +380,13 @@ namespace FloorF.UI
             {
                 var t = img.transform;
                 bool own = t == start.Rect || t == titleCredits.Rect || t == titleLanguage.Rect
-                           || t.IsChildOf(start.Rect) || t.IsChildOf(titleCredits.Rect) || t.IsChildOf(titleLanguage.Rect);
+                           || t.IsChildOf(start.Rect) || t.IsChildOf(titleCredits.Rect) || t.IsChildOf(titleLanguage.Rect)
+                           || t.IsChildOf(tagline);
                 if (!own) sb.Append(img.name).Append(' ');
             }
             return sb.ToString().Trim();
         }
-        public string TitleText => gameName.text + " | " + start.Label.text + " | " + titleCredits.Label.text + " | " + titleLanguage.Label.text;
+        public string TitleText => UIStrings.GameName + " | " + taglineText.text + " | " + start.Label.text + " | " + titleCredits.Label.text + " | " + titleLanguage.Label.text;
         public void ClickStart() => start.Button.onClick.Invoke();
         public void ClickTitleLanguage() => titleLanguage.Button.onClick.Invoke();
         public void ClickPauseButton() => pauseButton.Button.onClick.Invoke();

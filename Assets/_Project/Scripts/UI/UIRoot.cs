@@ -28,6 +28,8 @@ namespace FloorF.UI
         TutorialView tutorial;
         MenuView menu;
         CurseView curse;
+        WishView wish;
+        DayBannerView banner;
         bool built;
 
         void OnEnable()
@@ -52,6 +54,9 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<PauseChanged>(e => { if (built) menu.Tick(); }));
             subs.Add(bus.Subscribe<LuckStreakChanged>(e => { if (built && !OnTitle) { hud.OnLuckStreakChanged(e); tutorial.OnLuckStreakChanged(e); } }));
             subs.Add(bus.Subscribe<TutorialHoldChanged>(e => { if (built) tutorial.OnTutorialHoldChanged(e); }));
+            subs.Add(bus.Subscribe<WishStarAppeared>(e => { if (built && !OnTitle) wish.OnAppeared(e); }));
+            subs.Add(bus.Subscribe<WishMade>(e => { if (built && !OnTitle) wish.OnMade(e); }));
+            subs.Add(bus.Subscribe<WishStarFaded>(e => { if (built) wish.OnFaded(e); }));
         }
 
         void OnDisable() => subs.Clear();
@@ -71,8 +76,11 @@ namespace FloorF.UI
             var rt = ctx.CanvasRect;
             bubbles = new GuestBubblesView(ctx, rt);
             popups = new PopupsView(ctx, rt);
+            wish = new WishView(ctx, rt); // click targets under the panel / HUD buttons; its Fx layer is raised below
             panel = new ElevatorPanelView(ctx, rt);
             hud = new HudView(ctx, rt, ToggleLanguage);
+            wish.Fx.SetAsLastSibling(); // hint, explain card, float-ups above the HUD boxes
+            banner = new DayBannerView(ctx, rt);
             shop = new ShopView(ctx, rt, panel);
             curse = new CurseView(ctx, rt); // above the HUD / popups, under the flow cards, coach marks and menu
             flow = new FlowScreensView(ctx, rt);
@@ -149,6 +157,8 @@ namespace FloorF.UI
             bubbles.Tick();
             popups.Tick(dt);
             curse.Tick(dt);
+            wish.Tick(dt);
+            banner.Tick(dt);
             shop.Tick();
             flow.Tick();
             tutorial.Tick(dt, Time.unscaledTime);
@@ -164,6 +174,7 @@ namespace FloorF.UI
             popups.Clear();
             tutorial.Reset();
             curse.Reset();
+            wish.Reset();
             flow.LastSpecialLine = null;
         }
 
@@ -186,6 +197,8 @@ namespace FloorF.UI
             if (e.Current == DayPhase.Intro || e.Current == DayPhase.Title) hud.ResetStreak(); // a new day starts at 0 silently
             // the attract demo replays a day behind the title: every tutorial day's lesson starts from wave 1
             tutorial.OnPhaseChanged(e);
+            if (OnTitle) banner.Stop(); else banner.OnPhaseChanged(e);
+            if (e.Current != DayPhase.Running) wish.Clear();
             menu.Tick();
         }
 

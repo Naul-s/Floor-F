@@ -21,10 +21,12 @@ namespace FloorF.UI
         const float BrokenLife = 1.6f, PopLife = 0.35f;
         readonly UIContext ctx;
         readonly TextMeshProUGUI dayText, clockText, luckCaption, luckValue, luckDelta, tipsCaption, tipsValue, tipsDelta;
-        readonly TextMeshProUGUI rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleLegend, fridayText;
-        readonly RectTransform luckFill, luckGhost, rulesBox, dayBox, luckBox, tipsBox, streakBox, fridayBadge;
-        readonly Image rulesEdge, rulesFill, fridayEdge;
-        bool friday;
+        readonly TextMeshProUGUI rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleLegend, fridayText, starText;
+        readonly RectTransform luckFill, luckGhost, rulesBox, dayBox, luckBox, tipsBox, streakBox, fridayBadge, starBadge;
+        readonly Image rulesEdge, rulesFill, fridayEdge, starEdge;
+        bool friday, starNight;
+        /// <summary>Star night: pale starlight ink, violet edge, deep-blue box.</summary>
+        public static readonly Color StarInk = UIStyle.Hex("#DCD4FF"), StarEdge = UIStyle.Hex("#8C6CFF"), StarBoxFill = new Color(0.03f, 0.03f, 0.11f, 0.95f);
         /// <summary>Friday line ink: a lighter red that reads on the dark box (UIStyle.Unlucky is the edge).</summary>
         public static readonly Color FridayInk = UIStyle.Hex("#FF7A7A");
         static readonly Color FridayBoxFill = new Color(0.07f, 0.015f, 0.02f, 0.97f);
@@ -105,6 +107,9 @@ namespace FloorF.UI
             ruleFriday = UIBuild.Text("Friday13", rulesBox, "", 12f, FridayInk, TextAlignmentOptions.Left);
             UIBuild.Place(ruleFriday.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -102f), new Vector2(MeterW + 10f, 22f));
             ruleFriday.gameObject.SetActive(false);
+            ruleStar = UIBuild.Text("StarNight", rulesBox, "", 12f, StarInk, TextAlignmentOptions.Left);
+            UIBuild.Place(ruleStar.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -102f), new Vector2(MeterW + 10f, 22f));
+            ruleStar.gameObject.SetActive(false);
             ruleLegend = UIBuild.Text("Legend", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(ruleLegend.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -102f), new Vector2(MeterW, 24f));
 
@@ -116,6 +121,15 @@ namespace FloorF.UI
             UIBuild.Stretch(fridayText.rectTransform, 6f);
             fridayText.textWrappingMode = TextWrappingModes.NoWrap;
             fridayBadge.gameObject.SetActive(false);
+
+            // star night badge (same slot; deep blue with a violet edge, a star at each end)
+            starEdge = UIBuild.Framed("StarNightBadge", canvas, StarBoxFill, StarEdge, 3f);
+            starBadge = starEdge.rectTransform;
+            UIBuild.Place(starBadge, new Vector2(1f, 1f), new Vector2(-24f, -(RulesBottom + Friday13LineH + BadgeGap)), new Vector2(MeterW + 32f, BadgeH));
+            starText = UIBuild.Text("Text", starBadge, "", 24f, StarInk, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Stretch(starText.rectTransform, 6f);
+            starText.textWrappingMode = TextWrappingModes.NoWrap;
+            starBadge.gameObject.SetActive(false);
 
             // language toggle (bottom-right)
             language = UIBuild.Button("Language", canvas, "", 24f, UIStyle.Btn, () => onLanguage?.Invoke());
@@ -129,25 +143,40 @@ namespace FloorF.UI
 
         float Friday13Multiplier => ctx.Data != null ? ctx.Data.Rules.friday13PenaltyMultiplier : 1.5f;
 
-        /// <summary>Friday the 13th look: red rule-box edge + its extra line, the badge under it (Running only).</summary>
-        void SetFriday(bool on, bool running)
+        /// <summary>
+        /// Event-day look: Friday the 13th = red rule-box edge + its extra line, star night = violet edge + its line;
+        /// the day's badge sits under the box (Running only). The two never share a day (Friday wins if data says both).
+        /// </summary>
+        void SetEventDay(bool fri, bool star, bool running)
         {
-            if (on != friday)
+            if (fri) star = false;
+            if (fri != friday || star != starNight)
             {
-                friday = on;
-                ruleFriday.gameObject.SetActive(on);
-                ruleLegend.rectTransform.anchoredPosition = new Vector2(14f, on ? -102f - Friday13LineH : -102f);
-                rulesBox.sizeDelta = new Vector2(MeterW + 32f, on ? RulesH + Friday13LineH : RulesH);
-                rulesEdge.color = on ? UIStyle.Unlucky : RulesEdgeColor;
-                rulesFill.color = on ? FridayBoxFill : UIStyle.Box; // the edge sits behind the fill: no red wash
+                friday = fri;
+                starNight = star;
+                bool extra = fri || star;
+                ruleFriday.gameObject.SetActive(fri);
+                ruleStar.gameObject.SetActive(star);
+                ruleLegend.rectTransform.anchoredPosition = new Vector2(14f, extra ? -102f - Friday13LineH : -102f);
+                rulesBox.sizeDelta = new Vector2(MeterW + 32f, extra ? RulesH + Friday13LineH : RulesH);
+                rulesEdge.color = fri ? UIStyle.Unlucky : star ? StarEdge : RulesEdgeColor;
+                rulesFill.color = fri ? FridayBoxFill : star ? StarBoxFill : UIStyle.Box; // the edge sits behind the fill: no wash
             }
-            bool badge = on && running;
+            bool badge = fri && running;
             if (fridayBadge.gameObject.activeSelf != badge) fridayBadge.gameObject.SetActive(badge);
             if (badge)
             {
                 // a slow ominous pulse of the edge
                 float k = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 3f);
                 fridayEdge.color = Color.Lerp(UIStyle.Unlucky, new Color(0.45f, 0.05f, 0.05f, 1f), k);
+            }
+            bool starOn = star && running;
+            if (starBadge.gameObject.activeSelf != starOn) starBadge.gameObject.SetActive(starOn);
+            if (starOn)
+            {
+                // a slow twinkle of the edge (0.4 Hz, no flashing)
+                float k = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * 2.5f);
+                starEdge.color = Color.Lerp(StarEdge, StarInk, k * 0.6f);
             }
         }
 
@@ -178,6 +207,9 @@ namespace FloorF.UI
             UIBuild.Set(ruleLegend, string.Format(ctx.S(UIStrings.RuleLegend), UIFormat.LuckyHex, UIFormat.UnluckyHex));
             fridayText.text = ctx.F(UIStrings.Friday13Badge, UIFormat.Multiplier(Friday13Multiplier));
             UIBuild.Fit(fridayText, 24f);
+            UIBuild.Set(ruleStar, ctx.S(UIStrings.RuleStarNight));
+            starText.text = ctx.S(UIStrings.StarNightBadge);
+            UIBuild.Fit(starText, 24f);
             if (!string.Equals(language.Label.text, ctx.S(UIStrings.Language), System.StringComparison.Ordinal))
             {
                 language.Label.text = ctx.S(UIStrings.Language);
@@ -339,7 +371,7 @@ namespace FloorF.UI
             Fade(tipsDelta, ref tipsDeltaTimer, dt);
             bool rules = phase == DayPhase.Running;
             if (rulesBox.gameObject.activeSelf != rules) rulesBox.gameObject.SetActive(rules);
-            SetFriday(ctx.Day.IsFriday13 && !ctx.Day.IsTutorial, rules);
+            SetEventDay(ctx.Day.IsFriday13 && !ctx.Day.IsTutorial, ctx.Day.IsStarNight && !ctx.Day.IsTutorial, rules);
             TickStreak(dt, rules);
         }
 
@@ -364,7 +396,7 @@ namespace FloorF.UI
             luckBox.gameObject.SetActive(visible);
             tipsBox.gameObject.SetActive(visible);
             language.Rect.gameObject.SetActive(visible);
-            if (!visible) { rulesBox.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); fridayBadge.gameObject.SetActive(false); }
+            if (!visible) { rulesBox.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); fridayBadge.gameObject.SetActive(false); starBadge.gameObject.SetActive(false); }
         }
 
         // coach-mark targets + test hooks
@@ -373,6 +405,10 @@ namespace FloorF.UI
         public bool FridayBadgeVisible => fridayBadge.gameObject.activeInHierarchy;
         public string FridayBadgeText => FridayBadgeVisible ? fridayText.text : null;
         public float FridayBadgeFontSize => fridayText.fontSize;
+        public RectTransform StarBadge => starBadge;
+        public bool StarBadgeVisible => starBadge.gameObject.activeInHierarchy;
+        public string StarBadgeText => StarBadgeVisible ? starText.text : null;
+        public float StarBadgeFontSize => starText.fontSize;
         /// <summary>The rule box's visible lines, top to bottom (rich text), "\n"-joined.</summary>
         public string RulesText
         {
@@ -380,7 +416,7 @@ namespace FloorF.UI
             {
                 if (!rulesBox.gameObject.activeInHierarchy) return null;
                 var sb = new System.Text.StringBuilder();
-                foreach (var t in new[] { rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleLegend })
+                foreach (var t in new[] { rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleLegend })
                     if (t.gameObject.activeSelf) { if (sb.Length > 0) sb.Append('\n'); sb.Append(t.text); }
                 return sb.ToString();
             }
@@ -389,7 +425,7 @@ namespace FloorF.UI
         public string RulesOverflow()
         {
             float inner = rulesBox.rect.width - 14f - 4f;
-            foreach (var t in new[] { rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleLegend })
+            foreach (var t in new[] { rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleLegend })
             {
                 if (!t.gameObject.activeSelf) continue;
                 float w = t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity).x;
