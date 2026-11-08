@@ -58,5 +58,30 @@ namespace FloorF.Core
 
         /// <summary>Friday the 13th (<see cref="IDayQuery.IsFriday13"/>): this ride distance is Unlucky for every guest.</summary>
         public const int FridayDistance = 13;
+
+        /// <summary>
+        /// Star night (<see cref="IDayQuery.IsStarNight"/>): this number is Lucky for every guest from every source (floor
+        /// label, head count, ride distance) - even for a guest whose own superstition calls it unlucky.
+        /// </summary>
+        public const int StarNightNumber = 7;
+    }
+
+    /// <summary>Star-night luck: a guest's own numbers with <see cref="StoryRules.StarNightNumber"/> forced Lucky.</summary>
+    public static class StarNightRules
+    {
+        /// <summary>
+        /// <paramref name="own"/> plus 7 as Lucky (removed from Unlucky: the star night wins over a guest's own unlucky 7).
+        /// Returns <paramref name="own"/> itself when it already is that way.
+        /// </summary>
+        public static LuckProfile Apply(LuckProfile own)
+        {
+            own = own ?? LuckProfile.None;
+            int seven = StoryRules.StarNightNumber;
+            if (own.Lucky.Contains(seven) && !own.Unlucky.Contains(seven)) return own;
+            var lucky = new System.Collections.Generic.List<int>(own.Lucky) { seven };
+            var unlucky = new System.Collections.Generic.List<int>();
+            foreach (var n in own.Unlucky) if (n != seven) unlucky.Add(n);
+            return new LuckProfile(NumberSet.From(lucky), NumberSet.From(unlucky));
+        }
     }
 }

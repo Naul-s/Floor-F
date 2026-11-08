@@ -78,6 +78,13 @@ namespace FloorF.Gameplay
         /// </summary>
         internal static ISettingsStore SettingsStoreOverride;
 
+        /// <summary>
+        /// Tests: let OnApplicationFocus / OnApplicationPause pause the game in the Editor and in batch mode too (normally
+        /// only players - the WebGL tab - do: in the Editor the Game view loses focus to every other window, which would
+        /// pause play sessions and Editor test runs at random).
+        /// </summary>
+        internal static bool ForceFocusPauseForTests;
+
         /// <summary>Seconds between settings flushes to disk (PlayerPrefs.Save) while values keep changing.</summary>
         const float SettingsFlushInterval = 1f;
 
@@ -88,6 +95,7 @@ namespace FloorF.Gameplay
             SkipTitleForTests = false;
             SkipTutorialForTests = false;
             SettingsStoreOverride = null;
+            ForceFocusPauseForTests = false;
         }
 
         GameData data;
@@ -172,8 +180,28 @@ namespace FloorF.Gameplay
 
         void OnApplicationPause(bool pausing)
         {
-            if (pausing) settingsPersistence?.Flush();
+            if (!pausing) return;
+            settingsPersistence?.Flush();
+            if (FocusPauseActive) PauseForFocusLoss();
         }
+
+        /// <summary>WebGL: the tab or the window lost focus.</summary>
+        void OnApplicationFocus(bool hasFocus)
+        {
+            if (!hasFocus && FocusPauseActive) PauseForFocusLoss();
+        }
+
+        static bool FocusPauseActive => ForceFocusPauseForTests || (!Application.isEditor && !Application.isBatchMode);
+
+        /// <summary>
+        /// Focus lost: a running day pauses (IMenuFlow.SetPaused(true) - the pause menu shows; no auto-resume). Nothing
+        /// happens on the title, outside Running, when already paused, or while a Day 0 coach mark holds the day (it is
+        /// frozen anyway, and the menu pause would release the hold). Returns true when it paused.
+        /// </summary>
+        internal bool PauseForFocusLoss() => ShouldPauseOnFocusLoss(session) && session.SetPaused(true);
+
+        internal static bool ShouldPauseOnFocusLoss(GameSession s)
+            => s != null && s.HasStarted && !s.IsOnTitle && s.Phase == DayPhase.Running && !s.IsPaused && !s.TutorialHold;
 
         void OnApplicationQuit() => settingsPersistence?.Flush();
 

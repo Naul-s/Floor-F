@@ -15,6 +15,8 @@ namespace FloorF.Core
         /// Rule 3 (ride distance): a delivery stop also scores the distance the rider will have travelled there, so it
         /// prefers stop orders that avoid an unlucky distance (or hit a lucky one); when the best stop would still end an
         /// unlucky ride it takes a short detour (moving past floors without opening) if that fixes the distance cheaply.
+        /// Star night: judges with 7 Lucky for everyone (<see cref="StarNightRules"/>) and wishes on every shooting star it
+        /// sees (when the control is the <see cref="GameSession"/>).
         /// </summary>
         LuckAware = 1,
     }
@@ -52,6 +54,11 @@ namespace FloorF.Core
 
         // new-day detection (the control is usually the GameSession, which is also the IDayQuery)
         readonly IDayQuery dayQuery;
+        /// <summary>Wish stars (LuckAware): only when the control is the session itself.</summary>
+        readonly GameSession session;
+        readonly List<int> stars = new List<int>();
+        /// <summary>Star-night numbers per own profile (profiles are shared per archetype).</summary>
+        readonly Dictionary<LuckProfile, LuckProfile> starProfiles = new Dictionary<LuckProfile, LuckProfile>();
         int lastDayNumber = -1;
         float lastElapsed = -1f;
         bool wasAccepting;
@@ -67,6 +74,7 @@ namespace FloorF.Core
             this.building = building ?? throw new ArgumentNullException(nameof(building));
             Strategy = strategy;
             dayQuery = control as IDayQuery;
+            session = control as GameSession;
         }
 
         public AutoPilotStrategy Strategy { get; }
@@ -82,7 +90,7 @@ namespace FloorF.Core
         {
             DetectNewDay();
             if (dayQuery != null && dayQuery.IsTutorial) return;
-            if (Strategy == AutoPilotStrategy.LuckAware) StepLuckAware();
+            if (Strategy == AutoPilotStrategy.LuckAware) { WishOnStars(); StepLuckAware(); }
             else StepLuckBlind();
         }
 
@@ -170,6 +178,21 @@ namespace FloorF.Core
 
         // ================================================================================================ LuckAware
 
+        /// <summary>Star night: a wish on every star crossing the sky right now.</summary>
+        void WishOnStars()
+        {
+            if (session == null || !control.AcceptsInput || session.GetWishStarsInSky(stars) == 0) return;
+            foreach (var id in stars) session.MakeWish(id);
+        }
+
+        /// <summary>The numbers a guest is judged by today (7 Lucky for all on a star night).</summary>
+        LuckProfile Judging(GuestInfo g)
+        {
+            if (dayQuery == null || !dayQuery.IsStarNight) return g.Luck;
+            if (!starProfiles.TryGetValue(g.Luck, out var p)) { p = StarNightRules.Apply(g.Luck); starProfiles[g.Luck] = p; }
+            return p;
+        }
+
         void StepLuckAware()
         {
             if (!control.AcceptsInput) return; // DetectNewDay already forgot the day
@@ -224,7 +247,7 @@ namespace FloorF.Core
         /// <summary>Rule 3 value of a ride of <paramref name="distance"/> floors for one rider (Friday the 13th aware).</summary>
         float DistanceScore(GuestInfo r, int distance)
         {
-            var v = r.Luck.Judge(distance);
+            var v = Judging(r).Judge(distance);
             if (dayQuery != null && dayQuery.IsFriday13 && distance == StoryRules.FridayDistance) v = LuckVerdict.Unlucky;
             return v == LuckVerdict.Lucky ? DistanceLucky : v == LuckVerdict.Unlucky ? DistanceUnlucky : 0f;
         }
@@ -299,7 +322,7 @@ namespace FloorF.Core
                 foreach (var id in buffer)
                     if (id == next.Id || (!next.Party.IsNone && guests.TryGet(id, out var m) && m.Party == next.Party)) size++;
                 if (count + size > elevator.Capacity) continue;
-                if (HasTrait(next, GuestTraits.Gambler) && !next.Luck.IsLucky(count + size)) continue;
+                if (HasTrait(next, GuestTraits.Gambler) && !Judging(next).IsLucky(count + size)) continue;
 
                 float now = HeadcountScore(count, default, 0);
                 float then = HeadcountScore(count + size, next, size) + DeliveryValue * size;
@@ -345,7 +368,7 @@ namespace FloorF.Core
             foreach (var r in riders)
             {
                 if (seenFloors.TryGetValue(r.Id, out var seen) && seen.Contains(floor.Value)) continue;
-                var v = LabelNumbers.Judge(r.Luck, label, out _);
+                var v = LabelNumbers.Judge(Judging(r), label, out _);
                 if (v == LuckVerdict.Lucky) score += LabelLucky;
                 else if (v == LuckVerdict.Unlucky) score += LabelUnlucky;
                 if (relabelled && HasTrait(r, GuestTraits.Honest)) score += HonestRelabelled;
@@ -365,7 +388,7 @@ namespace FloorF.Core
         float Headcount(GuestInfo g, int headcount)
         {
             if (seenHeadcounts.TryGetValue(g.Id, out var seen) && seen.Contains(headcount)) return 0f;
-            var v = g.Luck.Judge(headcount);
+            var v = Judging(g).Judge(headcount);
             return v == LuckVerdict.Lucky ? HeadcountLucky : v == LuckVerdict.Unlucky ? HeadcountUnlucky : 0f;
         }
     }
