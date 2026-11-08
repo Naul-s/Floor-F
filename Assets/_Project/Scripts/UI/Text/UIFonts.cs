@@ -42,6 +42,7 @@ namespace FloorF.UI
             main = null;
             tried = warned = false;
             IsFallback = false;
+            starGlyph = 0;
         }
 
         /// <summary>True when Galmuri could not be created and the UI uses TMP's default font.</summary>
@@ -105,5 +106,21 @@ namespace FloorF.UI
         public static float Px(float size) => Mathf.Max(1, Mathf.FloorToInt(size / Grid + 0.5f)) * Grid;
 
         public static bool IsGalmuri(TMP_FontAsset fa) => fa != null && fa.faceInfo.familyName == FamilyName;
+
+        static int starGlyph; // 0 = unknown, 1 = has ★, 2 = no
+
+        /// <summary>"★" when the UI font has it (Galmuri covers KS X 1001 symbols), else "*".</summary>
+        public static string Star
+        {
+            get
+            {
+                if (starGlyph == 0)
+                {
+                    var f = Main;
+                    starGlyph = f != null && f.HasCharacter('★', false, true) ? 1 : 2;
+                }
+                return starGlyph == 1 ? "★" : "*";
+            }
+        }
     }
 }

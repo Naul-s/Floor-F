@@ -38,6 +38,24 @@ namespace FloorF.Tests.EditMode.UI
         }
 
         [Test]
+        public void StarNight_SevenLuckyForEveryone()
+        {
+            var hatesSeven = LuckProfile.Of(new[] { 8 }, new[] { 7, 4 });
+            Assert.AreEqual(LuckVerdict.Lucky, UIFormat.DistanceVerdict(hatesSeven, false, 7, false, true), "beats their own unlucky 7");
+            Assert.AreEqual(LuckVerdict.Lucky, UIFormat.DistanceVerdict(LuckProfile.None, true, 7, false, true), "even a mystery guest");
+            Assert.AreEqual(LuckVerdict.Unlucky, UIFormat.DistanceVerdict(hatesSeven, false, 4, false, true), "other numbers unchanged");
+            Assert.AreEqual(LuckVerdict.Unlucky, UIFormat.DistanceVerdict(hatesSeven, false, 7, false, false), "only on star night");
+            var riders = new[] { hatesSeven };
+            Assert.AreEqual(LuckVerdict.Lucky, UIFormat.OccupancyPreview(7, riders, 1, true));
+            Assert.AreEqual(LuckVerdict.Unlucky, UIFormat.OccupancyPreview(7, riders, 1, false));
+            string chip = UIFormat.Numbers(hatesSeven, false, true);
+            StringAssert.Contains("<color=" + UIFormat.LuckyHex + ">7</color>", chip, "the 7 shows gold");
+            StringAssert.DoesNotContain("<s>7</s>", chip);
+            StringAssert.Contains("<s>4</s>", chip);
+            Assert.AreEqual(1, System.Text.RegularExpressions.Regex.Matches(UIFormat.Numbers(LuckProfile.Of(new[] { 7 }, new[] { 7 }), false, true), ">7<").Count, "one 7");
+        }
+
+        [Test]
         public void DistanceVerdict_MysteryGuest_Neutral()
         {
             Assert.AreEqual(LuckVerdict.Neutral, UIFormat.DistanceVerdict(LuckProfile.Of(new[] { 4 }, new int[0]), true, 4, false));

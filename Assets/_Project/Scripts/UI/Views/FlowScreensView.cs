@@ -20,6 +20,17 @@ namespace FloorF.UI
         /// <summary>Friday the 13th intro: red edge on near-black, red title, a red-black dim.</summary>
         public static readonly Color FridayFill = new Color(0.04f, 0.01f, 0.012f, 0.97f), FridayDim = new Color(0.08f, 0f, 0f, 0.78f);
         bool fridayCard;
+        /// <summary>Star night (Day 7) intro: violet edge on deep blue, starlight title between stars, a blue-violet dim.</summary>
+        public static readonly Color StarFill = new Color(0.025f, 0.03f, 0.10f, 0.97f), StarDim = new Color(0.01f, 0.01f, 0.07f, 0.74f);
+        bool starCard;
+        readonly RectTransform starDeco;
+        readonly TextMeshProUGUI[] starGlyphs = new TextMeshProUGUI[6];
+        /// <summary>Decorative stars on the card edge: anchor (0..1 of the card), size, phase.</summary>
+        static readonly Vector3[] StarSpots =
+        {
+            new Vector3(0f, 1f, 36f), new Vector3(1f, 1f, 36f), new Vector3(0f, 0f, 24f), new Vector3(1f, 0f, 24f),
+            new Vector3(0.18f, 1f, 24f), new Vector3(0.82f, 0f, 24f),
+        };
         readonly TextMeshProUGUI title, body, extra;
         readonly UIBuild.ButtonParts action, toTitle, skip;
         DayPhase shown = (DayPhase)(-1);
@@ -97,6 +108,20 @@ namespace FloorF.UI
             stampLetter.textWrappingMode = TextWrappingModes.NoWrap;
             stamp.gameObject.SetActive(false);
 
+            // star-night stars sitting on the card's edge (outside the layout; twinkle slowly in TickStars)
+            starDeco = UIBuild.Stretch(UIBuild.Rect("StarDeco", card));
+            starDeco.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            for (int i = 0; i < StarSpots.Length; i++)
+            {
+                var s = StarSpots[i];
+                var g = UIBuild.Text("Star" + i, starDeco, UIFonts.Star, s.z, HudView.StarInk, TextAlignmentOptions.Center);
+                UIBuild.Place(g.rectTransform, new Vector2(s.x, s.y), Vector2.zero, new Vector2(s.z + 12f, s.z + 12f));
+                g.rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                g.textWrappingMode = TextWrappingModes.NoWrap;
+                starGlyphs[i] = g;
+            }
+            starDeco.gameObject.SetActive(false);
+
             dim.gameObject.SetActive(false);
         }
 
@@ -144,6 +169,7 @@ namespace FloorF.UI
         public void Tick()
         {
             TickStamp();
+            TickStars();
             var phase = ctx.HasGame ? ctx.Day.Phase : DayPhase.None;
             if (SkipVisible && !(ctx.Paused) && TabPressed()) { OnSkip(); return; }
             int day = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
@@ -163,6 +189,7 @@ namespace FloorF.UI
         {
             shown = phase;
             shownDay = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
+            card.anchoredPosition = Vector2.zero; // a stamp jolt never carries over
             bool modal = phase == DayPhase.Intro || phase == DayPhase.Summary || phase == DayPhase.Ending;
             dim.gameObject.SetActive(modal);
             bool graded = modal && phase == DayPhase.Summary && !ctx.Day.IsTutorial;
@@ -175,8 +202,9 @@ namespace FloorF.UI
             }
             if (!modal) return;
             bool ko = ctx.Korean;
-            SetFridayLook(phase == DayPhase.Intro && ctx.Day.IsFriday13 && !ctx.Day.IsTutorial);
-            title.color = fridayCard ? UIStyle.Unlucky : UIStyle.Lucky;
+            bool intro = phase == DayPhase.Intro && !ctx.Day.IsTutorial;
+            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight);
+            title.color = fridayCard ? UIStyle.Unlucky : starCard ? StarTitle : UIStyle.Lucky;
             extra.alignment = TextAlignmentOptions.Left; // the Friday-only intro line centres it (FillIntro)
             toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
             toTitle.Label.text = ctx.S(UIStrings.ToTitle);
@@ -203,12 +231,12 @@ namespace FloorF.UI
                 intro = ko && !string.IsNullOrEmpty(d.introKo) ? d.introKo : d.intro;
             }
             if (string.IsNullOrEmpty(t)) t = UIFormat.DayLabel(ctx.Day.DisplayDay, ctx.Day.PlayableDayCount, tutorial, ko);
-            title.text = t;
+            title.text = starCard ? UIFonts.Star + "  " + t + "  " + UIFonts.Star : t;
             body.text = intro;
             body.gameObject.SetActive(!string.IsNullOrEmpty(intro));
             // Day 0 teaches step by step in the game itself; the real Day 1 gets the list as a recap (hints on)
             bool howTo = !tutorial && ctx.Settings != null && ctx.Settings.ShowTutorialHints && ctx.Day.DisplayDay == 1;
-            extra.gameObject.SetActive(howTo || fridayCard);
+            extra.gameObject.SetActive(howTo || fridayCard || starCard);
             extra.text = "";
             if (howTo)
                 extra.text = "<b><color=#C9A15A>" + ctx.S(UIStrings.HowToTitle) + "</color></b>\n" +
@@ -220,17 +248,41 @@ namespace FloorF.UI
                               ctx.F(UIStrings.Friday13Intro, UIFormat.Multiplier(m).Substring(1)) + "</color>";
                 if (!howTo) extra.alignment = TextAlignmentOptions.Center;
             }
+            if (starCard)
+            {
+                int bonus = ctx.Data != null ? ctx.Data.Rules.wishLuckBonus : 4;
+                extra.text += (howTo ? "\n\n" : "") + "<color=" + StarInkHex + ">" + ctx.F(UIStrings.StarNightIntro, bonus) + "</color>";
+                if (!howTo) extra.alignment = TextAlignmentOptions.Center;
+            }
             action.Label.text = ctx.S(UIStrings.Start);
         }
 
-        void SetFridayLook(bool on)
+        public static readonly Color StarTitle = UIStyle.Hex("#FFF1B0");
+        const string StarInkHex = "#DCD4FF";
+
+        /// <summary>Card colours for the event day (Friday the 13th wins over star night; neither = the normal card).</summary>
+        void SetCardLook(bool friday, bool star)
         {
-            if (on == fridayCard) return;
-            fridayCard = on;
-            cardEdge.color = on ? UIStyle.Unlucky : UIStyle.CardEdge;
-            cardFill.color = on ? FridayFill : UIStyle.Card;
-            dim.GetComponent<Image>().color = on ? FridayDim : UIStyle.Dim;
+            star &= !friday;
+            if (friday == fridayCard && star == starCard) return;
+            fridayCard = friday;
+            starCard = star;
+            cardEdge.color = friday ? UIStyle.Unlucky : star ? HudView.StarEdge : UIStyle.CardEdge;
+            cardFill.color = friday ? FridayFill : star ? StarFill : UIStyle.Card;
+            dim.GetComponent<Image>().color = friday ? FridayDim : star ? StarDim : UIStyle.Dim;
+            starDeco.gameObject.SetActive(star);
         }
+
+        /// <summary>Star-night card: the edge stars twinkle slowly (~0.3-0.9 Hz, alpha 0.44..1 - no flashing).</summary>
+        void TickStars()
+        {
+            if (!starCard || !dim.gameObject.activeSelf) return;
+            float t = Time.unscaledTime;
+            for (int i = 0; i < starGlyphs.Length; i++)
+                starGlyphs[i].alpha = 0.72f + 0.28f * Mathf.Sin(t * (2f + 0.7f * i) + i * 1.9f);
+        }
+
+        public bool StarLook => dim.gameObject.activeSelf && starCard;
 
         public bool FridayLook => dim.gameObject.activeSelf && fridayCard;
         public Color CardEdgeColor => cardEdge.color;
@@ -305,6 +357,9 @@ namespace FloorF.UI
             float scale = Mathf.Lerp(2.4f, 1f, k * k); // accelerates into the card
             if (t > 1f && t < 1.6f) scale = 1f + 0.06f * Mathf.Sin((t - 1f) / 0.6f * Mathf.PI); // a small bounce on impact
             stamp.localScale = new Vector3(scale, scale, 1f);
+            // the impact jolts the card down a few pixels, settling in ~0.25 s
+            float jolt = t > 1f && t < 1f + 0.25f / StampSlam ? Mathf.Round(-5f * (1f - (t - 1f) * StampSlam / 0.25f)) : 0f;
+            card.anchoredPosition = new Vector2(0f, jolt);
         }
 
         public bool StampVisible => stamp.gameObject.activeInHierarchy;

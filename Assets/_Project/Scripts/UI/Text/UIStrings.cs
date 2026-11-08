@@ -35,6 +35,28 @@ namespace FloorF.UI
         public static readonly Loc Friday13Intro = new Loc("Today every UNLUCKY moment costs {0}x the Luck - and travelling 13 floors is unlucky for EVERYONE.",
             "오늘은 불길한 판정마다 운이 {0}배로 깎여요 - 그리고 13층을 이동하면 누구에게나 불길해요.");
 
+        // ---- star night (IDayQuery.IsStarNight, Day 7): 7 is lucky for everyone, wish stars
+        /// <summary>Star-night rule-box line.</summary>
+        public static readonly Loc RuleStarNight = new Loc("Star night: 7 = lucky for ALL", "별의 밤: 7 = 모두 행운");
+        /// <summary>Star-night HUD badge.</summary>
+        public static readonly Loc StarNightBadge = new Loc("STAR NIGHT · 7 lucky for all", "별이 쏟아지는 밤 · 7 = 모두 행운");
+        /// <summary>Star-night intro card line under the data intro. {0} = Luck per wish.</summary>
+        public static readonly Loc StarNightIntro = new Loc("Tonight 7 is LUCKY for everyone. Shooting stars will cross the sky - click one (or press E) to make a wish: +{0} Luck!",
+            "오늘 밤은 7이 누구에게나 행운이에요. 별똥별이 지나가면 클릭(또는 E)해서 소원을 비세요: 운 +{0}!");
+        /// <summary>Hint next to a wish star until the first wish of the run.</summary>
+        public static readonly Loc WishHint = new Loc("Make a wish! [E]", "소원을 빌어요! [E]");
+        /// <summary>Float-up when a wish comes true. {0} = Luck gained.</summary>
+        public static readonly Loc WishGranted = new Loc("Wish granted! +{0} Luck", "소원 성취! +{0} 운");
+        /// <summary>One-time explain card on star night (tutorial hints on).</summary>
+        public static readonly Loc WishCardTitle = new Loc("WISH STARS", "소원의 별");
+        /// <summary>{0} = Luck per wish.</summary>
+        public static readonly Loc WishCardBody = new Loc("Shooting stars cross the sky tonight - only for a moment! Click one (or press E) to make a wish: +{0} Luck.",
+            "오늘 밤엔 별똥별이 하늘을 가로질러요 - 아주 잠깐! 클릭(또는 E)해서 소원을 빌면 운 +{0}.");
+
+        // ---- day-start banner (Running begins)
+        public static readonly Loc DayBanner = new Loc("DAY {0}", "{0}일차");
+        public static readonly Loc FinalDayBanner = new Loc("FINAL DAY", "마지막 날");
+
         // ---- 666 curse (an unlucky 6 from a devout guest)
         public const string CurseNumber = "666!";
         public static readonly Loc CurseCaption = new Loc("Devout guest: unlucky 6 counts DOUBLE!", "신앙심 깊은 손님: 불길한 6은 두 배!");
@@ -121,6 +143,8 @@ namespace FloorF.UI
 
         // ---- title
         public const string GameName = "FLOOR F";
+        /// <summary>Brass plate under the title logo.</summary>
+        public static readonly Loc Tagline = new Loc("A LUCKY NUMBER HOTEL", "행운의 숫자 호텔");
         public static readonly Loc Credits = new Loc("Made for the 2026 Unity Game Jam   •   music, sound, font & icons: see CREDITS",
             "2026 Unity Game Jam 출품작   •   음악·효과음·폰트·아이콘: 크레딧 참고");
         public static readonly Loc CreditsButton = new Loc("CREDITS", "크레딧");

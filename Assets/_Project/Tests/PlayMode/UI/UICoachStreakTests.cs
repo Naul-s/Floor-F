@@ -216,7 +216,7 @@ namespace FloorF.Tests.PlayMode.UI
             GameServices.Get<IGameSettings>().UseKorean = ko;
             yield return UITestDriver.Frames(3);
             Assert.IsTrue(ui.TitleMenuVisible);
-            Assert.AreEqual("", ui.TitleMenuPanels, "no shared panel and no box behind the logo");
+            Assert.AreEqual("", ui.TitleMenuPanels, "no shared panel and no box behind the logo (its own tagline plate aside)");
             var size = ui.CanvasSize;
 
             var logo = ui.TitlePartRect(MenuView.TitlePart.Logo);
@@ -233,7 +233,7 @@ namespace FloorF.Tests.PlayMode.UI
                 Assert.AreEqual(size.x * 0.5f, b.center.x, 1f, "buttons centred: " + b);
                 Assert.LessOrEqual(b.width, size.x * 0.35f, "narrow: the hotel stays visible beside them");
                 Assert.GreaterOrEqual(b.yMin, size.y * 0.2f, "bottom 20% clear for the street: " + b);
-                Assert.LessOrEqual(b.yMax, logo.yMin - 24f, "below the logo");
+                Assert.LessOrEqual(b.yMax, ui.TitlePartRect(MenuView.TitlePart.Tagline).yMin - 24f, "below the logo and its tagline");
             }
             Assert.Greater(start.yMin, credits.yMax, "START on top");
             Assert.Greater(credits.yMin, language.yMax, "then CREDITS, then the language toggle");
