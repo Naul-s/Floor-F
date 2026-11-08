@@ -15,6 +15,8 @@ namespace FloorF.Core
         /// Rule 3 (ride distance): a delivery stop also scores the distance the rider will have travelled there, so it
         /// prefers stop orders that avoid an unlucky distance (or hit a lucky one); when the best stop would still end an
         /// unlucky ride it takes a short detour (moving past floors without opening) if that fixes the distance cheaply.
+        /// Patience first: no label-only stops while a waiting guest has used half their patience, and a delivery gains
+        /// value with every floor the rider has already ridden (nobody is carried around forever).
         /// Star night: judges with 7 Lucky for everyone (<see cref="StarNightRules"/>) and wishes on every shooting star it
         /// sees (when the control is the <see cref="GameSession"/>).
         /// </summary>
@@ -36,6 +38,10 @@ namespace FloorF.Core
         const float DistanceLucky = 1f, DistanceUnlucky = -3f;
         /// <summary>Longest detour (extra floors) the bot takes to fix an unlucky ride distance.</summary>
         const int MaxDetourFloors = 6;
+        /// <summary>No label-only stops while a waiting guest has used this much of their patience.</summary>
+        const float HurryUrgency = 0.5f;
+        /// <summary>Extra delivery value per floor a rider has already ridden.</summary>
+        const float RideUrgencyPerFloor = 0.15f;
 
         readonly IElevatorQuery elevator;
         readonly IElevatorControl control;
@@ -213,6 +219,8 @@ namespace FloorF.Core
             int best = -1;
             float bestValue = float.NegativeInfinity;
             int free = elevator.Capacity - elevator.Occupancy;
+            // label-only detours (doors opened just for a lucky sign) wait while someone is running out of patience
+            bool hurry = MostUrgentWaiting() >= HurryUrgency;
             for (int f = 0; f < building.FloorCount; f++)
             {
                 var floor = new FloorIndex(f);
@@ -220,7 +228,12 @@ namespace FloorF.Core
                 bool errand = false;
                 int travel = Math.Abs(f - here.Value);
                 foreach (var r in riders)
-                    if (r.DestinationFloor == floor) { value += DeliveryValue + DistanceScore(r, r.FloorsTravelled + travel); errand = true; }
+                    if (r.DestinationFloor == floor)
+                    {
+                        // long rides get priority (nobody rides around forever, e.g. behind an honest guest's sticker aversion)
+                        value += DeliveryValue + RideUrgencyPerFloor * r.FloorsTravelled + DistanceScore(r, r.FloorsTravelled + travel);
+                        errand = true;
+                    }
                 if (free > 0 && f != closedAtFloor)
                 {
                     int n = guests.GetWaiting(floor, buffer);
@@ -234,7 +247,7 @@ namespace FloorF.Core
                     }
                 }
                 float label = FloorScore(floor);
-                if (!errand && (label <= 0f || f == here.Value)) continue; // nothing to gain there
+                if (!errand && (label <= 0f || f == here.Value || hurry)) continue; // nothing to gain there (or no time)
                 value += label - PerFloorCost * Math.Abs(f - here.Value);
                 if (value > bestValue) { bestValue = value; best = f; }
             }
@@ -242,6 +255,19 @@ namespace FloorF.Core
             if (best != here.Value && TryDetour(here, best, out int detour)) { Go(detour); return; }
             if (best == here.Value) OpenHere(here);
             else Go(best);
+        }
+
+        /// <summary>1 - patience of the most impatient waiting guest anywhere (0 = nobody waits).</summary>
+        float MostUrgentWaiting()
+        {
+            float urgency = 0f;
+            for (int f = 0; f < building.FloorCount; f++)
+            {
+                if (guests.GetWaiting(new FloorIndex(f), buffer) == 0) continue;
+                foreach (var id in buffer)
+                    if (guests.TryGet(id, out var w)) urgency = Math.Max(urgency, 1f - w.Patience01);
+            }
+            return urgency;
         }
 
         /// <summary>Rule 3 value of a ride of <paramref name="distance"/> floors for one rider (Friday the 13th aware).</summary>

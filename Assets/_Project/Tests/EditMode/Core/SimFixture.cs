@@ -125,6 +125,7 @@ namespace FloorF.Tests.EditMode.Core
             Rec<LuckJudged>(); Rec<LuckChanged>(); Rec<TipsChanged>(); Rec<FloorLabelChanged>(); Rec<StickerApplied>(); Rec<EndingReached>(); Rec<PauseChanged>();
             Rec<LuckStreakChanged>(); Rec<TutorialHoldChanged>();
             Rec<WishStarAppeared>(); Rec<WishMade>(); Rec<WishStarFaded>();
+            Rec<ShopRerolled>(); Rec<CharmBought>(); Rec<StickersExpired>(); Rec<CharmTriggered>();
         }
 
         void Rec<T>() => Bus.Subscribe<T>(e => Log.Add(e));

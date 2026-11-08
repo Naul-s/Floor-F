@@ -26,7 +26,7 @@
       "introKo": "손님은 문이 열린 층의 번호와, 문이 닫힐 때 안에 있는 인원수로 운을 판단합니다.",
       "durationSeconds": 75,
       "tutorial": false,
-      "shopStickers": ["four_to_f", "any_to_8"],
+      "shopStickers": ["four_to_f", "any_to_3", "ginseng_tea", "tune_up", "any_to_8"],
       "spawns": [
         { "time": 1, "guest": "korean_grandma", "floor": 1, "destination": "rooms" },
         { "time": 1.5, "guest": "western_tourist", "floor": 1, "destination": "karaoke" },
@@ -43,7 +43,7 @@
       "introKo": "바쁜 사업가 손님. 8은 재물, 9는 장수입니다. 손님들은 자기가 탄 층 수도 셉니다. 관광객은 7개 층을 타면 기뻐하고, 13개 층이면 질겁하죠.",
       "durationSeconds": 90,
       "tutorial": false,
-      "shopStickers": ["four_to_f", "any_to_8"],
+      "shopStickers": ["four_to_f", "any_to_3", "ginseng_tea", "tune_up", "any_to_8", "any_to_9", "any_to_7"],
       "spawns": [
         { "time": 2, "guest": "chinese_businessman", "floor": 1, "destination": "casino" },
         { "time": 2, "guest": "western_tourist", "floor": 1, "destination": "karaoke" },
@@ -66,7 +66,7 @@
       "introKo": "신혼부부는 둘이 함께 탑니다. 그들에게 9는 괴로움, 사업가에게는 장수입니다. 독실한 신부님은 6(666, 짐승의 수)을 두려워해서, 그의 6은 두 배로 불길합니다.",
       "durationSeconds": 100,
       "tutorial": false,
-      "shopStickers": ["four_to_f", "any_to_8"],
+      "shopStickers": ["four_to_f", "any_to_3", "ginseng_tea", "tune_up", "any_to_8", "any_to_9", "any_to_7", "any_to_6", "any_to_13", "maneki_neko"],
       "spawns": [
         { "time": 2, "guest": "japanese_couple", "floor": 1, "destination": "bar" },
         { "time": 6, "guest": "chinese_businessman", "floor": 1, "destination": "rooftop" },
@@ -92,7 +92,7 @@
       "introKo": "모두가 한꺼번에 몰려옵니다. 도박꾼은 딱 일곱 명이 될 때만 탑니다. 이탈리아 할아버지는 13을 좋아하고 17을 싫어해요. 13개 층을 태우려면 돌아가야 하죠. 많은 호텔이 4층을 F로 가립니다. 가려도, 층은 그대로 있죠.",
       "durationSeconds": 110,
       "tutorial": false,
-      "shopStickers": ["four_to_f", "any_to_8"],
+      "shopStickers": ["four_to_f", "any_to_3", "ginseng_tea", "tune_up", "any_to_8", "any_to_9", "any_to_7", "any_to_6", "any_to_13", "maneki_neko", "talisman"],
       "spawns": [
         { "time": 2, "guest": "chinese_businessman", "floor": 1, "destination": "casino" },
         { "time": 3, "guest": "japanese_couple", "floor": 1, "destination": "bar" },
@@ -121,7 +121,8 @@
       "durationSeconds": 120,
       "tutorial": false,
       "friday13": true,
-      "shopStickers": ["four_to_f", "any_to_8"],
+      "weather": "rain",
+      "shopStickers": ["four_to_f", "any_to_3", "ginseng_tea", "tune_up", "any_to_8", "any_to_9", "any_to_7", "any_to_6", "any_to_13", "maneki_neko", "talisman"],
       "spawns": [
         { "time": 2, "guest": "korean_grandma", "floor": 1, "destination": "rooms" },
         { "time": 4, "guest": "chinese_businessman", "floor": 1, "destination": "casino" },
@@ -146,7 +147,7 @@
       "introKo": "한 호텔에서 결혼식이 두 건. 중국 하객은 짝수를 좋아합니다. 좋은 일은 쌍으로 오니까요(6, 8). 일본 하객은 축의금을 홀수로 냅니다(3, 5, 7). 둘로 나눌 수 없으니, 부부도 갈라지지 않는다고요.",
       "durationSeconds": 100,
       "tutorial": false,
-      "shopStickers": ["four_to_f", "any_to_7"],
+      "shopStickers": ["four_to_f", "any_to_3", "ginseng_tea", "tune_up", "any_to_8", "any_to_9", "any_to_7", "any_to_6", "any_to_13", "maneki_neko", "talisman"],
       "spawns": [
         { "time": 2, "guest": "chinese_wedding_party", "floor": 2, "destination": "rooftop" },
         { "time": 2, "guest": "japanese_wedding_guest", "floor": 2, "destination": "lobby" },
