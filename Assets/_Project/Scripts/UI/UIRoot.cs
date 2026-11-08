@@ -347,6 +347,7 @@ namespace FloorF.UI
         internal string StarBadgeText => hud.StarBadgeText;
         internal float StarBadgeFontSize => hud.StarBadgeFontSize;
         internal bool StarBadgeFits => hud.StarBadgeFits;
+        internal string StarBadgeMeasure => hud.StarBadgeMeasure;
         internal Rect StarBadgeRect => UIBuild.CanvasRect(ctx.CanvasRect, hud.StarBadge);
         internal bool FlowStarLook => flow.StarLook;
         internal int WishTargetCount => wish.TargetCount;

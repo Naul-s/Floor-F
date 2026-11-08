@@ -19,7 +19,7 @@ namespace FloorF.UI
         /// <summary>Friday the 13th: the rule box gets one more (red) line and the badge sits under it.</summary>
         public const float Friday13LineH = 22f, BadgeGap = 8f, BadgeH = 40f;
         /// <summary>Star night badge: two 24px lines ("STAR NIGHT" / "7 lucky for all") - the Korean line is too long for one.</summary>
-        public const float StarBadgeH = 64f;
+        public const float StarBadgeH = 72f;
         const float BrokenLife = 1.6f, PopLife = 0.35f;
         readonly UIContext ctx;
         readonly TextMeshProUGUI dayText, clockText, luckCaption, luckValue, luckDelta, tipsCaption, tipsValue, tipsDelta;
@@ -413,6 +413,7 @@ namespace FloorF.UI
         public bool StarBadgeVisible => starBadge.gameObject.activeInHierarchy;
         public string StarBadgeText => StarBadgeVisible ? starText.text : null;
         public float StarBadgeFontSize => starText.fontSize;
+        public string StarBadgeMeasure => starText.GetPreferredValues(starText.text, float.PositiveInfinity, float.PositiveInfinity) + " in " + starText.rectTransform.rect.size;
         public bool StarBadgeFits
         {
             get
