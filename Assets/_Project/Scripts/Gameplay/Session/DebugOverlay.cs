@@ -8,7 +8,7 @@ namespace FloorF.Gameplay
 {
     /// <summary>
     /// Editor/development-only text readout (IMGUI) so the rules can be played before the real HUD exists.
-    /// Hidden by default; F1 toggles it. While shown, in the Shop, B buys the first affordable offer onto the first floor it fits (prefers the real 4th).
+    /// Hidden by default; F1 toggles it. While shown, in the Shop, B buys the first affordable offer (a charm, or a label onto the first floor it fits - prefers the real 4th), R rerolls.
     /// Not shown in release builds; not part of the UI module.
     /// </summary>
     sealed class DebugOverlay : MonoBehaviour
@@ -27,6 +27,7 @@ namespace FloorF.Gameplay
             if (kb == null || session == null) return;
             if (kb.f1Key.wasPressedThisFrame) visible = !visible;
             if (visible && kb.bKey.wasPressedThisFrame && session.IsOpen) BuyFirst();
+            if (visible && kb.rKey.wasPressedThisFrame && session.IsOpen) session.Reroll();
         }
 
         void BuyFirst()
@@ -34,6 +35,7 @@ namespace FloorF.Gameplay
             var b = session.Building;
             foreach (var offer in session.Offers)
             {
+                if (offer.Sticker.IsCharm) { if (session.TryBuy(offer.Id) == StickerApplyResult.Applied) return; continue; }
                 if (session.TryBuyAndApply(offer.Id, StoryRules.RealFourthFloor) == StickerApplyResult.Applied) return;
                 for (int f = b.FloorCount - 1; f >= 0; f--)
                     if (session.TryBuyAndApply(offer.Id, new FloorIndex(f)) == StickerApplyResult.Applied) return;
@@ -79,7 +81,8 @@ namespace FloorF.Gameplay
                     break;
                 case DayPhase.Shop:
                     foreach (var o in session.Offers) sb.Append(o.Sticker.name).Append("  $").Append(o.Price).Append("  x").Append(o.Remaining).Append('\n');
-                    sb.Append("[B] buy first  [Enter] next day");
+                    foreach (var c in session.ActiveCharms) sb.Append("  charm for tomorrow: ").Append(c.name).Append('\n');
+                    sb.Append("[B] buy first  [R] reroll $").Append(session.RerollCost).Append(" (").Append(session.RerollsLeft).Append(" left)  [Enter] next day");
                     break;
                 case DayPhase.Ending: sb.Append("ENDING: ").Append(session.Ending).Append("\n[Enter] play again"); break;
             }
