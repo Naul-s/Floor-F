@@ -32,7 +32,8 @@ namespace FloorF.Tests.EditMode.Content
                 Assert.IsFalse(string.IsNullOrWhiteSpace(s.nameKo), s.id + ".nameKo");
                 Assert.IsFalse(string.IsNullOrWhiteSpace(s.description), s.id + ".description");
                 Assert.IsFalse(string.IsNullOrWhiteSpace(s.descriptionKo), s.id + ".descriptionKo");
-                Assert.LessOrEqual(s.description.Length, 120, s.id + ": one short line");
+                Assert.LessOrEqual(s.description.Length, 55, s.id + ": one short line (4 offer cards must fit the shop panel)");
+                Assert.LessOrEqual(s.descriptionKo.Length, 30, s.id + ": one short line (ko)");
                 Assert.That(s.kind, Is.EqualTo(StickerKinds.Label).Or.EqualTo(StickerKinds.Charm), s.id + ".kind");
                 Assert.That(s.weight, Is.GreaterThan(0f).And.LessThan(100f), s.id + ".weight (0 = never offered)");
                 Assert.That(s.stock, Is.EqualTo(-1).Or.GreaterThanOrEqualTo(1), s.id + ".stock");
