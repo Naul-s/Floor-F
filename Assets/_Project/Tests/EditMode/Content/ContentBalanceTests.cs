@@ -26,6 +26,7 @@ namespace FloorF.Tests.EditMode.Content
             GuestLineTriggers.Spawn, GuestLineTriggers.Board, GuestLineTriggers.LuckyFloor, GuestLineTriggers.UnluckyFloor,
             GuestLineTriggers.LuckyOccupancy, GuestLineTriggers.UnluckyOccupancy, GuestLineTriggers.Delivered,
             GuestLineTriggers.Impatient, GuestLineTriggers.Left, GuestLineTriggers.Relabelled, GuestLineTriggers.Special,
+            GuestLineTriggers.LuckyDistance, GuestLineTriggers.UnluckyDistance,
         };
 
         static readonly string[] NumberWords = { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
@@ -375,6 +376,149 @@ namespace FloorF.Tests.EditMode.Content
                 if (reachableUnlucky.Length > 0)
                     Assert.IsTrue(MentionsAny(g.FindLine(GuestLineTriggers.UnluckyOccupancy).text, reachableUnlucky), g.id + ": unlucky_occupancy line should name the headcount");
             }
+        }
+
+        // ------------------------------------------------------------ rule 3: ride distance, 666, Friday the 13th
+
+        /// <summary>Ride distance of a direct trip (no detour) for a spawn with a known destination, else -1.</summary>
+        int DirectDistance(SpawnDef s)
+        {
+            int dest = DestinationNumber(s);
+            return dest > 0 ? Math.Abs(dest - s.floor) : -1;
+        }
+
+        /// <summary>Rule 3 verdict for <paramref name="distance"/> floors on day <paramref name="d"/> (Friday: 13 is unlucky for all).</summary>
+        static LuckVerdict JudgeDistance(DayDef d, LuckProfile p, int distance)
+            => d.friday13 && distance == StoryRules.FridayDistance ? LuckVerdict.Unlucky : p.Judge(distance);
+
+        /// <summary>Ride lengths reachable with at most one turn: start -> x -> destination (x = destination: direct).</summary>
+        IEnumerable<int> OneTurnDistances(int start, int dest)
+            => Enumerable.Range(1, data.FloorCount).Select(x => Math.Abs(x - start) + Math.Abs(dest - x)).Distinct();
+
+        /// <summary>Theme: every guest who can feel a ride distance has the reaction lines, and they name the number.</summary>
+        [Test]
+        public void DistanceLines_ExistAndNameTheirNumber()
+        {
+            foreach (var g in data.Guests.Where(x => !x.hideNumbers))
+            {
+                if (g.lucky.Any(n => n >= 1))
+                {
+                    var l = g.FindLine(GuestLineTriggers.LuckyDistance);
+                    Assert.IsNotNull(l, g.id + ": no lucky_distance line");
+                    Assert.IsTrue(MentionsAny(l.text, g.lucky), g.id + ": lucky_distance should name the distance - " + l.text);
+                }
+                if (g.unlucky.Any(n => n >= 1))
+                {
+                    var l = g.FindLine(GuestLineTriggers.UnluckyDistance);
+                    Assert.IsNotNull(l, g.id + ": no unlucky_distance line");
+                    Assert.IsTrue(MentionsAny(l.text, g.unlucky), g.id + ": unlucky_distance should name the distance - " + l.text);
+                }
+            }
+        }
+
+        [Test]
+        public void NewSuperstitions_Numbers()
+        {
+            var tourist = data.GetGuest(new GuestArchetypeId("western_tourist"));
+            CollectionAssert.Contains(tourist.unlucky, 13, "the West's 13");
+            CollectionAssert.Contains(tourist.lucky, 7);
+
+            var priest = data.GetGuest(new GuestArchetypeId("western_priest"));
+            Assert.IsTrue(priest.HasTrait(GuestTraits.Devout), "666 counts double");
+            CollectionAssert.Contains(priest.unlucky, StoryRules.DevoutNumber);
+            CollectionAssert.Contains(priest.lucky, 7);
+            var accountant = data.GetGuest(new GuestArchetypeId("honest_accountant"));
+            CollectionAssert.Contains(accountant.lucky, StoryRules.DevoutNumber, "the priest's 6 is the accountant's lucky 6 (conflict)");
+
+            var nonno = data.GetGuest(new GuestArchetypeId("italian_nonno"));
+            CollectionAssert.AreEqual(new[] { 13 }, nonno.lucky, "Italy: 'fare tredici'");
+            CollectionAssert.AreEqual(new[] { 17 }, nonno.unlucky, "XVII = VIXI");
+            Assert.IsTrue(nonno.lucky.Concat(nonno.unlucky).All(n => n > data.FloorCount),
+                "his numbers are neither a label nor a headcount: only a ride distance (detour) reaches them");
+        }
+
+        /// <summary>Every new archetype's lesson actually happens on the days that introduce it (no dead content).</summary>
+        [Test]
+        public void NewArchetypes_LessonsReachable()
+        {
+            var days = data.Days.Where(d => !d.tutorial).ToArray();
+
+            // tourist: a lucky 7-floor ride is on the schedule (directly or with one turn)
+            Assert.IsTrue(days.SelectMany(d => d.spawns).Where(s => s.guest == "western_tourist" && DestinationNumber(s) > 0)
+                    .Any(s => OneTurnDistances(s.floor, DestinationNumber(s)).Contains(7)), "tourist: a 7-floor ride must be possible");
+
+            // priest: a ride that is exactly 6 floors when driven straight (the 666 lesson), with a cheap detour that avoids it
+            var priestRides = days.SelectMany(d => d.spawns).Where(s => s.guest == "western_priest").ToArray();
+            Assert.IsNotEmpty(priestRides, "the priest is never scheduled");
+            var p6 = priestRides.Where(s => DirectDistance(s) == StoryRules.DevoutNumber).ToArray();
+            Assert.IsNotEmpty(p6, "priest: some direct ride is 6 floors (666)");
+            Assert.IsTrue(p6.All(s => OneTurnDistances(s.floor, DestinationNumber(s)).Any(n => n != 6 && n <= 10)),
+                "priest: the 6-floor ride can be fixed with a short detour");
+
+            // Italian: some ride reaches 13 with one turn AND a co-rider (same floor and time) wants to go to that turning floor
+            bool natural = false;
+            foreach (var d in days)
+                foreach (var s in d.spawns.Where(x => x.guest == "italian_nonno"))
+                {
+                    int dest = DestinationNumber(s);
+                    Assert.Greater(dest, 0, "Italian destinations are scripted (the lesson needs a known route)");
+                    Assert.AreEqual(1, Math.Abs(dest - s.floor) % 2, "a ride of 13 needs an odd straight distance (parity)");
+                    Assert.IsTrue(OneTurnDistances(s.floor, dest).Contains(13), "day " + d.day + ": 13 needs one turn at most");
+                    natural |= d.spawns.Any(o => !ReferenceEquals(o, s) && o.floor == s.floor && Math.Abs(o.time - s.time) < 0.01f
+                                                 && DestinationNumber(o) > 0
+                                                 && Math.Abs(DestinationNumber(o) - s.floor) + Math.Abs(dest - DestinationNumber(o)) == 13);
+                }
+            Assert.IsTrue(natural, "Italian: delivering a co-rider first should ride him exactly 13 floors");
+        }
+
+        /// <summary>
+        /// Fair rule 3: a scripted guest's straight ride is unlucky by distance at most once per day (the deliberate lesson),
+        /// and never on Day 0 or in the first real day's opening (those teach rules 1 and 2).
+        /// </summary>
+        [Test]
+        public void DirectRides_RarelyUnluckyByDistance()
+        {
+            foreach (var d in data.Days)
+            {
+                var bad = d.spawns.Where(s => DirectDistance(s) > 0 && JudgeDistance(d, Profile(s), DirectDistance(s)) == LuckVerdict.Unlucky)
+                               .Select(s => s.guest + "@" + s.time).ToArray();
+                bool lesson = d.tutorial || data.DisplayDayNumber(d.Id) == 1;
+                Assert.LessOrEqual(bad.Length, lesson ? 0 : 1, "day " + d.day + ": straight rides unlucky by distance: " + string.Join(", ", bad));
+            }
+        }
+
+        [Test]
+        public void DayIntros_ExplainNewRules()
+        {
+            DayDef FirstWith(string guest) => data.Days.First(d => d.spawns.Any(s => s.guest == guest));
+            var priestDay = FirstWith("western_priest");
+            StringAssert.Contains("6", priestDay.intro, "the priest's day explains 666");
+            StringAssert.Contains("6", priestDay.introKo);
+            var nonnoDay = FirstWith("italian_nonno");
+            foreach (var t in new[] { nonnoDay.intro, nonnoDay.introKo })
+            {
+                StringAssert.Contains("13", t);
+                StringAssert.Contains("17", t);
+            }
+            Assert.Greater(nonnoDay.day, priestDay.day, "one new superstition at a time");
+
+            // rule 3 is explained on a real day before the priest arrives
+            var distanceDay = data.Days.First(d => !d.tutorial && d.intro.Contains("13") && d.intro.Contains("7"));
+            Assert.Less(distanceDay.day, priestDay.day);
+            Assert.IsTrue(distanceDay.introKo.Contains("13") && distanceDay.introKo.Contains("7"));
+        }
+
+        [Test]
+        public void Friday13_IsTheLastDay_AndSaysSo()
+        {
+            var fridays = data.Days.Where(d => d.friday13).ToArray();
+            Assert.AreEqual(1, fridays.Length, "one Friday the 13th");
+            var f = fridays[0];
+            Assert.AreEqual(data.DayCount, f.day, "the last real day");
+            Assert.IsFalse(f.tutorial);
+            foreach (var t in new[] { f.title, f.titleKo, f.intro, f.introKo }) StringAssert.Contains("13", t);
+            Assert.Greater(data.Rules.friday13PenaltyMultiplier, 1f, "bad luck must hit harder on Friday the 13th");
+            Assert.IsTrue(f.spawns.Any(s => s.guest == "mystery_guest"), "still the night of the 4th-floor guest");
         }
 
         [Test]

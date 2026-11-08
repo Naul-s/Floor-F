@@ -12,6 +12,9 @@ namespace FloorF.Core
         /// Simple greedy luck player: scores every floor as the next stop by the label reactions of the riders inside,
         /// delivery/pickup value, waiting urgency and distance (so it detours to lucky labels and postpones floors that
         /// scare a rider); while guests board it closes early when the next boarder would make the headcount worse.
+        /// Rule 3 (ride distance): a delivery stop also scores the distance the rider will have travelled there, so it
+        /// prefers stop orders that avoid an unlucky distance (or hit a lucky one); when the best stop would still end an
+        /// unlucky ride it takes a short detour (moving past floors without opening) if that fixes the distance cheaply.
         /// </summary>
         LuckAware = 1,
     }
@@ -28,6 +31,9 @@ namespace FloorF.Core
         const float LabelLucky = 1f, LabelUnlucky = -4f, HonestRelabelled = -2.5f;
         const float HeadcountLucky = 1.5f, HeadcountUnlucky = -2.5f;
         const float DeliveryValue = 1f, PickupValue = 0.8f, UrgencyValue = 1f, PerFloorCost = 0.2f;
+        const float DistanceLucky = 1f, DistanceUnlucky = -3f;
+        /// <summary>Longest detour (extra floors) the bot takes to fix an unlucky ride distance.</summary>
+        const int MaxDetourFloors = 6;
 
         readonly IElevatorQuery elevator;
         readonly IElevatorControl control;
@@ -189,8 +195,9 @@ namespace FloorF.Core
                 var floor = new FloorIndex(f);
                 float value = 0f;
                 bool errand = false;
+                int travel = Math.Abs(f - here.Value);
                 foreach (var r in riders)
-                    if (r.DestinationFloor == floor) { value += DeliveryValue; errand = true; }
+                    if (r.DestinationFloor == floor) { value += DeliveryValue + DistanceScore(r, r.FloorsTravelled + travel); errand = true; }
                 if (free > 0 && f != closedAtFloor)
                 {
                     int n = guests.GetWaiting(floor, buffer);
@@ -209,8 +216,52 @@ namespace FloorF.Core
                 if (value > bestValue) { bestValue = value; best = f; }
             }
             if (best < 0) return;
+            if (best != here.Value && TryDetour(here, best, out int detour)) { Go(detour); return; }
             if (best == here.Value) OpenHere(here);
             else Go(best);
+        }
+
+        /// <summary>Rule 3 value of a ride of <paramref name="distance"/> floors for one rider (Friday the 13th aware).</summary>
+        float DistanceScore(GuestInfo r, int distance)
+        {
+            var v = r.Luck.Judge(distance);
+            if (dayQuery != null && dayQuery.IsFriday13 && distance == StoryRules.FridayDistance) v = LuckVerdict.Unlucky;
+            return v == LuckVerdict.Lucky ? DistanceLucky : v == LuckVerdict.Unlucky ? DistanceUnlucky : 0f;
+        }
+
+        /// <summary>
+        /// When going straight to <paramref name="stop"/> would end someone's ride on an unlucky distance, the cheapest
+        /// floor to pass through first (no door opening there, so no label judgement) that makes the deliveries at the
+        /// stop better, net of the extra travel.
+        /// </summary>
+        bool TryDetour(FloorIndex here, int stop, out int detour)
+        {
+            detour = -1;
+            int direct = Math.Abs(stop - here.Value);
+            float directScore = 0f;
+            bool unlucky = false;
+            foreach (var r in riders)
+            {
+                if (r.DestinationFloor.Value != stop) continue;
+                float d = DistanceScore(r, r.FloorsTravelled + direct);
+                directScore += d;
+                if (d < 0f) unlucky = true;
+            }
+            if (!unlucky) return false;
+            float bestGain = 0f;
+            for (int x = 0; x < building.FloorCount; x++)
+            {
+                if (x == here.Value || x == stop) continue;
+                int via = Math.Abs(x - here.Value) + Math.Abs(stop - x);
+                int extra = via - direct;
+                if (extra <= 0 || extra > MaxDetourFloors) continue;
+                float score = 0f;
+                foreach (var r in riders)
+                    if (r.DestinationFloor.Value == stop) score += DistanceScore(r, r.FloorsTravelled + via);
+                float gain = score - directScore - PerFloorCost * extra;
+                if (gain > bestGain) { bestGain = gain; detour = x; }
+            }
+            return detour >= 0;
         }
 
         void OpenHere(FloorIndex here)

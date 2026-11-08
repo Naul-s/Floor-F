@@ -79,15 +79,15 @@ namespace FloorF.Tests.EditMode.Gameplay
             Assert.IsTrue(judged.Any(j => j.Source == LuckSource.FloorLabel && j.Number == 3 && j.Verdict == LuckVerdict.Lucky), "lesson 1: lucky 3");
             Close();
 
-            // wave 2: three grandmas -> sauna (5): lucky head-count 3
+            // wave 2: three grandmas -> rooms (6): lucky head-count 3 (5 floors: neutral ride distance)
             judged.Clear();
             RunUntil(() => Active == 3, "wave 2 after the hotel emptied");
             GoTo(1);
             OpenAndWait(() => s.Elevator.Occupancy == 3 && !s.IsTransferring, "three board");
             Close();
             Assert.AreEqual(3, judged.Count(j => j.Source == LuckSource.Occupancy && j.Number == 3 && j.Verdict == LuckVerdict.Lucky), "lesson 2: three inside");
-            GoTo(5);
-            OpenAndWait(() => Active == 0, "they get off at 5");
+            GoTo(6);
+            OpenAndWait(() => Active == 0, "they get off at 6");
             Close();
 
             // wave 3: tourist -> bar (7), grandma -> karaoke (4): unlucky 4, lucky 7
