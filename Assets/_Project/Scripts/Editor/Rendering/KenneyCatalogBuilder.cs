@@ -370,13 +370,15 @@ namespace FloorF.EditorTools
         static List<(string accessory, int variant, string character, string colorHex)> WithAutoMapped(GuestCatalogDef defs)
         {
             var list = new List<(string accessory, int variant, string character, string colorHex)>(GuestMap);
-            int spare = 0;
             if (defs?.guests == null) return list;
+            // only characters no mapped guest uses yet (GuestMap grew past the old spare list: the priest took male-c)
+            var spares = SpareCharacters.Where(c => list.All(e => e.character != c)).ToList();
+            int spare = 0;
             foreach (var d in defs.guests)
             {
                 if (d == null || string.IsNullOrEmpty(d.accessory) || list.Any(e => e.accessory == d.accessory)) continue;
-                if (spare >= SpareCharacters.Length || list.Count >= PaletteTile - 1) break;
-                list.Add((d.accessory, 0, SpareCharacters[spare++], string.IsNullOrEmpty(d.color) ? "#808080" : d.color));
+                if (spare >= spares.Count || list.Count >= PaletteTile - 1) break;
+                list.Add((d.accessory, 0, spares[spare++], string.IsNullOrEmpty(d.color) ? "#808080" : d.color));
             }
             return list;
         }
