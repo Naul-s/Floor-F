@@ -21,6 +21,17 @@ namespace FloorF.Rendering
         /// <summary>Screen-space rect (inside the canvas) the image covers after aspect fit. For tests / debugging.</summary>
         public Rect DisplayRect { get; private set; }
         public Texture Texture => texture;
+        Material material;
+        /// <summary>Material drawing the target (null = the default UI material; PixelGlow sets its composite).</summary>
+        public Material Material => material;
+
+        public void SetMaterial(Material m)
+        {
+            if (material == m) return;
+            material = m;
+            dirty = true;
+            Rebuild();
+        }
 
         public void SetTexture(Texture tex, int width, int height)
         {
@@ -73,7 +84,7 @@ namespace FloorF.Rendering
 
             canvasRenderer.SetMesh(mesh);
             canvasRenderer.materialCount = 1;
-            canvasRenderer.SetMaterial(Canvas.GetDefaultCanvasMaterial(), 0);
+            canvasRenderer.SetMaterial(material != null ? material : Canvas.GetDefaultCanvasMaterial(), 0);
             canvasRenderer.SetTexture(texture);
             canvasRenderer.SetColor(Color.white);
         }

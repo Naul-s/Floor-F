@@ -8,19 +8,19 @@ using NUnit.Framework;
 namespace FloorF.Tests.EditMode.Content
 {
     /// <summary>
-    /// Sticker economy on the REAL Resources/Data/*.json (content-designer): the shop must be a choice, not a formality.
-    /// A LuckAware <see cref="AutoPilot"/> earns the tips; at every shop a greedy buyer spends everything it can.
-    /// Target: every visit it can afford a sticker, but never everything on offer (money runs out before stock/floors do).
-    /// Intent + before/after numbers: Docs/Content/balance.md ("경제").
+    /// Shop economy on the REAL Resources/Data/*.json (content-designer): one-day stickers + charms, random offers, rerolls.
+    /// A bot earns the tips; at every shop the greedy <see cref="ShopBot"/> buys whatever helps tomorrow and rerolls while
+    /// it can. Targets: every visit it can afford something, a good player buys 2-3 things, and money (not stock) is the
+    /// limit - the shop stays a choice. Intent + before/after numbers: Docs/Content/balance.md ("경제").
     /// </summary>
     public class EconomyTests
     {
         static readonly int[] Seeds = { 1, 2, 3, 4, 5, 6 };
 
-        /// <summary>Where the greedy buyer puts an "any floor" sticker, best first (never 7/8: already lucky).</summary>
-        static readonly int[] AnyStickerFloors = { 9, 5, 2, 6, 3, 1, 4, 7 };
-
         const string FourToF = "four_to_f";
+
+        /// <summary>Upper bound for the greedy shopper's average purchases per visit (it rerolls too).</summary>
+        const double MaxAveragePurchases = 6.0;
 
         GameData data;
 
@@ -29,66 +29,21 @@ namespace FloorF.Tests.EditMode.Content
 
         // ------------------------------------------------------------ runner
 
-        sealed class ShopVisit
+        sealed class Day
         {
-            public int Day;
-            public int TipsEarnedToday;
-            public int TipsBefore;
-            public int TipsAfter;
-            public readonly List<string> Bought = new List<string>();
-            /// <summary>Something offered, in stock and applicable, but too expensive (money was the limit).</summary>
-            public bool MoneyWasTheLimit;
-            /// <summary>Cheapest applicable offer at the start of the visit (int.MaxValue = none).</summary>
-            public int CheapestApplicable = int.MaxValue;
-
-            public override string ToString() =>
-                "day " + Day + ": earned " + TipsEarnedToday + ", had " + TipsBefore + " -> bought [" + string.Join(", ", Bought) + "] -> left "
-                + TipsAfter + (MoneyWasTheLimit ? " (money ran out)" : " (bought everything)");
+            public int Number, TipsEarned;
+            public ShopBot.Visit Visit;
+            public override string ToString() => "earned " + TipsEarned + ", " + (Visit != null ? Visit.ToString() : "no shop");
         }
 
-        static IEnumerable<FloorIndex> Targets(StickerDef s)
-        {
-            if (!s.MatchesAnyLabel) return new[] { StoryRules.RealFourthFloor };
-            return AnyStickerFloors.Select(FloorIndex.FromPhysicalNumber);
-        }
-
-        /// <summary>Greedy: buy the first affordable applicable sticker (offer order, then floor order) until nothing more can be bought.</summary>
-        static void BuyGreedy(GameSession s, ShopVisit v, bool buy)
-        {
-            v.TipsBefore = s.Score.Tips;
-            foreach (var o in s.Offers)
-                foreach (var f in Targets(o.Sticker))
-                {
-                    var r = s.CanBuyAndApply(o.Id, f);
-                    if (r == StickerApplyResult.Applied || r == StickerApplyResult.NotEnoughTips) v.CheapestApplicable = Math.Min(v.CheapestApplicable, o.Price);
-                }
-
-            bool bought = buy;
-            while (bought)
-            {
-                bought = false;
-                foreach (var o in s.Offers)
-                {
-                    foreach (var f in Targets(o.Sticker))
-                        if (s.TryBuyAndApply(o.Id, f) == StickerApplyResult.Applied) { v.Bought.Add(o.Id.Value + "@" + f.PhysicalNumber); bought = true; break; }
-                    if (bought) break;
-                }
-            }
-
-            foreach (var o in s.Offers)
-                foreach (var f in Targets(o.Sticker))
-                    if (s.CanBuyAndApply(o.Id, f) == StickerApplyResult.NotEnoughTips) v.MoneyWasTheLimit = true;
-            v.TipsAfter = s.Score.Tips;
-        }
-
-        /// <summary>Plays days 1..(last-1) with the given bot and records every shop visit.</summary>
-        List<ShopVisit> Run(int seed, AutoPilotStrategy strategy, bool buy)
+        /// <summary>Plays days 1..(last-1) with the given bot; <paramref name="buy"/> = shop with ShopBot (else skip the shop).</summary>
+        List<Day> Run(int seed, AutoPilotStrategy strategy, bool buy)
         {
             var bus = new EventBus();
             var s = new GameSession(data, bus, new Random(seed));
-            var visits = new List<ShopVisit>();
-            int earned = 0;
-            bus.Subscribe<DayEnded>(e => earned = e.Summary.TipsEarned);
+            var days = new List<Day>();
+            var shopper = new ShopBot(data);
+            bus.Subscribe<DayEnded>(e => days.Add(new Day { Number = e.Day.Number, TipsEarned = e.Summary.TipsEarned }));
 
             var reaction = new Random(seed * 7919 + 13);
             AutoPilot pilot = null;
@@ -101,18 +56,16 @@ namespace FloorF.Tests.EditMode.Content
                 {
                     case DayPhase.Intro:
                         if (s.IsTutorial) { Assert.IsTrue(s.SkipTutorial()); break; } // the bot never plays Day 0 (no shop after it anyway)
-                        if (s.CurrentDay.Number >= data.DayCount) return visits; // the last day has no shop after it
+                        if (s.CurrentDay.Number >= data.DayCount) return days; // the last day has no shop after it
                         pilot = new AutoPilot(s.Elevator, s, s.Guests, s.Building, strategy) { Data = data };
                         s.BeginDay();
                         break;
                     case DayPhase.Summary:
-                        if (s.CurrentDay.Number >= data.DayCount) return visits;
+                        if (s.CurrentDay.Number >= data.DayCount) return days;
                         s.ContinueFromSummary();
                         break;
                     case DayPhase.Shop:
-                        var v = new ShopVisit { Day = s.CurrentDay.Number, TipsEarnedToday = earned };
-                        BuyGreedy(s, v, buy);
-                        visits.Add(v);
+                        if (buy) days[days.Count - 1].Visit = shopper.Shop(s);
                         s.FinishShopping();
                         break;
                     case DayPhase.Running:
@@ -123,35 +76,50 @@ namespace FloorF.Tests.EditMode.Content
                 }
             }
             Assert.Fail("seed " + seed + ": ended before the last day (" + s.Phase + ")");
-            return visits;
+            return days;
         }
 
         // ------------------------------------------------------------ tests
 
         /// <summary>
-        /// LuckAware play, greedy buyer: day 1 pays for 4 -> F; every shop sells it at least one sticker;
-        /// no shop lets it buy everything (it always runs out of tips first).
+        /// LuckAware play, greedy shopper: every shop sells it something; on average 2+ things per
+        /// visit; money (an item or a reroll it still wanted) is the limit at every visit.
         /// </summary>
         [Test]
-        public void Economy_StickerIsAChoice()
+        public void Economy_ShopIsAChoice()
         {
-            var fourToF = data.Stickers.Single(x => x.id == FourToF);
+            var all = new List<ShopBot.Visit>();
             foreach (var seed in Seeds)
             {
-                var visits = Run(seed, AutoPilotStrategy.LuckAware, buy: true);
-                foreach (var v in visits) TestContext.WriteLine("seed " + seed + " " + v);
-                Assert.AreEqual(data.PlayableDayCount - 1, visits.Count, "seed " + seed + ": one shop after every real day but the last");
-
-                var day1 = visits[0];
-                Assert.GreaterOrEqual(day1.TipsBefore, fourToF.price, "seed " + seed + ": day 1 must pay for 4 -> F");
-                Assert.IsTrue(day1.Bought.Any(b => b.StartsWith(FourToF)), "seed " + seed + ": 4 -> F not bought after day 1");
+                var days = Run(seed, AutoPilotStrategy.LuckAware, buy: true);
+                foreach (var d in days) TestContext.WriteLine("seed " + seed + " day " + d.Number + ": " + d);
+                var visits = days.Select(d => d.Visit).ToList();
+                Assert.AreEqual(data.PlayableDayCount - 1, visits.Count(v => v != null), "seed " + seed + ": one shop after every real day but the last");
 
                 foreach (var v in visits)
                 {
-                    Assert.IsNotEmpty(v.Bought, "seed " + seed + " day " + v.Day + ": could not afford any sticker - " + v);
-                    Assert.IsTrue(v.MoneyWasTheLimit, "seed " + seed + " day " + v.Day + ": bought everything on offer - " + v);
-                    Assert.LessOrEqual(v.Bought.Count, 2, "seed " + seed + " day " + v.Day + ": more than 2 stickers in one visit - " + v);
+                    Assert.IsNotEmpty(v.Bought, "seed " + seed + ": could not afford anything - " + v);
+                    Assert.IsTrue(v.MoneyWasTheLimit, "seed " + seed + ": bought everything it wanted - " + v);
                 }
+                all.AddRange(visits);
+            }
+            double avg = all.Average(v => v.Bought.Count);
+            double rerolls = all.Average(v => v.Rerolls);
+            TestContext.WriteLine("average purchases per visit " + avg.ToString("F2") + ", rerolls " + rerolls.ToString("F2"));
+            Assert.GreaterOrEqual(avg, 2.0, "a good player should buy 2-3 things per visit");
+            Assert.LessOrEqual(avg, MaxAveragePurchases, "the shop hands out too much");
+        }
+
+        /// <summary>A careless (LuckBlind) player can still afford something useful at every shop.</summary>
+        [Test]
+        public void Economy_LuckBlind_AffordsSomethingEveryVisit()
+        {
+            foreach (var seed in Seeds)
+            {
+                var days = Run(seed, AutoPilotStrategy.LuckBlind, buy: true);
+                foreach (var d in days) TestContext.WriteLine("seed " + seed + " day " + d.Number + ": " + d);
+                foreach (var v in days.Select(d => d.Visit).Where(v => v != null))
+                    Assert.IsNotEmpty(v.Bought, "seed " + seed + ": " + v);
             }
         }
 
@@ -161,16 +129,16 @@ namespace FloorF.Tests.EditMode.Content
         {
             foreach (var seed in Seeds)
             {
-                var visits = Run(seed, strategy, buy: false);
-                TestContext.WriteLine(strategy + " seed " + seed + ": earned by day " + string.Join(", ", visits.Select(v => v.TipsEarnedToday))
-                                      + " (total before day " + data.DayCount + ": " + visits.Last().TipsBefore + ")");
-                Assert.AreEqual(data.PlayableDayCount - 1, visits.Count);
+                var days = Run(seed, strategy, buy: false);
+                TestContext.WriteLine(strategy + " seed " + seed + ": earned by day " + string.Join(", ", days.Select(d => d.TipsEarned))
+                                      + " (total " + days.Sum(d => d.TipsEarned) + ")");
+                Assert.AreEqual(data.PlayableDayCount - 1, days.Count);
             }
         }
 
         /// <summary>
-        /// The 4th-floor ending (choice A) needs floor 4 to be relabelled when the mystery guest arrives, so the shop right
-        /// before the last day must still sell 4 -> F (a player who skipped it can still choose the ending).
+        /// The 4th-floor ending (choice A) needs floor 4 relabelled when the mystery guest arrives; stickers last one day,
+        /// so the shop right before the last day must sell 4 -> F (and the session always offers that staple).
         /// </summary>
         [Test]
         public void Day4Shop_OffersFourToF()

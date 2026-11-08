@@ -33,6 +33,7 @@ namespace FloorF.Rendering
         HotelFacade facade;
         StreetLife street;
         SkyView sky;
+        WeatherView weather;
         readonly float[] letterLevels = new float[BuildingView.HotelText.Length];
         readonly System.Collections.Generic.Dictionary<int, GuestArchetypeId> archetypes = new System.Collections.Generic.Dictionary<int, GuestArchetypeId>();
         Transform world;
@@ -74,6 +75,7 @@ namespace FloorF.Rendering
         internal HotelFacade Facade => facade;
         internal StreetLife Street => street;
         internal SkyView Sky => sky;
+        internal WeatherView Weather => weather;
         /// <summary>Wish stars freeze with the simulation: menu pause or the Day 0 coach-mark hold.</summary>
         internal bool IsSimHeld => IsPaused || eventHeld || (gameFlow != null && gameFlow.TutorialHold);
         /// <summary>Seconds of street/city time before the first frame (busy street, lights already mixed).</summary>
@@ -171,7 +173,7 @@ namespace FloorF.Rendering
             rig = new CameraRig(pipeline, frame, RenderingStyle.PixelHeight);
 
             building = new BuildingView(world, assets, layout, lighting, frame.PixelsPerUnit);
-            building.Build(DestinationOf, CurrentLabel, IsRelabelled);
+            building.Build(DestinationOf, CurrentLabel, IsRelabelled, OriginalLabel);
             for (int i = 0; i < layout.FloorCount; i++) UpdateFlicker(new FloorIndex(i));
             labelsSynced = buildingQuery != null;
 
@@ -185,7 +187,7 @@ namespace FloorF.Rendering
             float z0 = -layout.Depth * 0.5f;
             palette = new PaletteAtlas(assets, "City Palette");
             livingLights = new LivingLights(palette, RenderingStyle.CitySeed);
-            city = new CityView(world, palette, livingLights, RenderingStyle.CameraShear, z0);
+            city = new CityView(world, palette, livingLights, RenderingStyle.CameraShear, z0, frame.PixelsPerUnit);
             city.Build(z0 - 0.15f);
             facade = new HotelFacade(world, assets, layout, building, palette, livingLights);
             facade.Build();
@@ -194,6 +196,9 @@ namespace FloorF.Rendering
             street.Prewarm(StreetPrewarmSeconds, frame.Grid);
             sky = new SkyView(world, assets, palette, RenderingStyle.CitySeed);
             sky.Build();
+            weather = new WeatherView(world, assets, palette, layout, RenderingStyle.CitySeed);
+            weather.Build();
+            TickWeather(StreetPrewarmSeconds);
             sky.Tick(StreetPrewarmSeconds, 0f, rig.Current, IsStarNightNow);
             TickExterior(0f);
         }
@@ -220,10 +225,22 @@ namespace FloorF.Rendering
             bool eerie = dayQuery != null && dayQuery.IsFriday13;
             livingLights.Eerie = eerie;
             livingLights.Tick(t);
+            city.Tick(t);
             for (int i = 0; i < letterLevels.Length; i++)
                 letterLevels[i] = LightSchedule.SignLetterLevel(RenderingStyle.CitySeed, i, letterLevels.Length, t, eerie);
             building.SetHotelLetterLevels(letterLevels);
             palette.Flush();
+        }
+
+        /// <summary>Day 5 rain (never on the title): rain, splashes, wet street, lightning; the sky goes overcast.</summary>
+        bool IsRainyNow => dayQuery != null && dayQuery.IsRainy && dayQuery.Phase != DayPhase.Title;
+
+        void TickWeather(float time)
+        {
+            weather.Tick(time, rig.Current, IsRainyNow);
+            sky.Overcast = weather.Raining;
+            var cam = pipeline.WorldCamera;
+            if (cam != null && cam.backgroundColor != weather.SkyColor) cam.backgroundColor = weather.SkyColor;
         }
 
         /// <summary>Day 7 "star night" (never on the title, whose attract demo is an ordinary night).</summary>
@@ -265,7 +282,7 @@ namespace FloorF.Rendering
                 for (int i = 0; i < building.FloorCount; i++)
                 {
                     var f = new FloorIndex(i);
-                    building.SetLabel(f, CurrentLabel(f), IsRelabelled(f));
+                    building.SetLabel(f, CurrentLabel(f), IsRelabelled(f), OriginalLabel(f).Text);
                     UpdateFlicker(f);
                 }
             }
@@ -283,6 +300,7 @@ namespace FloorF.Rendering
             var grid = rig.Current.Grid;
             building.ApplyPixelGrid(grid);
             street.Tick(jdt, grid);
+            TickWeather(juiceTime + StreetPrewarmSeconds);
             sky.Tick(juiceTime + StreetPrewarmSeconds, IsSimHeld ? 0f : jdt, rig.Current, IsStarNightNow);
             TickExterior(juiceTime);
         }
@@ -318,7 +336,7 @@ namespace FloorF.Rendering
         {
             if (!IsBuilt) return;
             bool sticker = buildingQuery != null ? buildingQuery.IsRelabelled(e.Floor) : e.Current != OriginalLabel(e.Floor);
-            building.SetLabel(e.Floor, e.Current, sticker);
+            building.SetLabel(e.Floor, e.Current, sticker, OriginalLabel(e.Floor).Text);
             UpdateFlicker(e.Floor);
         }
 

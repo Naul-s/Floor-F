@@ -14,8 +14,11 @@ namespace FloorF.Rendering
     ///   Stars layer (1 palette mesh): moon with craters + dithered halo, steady / twinkling stars (twinkle = shared
     ///                                  palette texels rewritten each frame).
     ///   Band layer  (1 textured quad, star night only): baked dithered gradient sky + Milky Way + dense faint stars.
-    ///   Fx layer    (1 palette mesh rebuilt while something moves): glints, meteors, wish stars, sparkles, wish burst.
-    /// Everything shares the city palette material except the band (own baked texture).
+    ///   Fx layer    (1 palette mesh rebuilt while something moves): glints, meteors (behind the city, like real sky).
+    ///   Wish layer  (1 palette mesh, ADDITIVE, ZTest Always - drawn over the city and the hotel): wish stars with a
+    ///                dithered glow, their sparkles and the wish burst. They are magical and the player must click them,
+    ///                so they never hide behind a building; still placed on the same viewport mapping (event coords).
+    /// Everything shares the city palette texture except the band (own baked texture).
     /// </summary>
     sealed class SkyView
     {
@@ -53,6 +56,9 @@ namespace FloorF.Rendering
             new Color(1.00f, 0.98f, 0.80f), new Color(1.00f, 0.85f, 0.38f), new Color(0.98f, 0.58f, 0.24f), new Color(0.66f, 0.28f, 0.36f), new Color(0.24f, 0.12f, 0.26f),
         };
         static readonly Color WishCore = new Color(1.00f, 1.00f, 0.94f);
+        /// <summary>Soft dithered glow around a wish star's head (added on top of whatever is behind it).</summary>
+        static readonly Color WishGlow = new Color(1.00f, 0.80f, 0.42f);
+        public const int WishGlowRadius = 6;
 
         static readonly Color MoonLight = new Color(0.95f, 0.93f, 0.82f);
         static readonly Color MoonBright = new Color(1.00f, 0.99f, 0.92f);
@@ -83,15 +89,18 @@ namespace FloorF.Rendering
         readonly PaletteAtlas atlas;
         readonly int seed;
         readonly PixelQuads fxQuads = new PixelQuads();
+        readonly PixelQuads wishQuads = new PixelQuads();
+        PixelQuads target;
         readonly List<Wish> wishes = new List<Wish>();
         readonly int[] twinkleCentre = new int[StarField.TwinkleGroups];
         readonly int[] twinkleArm = new int[StarField.TwinkleGroups];
-        int[] glintRamp, meteorRamp, wishRamp, coreRamp;
+        int[] glintRamp, meteorRamp, wishRamp, coreRamp, glowRamp;
         List<SkyStar> stars;
         readonly List<SkyStar> glints = new List<SkyStar>();
-        Transform starLayer, bandLayer, fxLayer;
-        MeshRenderer starRenderer, bandRenderer, fxRenderer;
-        Mesh fxMesh;
+        Transform starLayer, bandLayer, fxLayer, wishLayer;
+        MeshRenderer starRenderer, bandRenderer, fxRenderer, wishRenderer;
+        Mesh fxMesh, wishMesh;
+        bool wishDirty;
         Texture2D bandTexture;
         bool fxDirty;
         float time;
@@ -102,10 +111,17 @@ namespace FloorF.Rendering
         public MeshRenderer StarRenderer => starRenderer;
         public MeshRenderer BandRenderer => bandRenderer;
         public MeshRenderer FxRenderer => fxRenderer;
+        /// <summary>Wish stars + burst: additive, drawn over the city and the hotel.</summary>
+        public MeshRenderer WishRenderer => wishRenderer;
+        /// <summary>False only when the additive shader is missing (then wish stars fall back to the sky's fx layer).</summary>
+        public bool WishInFront { get; private set; }
+        public int WishQuadCount => wishQuads.Count;
         public bool StarNight { get; private set; }
         public bool BandVisible => bandRenderer != null && bandRenderer.enabled;
         /// <summary>Tests: force star night on/off (null = follow IDayQuery.IsStarNight).</summary>
         public bool? ForceStarNight { get; set; }
+        /// <summary>Rainy night: clouds hide the moon, the stars and the glints (set by the weather every frame).</summary>
+        public bool Overcast { get; set; }
         public bool MeteorActive { get; private set; }
         /// <summary>The meteor in flight (valid while <see cref="MeteorActive"/>).</summary>
         public SkySchedule.MeteorPose Meteor { get; private set; }
@@ -151,6 +167,13 @@ namespace FloorF.Rendering
             return LayerOrigin(f, z) + new Vector3(viewport.x * h * Aspect, viewport.y * h, 0f);
         }
 
+        /// <summary>Viewport pixel (0..640 x 0..360, float) that world point <paramref name="w"/> projects onto.</summary>
+        public static Vector2 WorldToPixels(CameraFrame f, Vector3 w)
+        {
+            var o = f.ToScreenPlane(LayerOrigin(f, w.z));
+            return (f.ToScreenPlane(w) - o) * f.PixelsPerUnit;
+        }
+
         static void Place(Transform layer, CameraFrame f, float z)
         {
             if (layer == null) return;
@@ -167,10 +190,15 @@ namespace FloorF.Rendering
             glints.Clear();
             foreach (var s in stars) if (s.Kind == StarKind.Glint) glints.Add(s);
 
-            glintRamp = Ramp(GlintColor);
-            meteorRamp = Ramp(MeteorStops);
-            wishRamp = Ramp(WishStops);
-            coreRamp = Ramp(WishCore);
+            var front = assets.NewAdditive(atlas.Texture, "Wish Stars (additive)");
+            WishInFront = front != null;
+            // additive ramps fade to black (adds nothing), opaque ones to the sky colour
+            var wishBase = WishInFront ? Color.black : RenderingStyle.Background;
+            glintRamp = Ramp(GlintColor, RenderingStyle.Background);
+            meteorRamp = Ramp(MeteorStops, RenderingStyle.Background);
+            wishRamp = Ramp(WishStops, wishBase);
+            coreRamp = Ramp(WishCore, wishBase);
+            glowRamp = Ramp(WishGlow, wishBase);
             for (int g = 0; g < StarField.TwinkleGroups; g++)
             {
                 twinkleCentre[g] = atlas.Dynamic(GroupColor(g));
@@ -206,6 +234,11 @@ namespace FloorF.Rendering
             fxMesh.MarkDynamic();
             fxLayer = Layer("Sky Fx", fxMesh, atlas.Material, out fxRenderer);
             fxRenderer.enabled = false;
+
+            wishMesh = assets.Own(new Mesh { name = "Wish Stars" });
+            wishMesh.MarkDynamic();
+            wishLayer = Layer("Wish Stars", wishMesh, front != null ? front : atlas.Material, out wishRenderer);
+            wishRenderer.enabled = false;
         }
 
         Transform Layer(string name, Mesh mesh, Material material, out MeshRenderer renderer)
@@ -217,15 +250,15 @@ namespace FloorF.Rendering
 
         static Color GroupColor(int g) => (g & 1) == 0 ? TwinkleCool : TwinkleWarm;
 
-        int[] Ramp(Color c)
+        int[] Ramp(Color c, Color from)
         {
             var r = new int[RampSteps];
-            for (int i = 0; i < RampSteps; i++) r[i] = atlas.Static(Color.Lerp(RenderingStyle.Background, c, i / (RampSteps - 1f)));
+            for (int i = 0; i < RampSteps; i++) r[i] = atlas.Static(Color.Lerp(from, c, i / (RampSteps - 1f)));
             return r;
         }
 
-        /// <summary>Ramp through <paramref name="stops"/> (stops[0] = full level, last = faintest, then the sky).</summary>
-        int[] Ramp(Color[] stops)
+        /// <summary>Ramp through <paramref name="stops"/> (stops[0] = full level, last = faintest, then <paramref name="sky"/>).</summary>
+        int[] Ramp(Color[] stops, Color sky)
         {
             var r = new int[RampSteps];
             int n = stops.Length;
@@ -234,7 +267,7 @@ namespace FloorF.Rendering
                 float level = i / (RampSteps - 1f);
                 float f = (1f - level) * n; // 0 = first stop ... n = sky
                 int k = Mathf.Min(n - 1, Mathf.FloorToInt(f));
-                var next = k + 1 < n ? stops[k + 1] : RenderingStyle.Background;
+                var next = k + 1 < n ? stops[k + 1] : sky;
                 r[i] = atlas.Static(Color.Lerp(stops[k], next, f - k));
             }
             return r;
@@ -463,10 +496,12 @@ namespace FloorF.Rendering
             StarNight = ForceStarNight ?? starNight;
             if (StarNight) EnsureBand();
             if (bandRenderer != null) bandRenderer.enabled = StarNight;
+            starRenderer.enabled = !Overcast;
 
             Place(starLayer, frame, StarDepth);
             Place(bandLayer, frame, BandDepth);
             Place(fxLayer, frame, FxDepth);
+            Place(wishLayer, frame, FxDepth);
 
             for (int g = 0; g < StarField.TwinkleGroups; g++)
             {
@@ -490,7 +525,10 @@ namespace FloorF.Rendering
         void RebuildFx()
         {
             fxQuads.Clear();
-            float glint = SkySchedule.Glint(seed, glints.Count, time, out int gi);
+            wishQuads.Clear();
+            target = fxQuads;
+            int gi = -1;
+            float glint = Overcast ? 0f : SkySchedule.Glint(seed, glints.Count, time, out gi);
             ActiveGlint = gi;
             if (gi >= 0)
             {
@@ -505,6 +543,8 @@ namespace FloorF.Rendering
                 if (m.Slot != lastMeteorSlot) { lastMeteorSlot = m.Slot; MeteorsSeen++; }
                 Streak(m.Head, m.Dir, m.Tail, m.Level, meteorRamp, false);
             }
+            // wish stars: their own layer drawn over the world (or the fx layer if the additive shader is missing)
+            if (WishInFront) target = wishQuads;
             foreach (var w in wishes) DrawWish(w);
 
             bool any = fxQuads.Count > 0;
@@ -514,6 +554,14 @@ namespace FloorF.Rendering
                 fxDirty = any;
             }
             fxRenderer.enabled = any;
+
+            bool anyWish = wishQuads.Count > 0;
+            if (anyWish || wishDirty)
+            {
+                wishQuads.Apply(wishMesh);
+                wishDirty = anyWish;
+            }
+            wishRenderer.enabled = anyWish;
         }
 
         void Px(int x, int y, float level, int[] ramp)
@@ -521,7 +569,7 @@ namespace FloorF.Rendering
             int i = Mathf.Clamp(Mathf.RoundToInt(level * (RampSteps - 1)), 0, RampSteps - 1);
             if (i <= 0) return;
             if (x < 0 || y < 0 || x >= StarField.Width || y >= StarField.Height) return;
-            fxQuads.Rect(x, y, 1, 1, atlas.UV(ramp[i]));
+            target.Rect(x, y, 1, 1, atlas.UV(ramp[i]));
         }
 
         /// <summary>"+" sparkle: dim parts first, the bright core last (same depth: later quads win).</summary>
@@ -593,10 +641,11 @@ namespace FloorF.Rendering
             if (headLevel > 0f)
             {
                 var head = HeadPixels(w);
+                if (WishInFront) Glow(Mathf.FloorToInt(head.x), Mathf.FloorToInt(head.y), headLevel);
                 int tail = Mathf.RoundToInt(SkySchedule.WishTail * Mathf.Clamp01(w.Age / 0.5f));
                 if (tail > 0) Streak(head, dir, tail, headLevel * 0.9f, wishRamp, true);
                 int hx = Mathf.FloorToInt(head.x), hy = Mathf.FloorToInt(head.y);
-                Sparkle(hx, hy, headLevel, wishRamp, SkySchedule.WishPulse(w.Age) ? 3 : 2, true);
+                Sparkle(hx, hy, headLevel, wishRamp, (SkySchedule.WishPulse(w.Age) ? 3 : 2) + (WishInFront ? 1 : 0), true);
                 // white-hot core
                 Px(hx, hy, headLevel, coreRamp);
                 Px(hx - 1, hy, headLevel * 0.85f, coreRamp); Px(hx + 1, hy, headLevel * 0.85f, coreRamp);
@@ -616,6 +665,25 @@ namespace FloorF.Rendering
                     else Px(x, y, l, i % 2 == 0 ? wishRamp : coreRamp);
                 }
             }
+        }
+
+        /// <summary>
+        /// Soft pixel-art glow around a wish star's head: dithered rings (50% checker inside, sparse grid outside) of a warm
+        /// tint ADDED to whatever is behind - over a dark wall or the sky it reads as a halo, never as a box.
+        /// </summary>
+        void Glow(int cx, int cy, float level)
+        {
+            int r = WishGlowRadius;
+            for (int dy = -r; dy <= r; dy++)
+                for (int dx = -r; dx <= r; dx++)
+                {
+                    int d2 = dx * dx + dy * dy;
+                    if (d2 < 9 || d2 > r * r) continue; // the head + its sparkle arms cover the middle
+                    float d = Mathf.Sqrt(d2);
+                    bool on = d <= 4.5f ? ((cx + dx + cy + dy) & 1) == 0 : ((cx + dx) & 1) == 0 && ((cy + dy) & 1) == 0;
+                    if (!on) continue;
+                    Px(cx + dx, cy + dy, level * Mathf.Lerp(0.62f, 0.24f, (d - 3f) / (r - 3f)), glowRamp);
+                }
         }
 
         /// <summary>Determinism fingerprint: star field + band bake.</summary>

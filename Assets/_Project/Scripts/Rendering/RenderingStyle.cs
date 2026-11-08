@@ -79,6 +79,9 @@ namespace FloorF.Rendering
         public static readonly Color StickerPlate = new Color(0.96f, 0.84f, 0.20f);
         public static readonly Color StickerInk = new Color(0.12f, 0.08f, 0.04f);
         public static readonly Color HotelSign = new Color(1.00f, 0.32f, 0.30f);
+        /// <summary>Struck-out original number beside a sticker: old sign ink, a little dimmer, and a red slash.</summary>
+        public static readonly Color OriginalMarkInk = new Color(0.95f, 0.85f, 0.62f);
+        public static readonly Color OriginalMarkStrike = new Color(0.92f, 0.16f, 0.12f);
 
         // ---- lighting moods
         public static readonly Color UnluckyFlash = new Color(1.00f, 0.08f, 0.06f);

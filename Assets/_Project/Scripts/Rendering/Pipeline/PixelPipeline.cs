@@ -20,6 +20,8 @@ namespace FloorF.Rendering
         public Camera UiCamera { get; private set; }
         public Canvas ScreenCanvas { get; private set; }
         public PixelScreen Screen { get; private set; }
+        /// <summary>Low-res glow on emissive pixels (PixelGlow.DefaultOn; Enabled toggles it at runtime).</summary>
+        public PixelGlow Glow { get; private set; }
         bool createdWorldCamera;
 
         public static int UiLayer => PresentationContract.UiLayer;
@@ -64,6 +66,7 @@ namespace FloorF.Rendering
             rt.offsetMax = Vector2.zero;
             p.Screen = screenGo.AddComponent<PixelScreen>();
             p.Screen.SetTexture(p.Target, RenderingStyle.PixelWidth, RenderingStyle.PixelHeight);
+            p.Glow = new PixelGlow(p.Target, p.WorldCamera, p.Screen);
             return p;
         }
 
@@ -144,6 +147,8 @@ namespace FloorF.Rendering
 
         public void Dispose()
         {
+            Glow?.Dispose();
+            Glow = null;
             if (WorldCamera != null)
             {
                 if (WorldCamera.targetTexture == Target) WorldCamera.targetTexture = null;
