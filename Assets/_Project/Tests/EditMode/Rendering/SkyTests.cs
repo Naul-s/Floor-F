@@ -168,6 +168,17 @@ namespace FloorF.Tests.EditMode.Rendering
         }
 
         [Test]
+        public void ElevatorArrow_FollowsMotion_OrTheCarsMovement()
+        {
+            Assert.AreEqual(1, ElevatorView.Direction(FloorF.Core.ElevatorMotion.MovingUp, 0f));
+            Assert.AreEqual(-1, ElevatorView.Direction(FloorF.Core.ElevatorMotion.MovingDown, 0f));
+            Assert.AreEqual(0, ElevatorView.Direction(FloorF.Core.ElevatorMotion.Idle, 0.5f), "gameplay motion wins");
+            Assert.AreEqual(1, ElevatorView.Direction(null, 0.02f));
+            Assert.AreEqual(-1, ElevatorView.Direction(null, -0.02f));
+            Assert.AreEqual(0, ElevatorView.Direction(null, 0f));
+        }
+
+        [Test]
         public void WishHead_FadesInAndOut()
         {
             Assert.AreEqual(0f, SkySchedule.WishHeadLevel(0f, -1f));

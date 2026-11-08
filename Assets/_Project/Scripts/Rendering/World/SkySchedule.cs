@@ -181,7 +181,7 @@ namespace FloorF.Rendering
             m.Head = from + dir * (travel * p);
             m.Dir = dir;
             m.Level = MeteorLevel(p);
-            m.Tail = Mathf.RoundToInt(Mathf.Lerp(9f, 18f, LightSchedule.Hash(seed, 60, k, 7)) * Mathf.Min(1f, p * 3f + 0.2f));
+            m.Tail = Mathf.RoundToInt(Mathf.Lerp(13f, 24f, LightSchedule.Hash(seed, 60, k, 7)) * Mathf.Min(1f, p * 3f + 0.2f));
             m.Slot = k;
             return true;
         }
