@@ -59,13 +59,14 @@ namespace FloorF.Audio
     sealed class ThunderSchedule
     {
         System.Random rng;
-        float flashAt;
+        // double: an hour of 1/60 s steps must not drift
+        double clock, flashAt, strikeAt;
 
         /// <summary>Seconds stepped since <see cref="Reset"/>.</summary>
-        public float Clock { get; private set; }
+        public float Clock => (float)clock;
         /// <summary>Clock time of the next rumble.</summary>
-        public float NextStrikeAt { get; private set; }
-        public float NextStrikeIn => NextStrikeAt - Clock;
+        public float NextStrikeAt => (float)strikeAt;
+        public float NextStrikeIn => (float)(strikeAt - clock);
         public bool Armed => rng != null;
 
         public static int SeedFor(int day) => unchecked(0x7D13 * 31 + day * 7919);
@@ -73,9 +74,9 @@ namespace FloorF.Audio
         public void Reset(int seed, in ThunderSettings s)
         {
             rng = new System.Random(seed);
-            Clock = 0f;
+            clock = 0;
             flashAt = Gap(s);
-            NextStrikeAt = flashAt + Delay(s);
+            strikeAt = flashAt + Delay(s);
         }
 
         public void Disarm() => rng = null;
@@ -84,15 +85,15 @@ namespace FloorF.Audio
         public bool Step(float dt, in ThunderSettings s)
         {
             if (rng == null) return false;
-            Clock += Mathf.Max(0f, dt);
-            if (Clock < NextStrikeAt) return false;
+            clock += Mathf.Max(0f, dt);
+            if (clock < strikeAt) return false;
             // the next flash after this one; after a long jump (huge dt) it counts from now, never piling up rumbles
-            flashAt = Mathf.Max(flashAt, Clock - s.DelayMax) + Gap(s);
-            NextStrikeAt = flashAt + Delay(s);
+            flashAt = System.Math.Max(flashAt, clock - s.DelayMax) + Gap(s);
+            strikeAt = flashAt + Delay(s);
             return true;
         }
 
-        float Gap(in ThunderSettings s) => s.MinGap + (float)rng.NextDouble() * (s.MaxGap - s.MinGap);
-        float Delay(in ThunderSettings s) => s.DelayMin + (float)rng.NextDouble() * (s.DelayMax - s.DelayMin);
+        double Gap(in ThunderSettings s) => s.MinGap + rng.NextDouble() * (s.MaxGap - s.MinGap);
+        double Delay(in ThunderSettings s) => s.DelayMin + rng.NextDouble() * (s.DelayMax - s.DelayMin);
     }
 }
