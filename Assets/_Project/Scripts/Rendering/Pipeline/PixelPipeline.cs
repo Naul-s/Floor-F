@@ -133,13 +133,21 @@ namespace FloorF.Rendering
             WorldCamera.orthographicSize = frame.OrthographicSize;
             WorldCamera.nearClipPlane = 0.3f;
             WorldCamera.farClipPlane = RenderingStyle.CameraDistance + 80f;
+            // oblique orthographic projection (see CameraFrame); culling and WorldToViewportPoint use it as well
+            WorldCamera.projectionMatrix = CameraFraming.ProjectionMatrix(frame, (float)RenderingStyle.PixelWidth / RenderingStyle.PixelHeight,
+                WorldCamera.nearClipPlane, WorldCamera.farClipPlane);
+            Frame = frame;
         }
+
+        /// <summary>The frame applied last (screen-plane shear + pixel grid).</summary>
+        public CameraFrame Frame { get; private set; }
 
         public void Dispose()
         {
             if (WorldCamera != null)
             {
                 if (WorldCamera.targetTexture == Target) WorldCamera.targetTexture = null;
+                WorldCamera.ResetProjectionMatrix();
                 if (createdWorldCamera) Object.Destroy(WorldCamera.gameObject);
             }
             if (Target != null)

@@ -36,13 +36,30 @@ namespace FloorF.Rendering
         }
 
         public const float StickSeconds = 0.32f;
+        /// <summary>HOTEL sign plate bottom above the roof (cornice + legs).</summary>
+        public const float HotelSignLift = 0.75f;
+        public const string HotelText = "HOTEL";
         Material hotelSign;
+        Texture2D hotelSignTexture;
+        bool[] hotelMask;
+        Vector2Int hotelSize;
+        readonly float[] hotelLevels = new float[HotelText.Length];
+        readonly Color32[] hotelPx;
+        /// <summary>The HOTEL plate (bursts spawn here).</summary>
         public Transform HotelSign { get; private set; }
+        /// <summary>Sign assembly root (bottom centre of the plate): plate, legs and the facade's frame + bulbs live under it.</summary>
+        public Transform HotelSignRoot { get; private set; }
+        /// <summary>Plate size in base-frame world units (texel = SignPixelsPerTexel pixels of the gameplay frame).</summary>
+        public Vector2 HotelPlateSize { get; private set; }
+        public float SignTexelBase => signTexelBase;
+        readonly float basePixelsPerUnit;
+        readonly float signTexelBase;
+        PixelGrid grid;
 
         readonly RenderAssets assets;
         readonly IWorldLayout layout;
         readonly FloorLighting lighting;
-        readonly float signTexel;
+        float signTexel;
         readonly List<Floor> floors = new List<Floor>();
 
         public Transform Root { get; }
@@ -54,7 +71,12 @@ namespace FloorF.Rendering
             this.assets = assets;
             this.layout = layout;
             this.lighting = lighting;
-            signTexel = RenderingStyle.SignPixelsPerTexel / Mathf.Max(1f, pixelsPerUnit);
+            basePixelsPerUnit = Mathf.Max(1f, pixelsPerUnit);
+            signTexel = signTexelBase = RenderingStyle.SignPixelsPerTexel / basePixelsPerUnit;
+            grid = new PixelGrid(basePixelsPerUnit, RenderingStyle.CameraShear, -layout.Depth * 0.5f);
+            var hs = PixelFont.Measure(HotelText, 1);
+            hotelPx = new Color32[hs.x * hs.y];
+            for (int i = 0; i < hotelLevels.Length; i++) hotelLevels[i] = 1f;
             CarWidth = layout is HotelLayout hl ? hl.CarWidth : 2.4f;
             ShaftHalfWidth = CarWidth * 0.5f + 0.25f;
             var go = new GameObject("Building");
@@ -62,7 +84,31 @@ namespace FloorF.Rendering
             Root = go.transform;
         }
 
-        /// <summary>Bounds the camera must keep in view (building + roof sign + a strip of street).</summary>
+        /// <summary>Screen-plane top of the HOTEL sign (frame + bulbs included) for a given gameplay-frame pixels per unit.</summary>
+        public static float HotelSignTop(IWorldLayout layout, float pixelsPerUnit)
+        {
+            float texel = RenderingStyle.SignPixelsPerTexel / Mathf.Max(1f, pixelsPerUnit);
+            float plate = PixelFont.Measure(HotelText, 1).y * texel;
+            float z = HotelSignZ(layout);
+            return layout.FloorCount * layout.FloorHeight + HotelSignLift + plate + 2f * texel + RenderingStyle.CameraShear.y * (z + layout.Depth * 0.5f);
+        }
+
+        static float HotelSignZ(IWorldLayout layout) => -layout.Depth * 0.5f + 0.6f;
+
+        /// <summary>
+        /// Screen-plane rectangle the gameplay frame must show: hotel (pilasters, right side faces) from the plinth top to
+        /// the HOTEL sign. The street below gets the rest of the whole-pixel slack (RenderingRoot anchors the top).
+        /// </summary>
+        public static Rect FramingRect(IWorldLayout layout)
+        {
+            var shear = RenderingStyle.CameraShear;
+            float left = layout.ShaftX - layout.FloorWidth * 0.5f - WallThickness - 0.6f - shear.x * 0.3f;
+            float right = layout.ShaftX + layout.FloorWidth * 0.5f + WallThickness + 0.6f + shear.x * (layout.Depth + WallThickness);
+            float top = layout.FloorCount * layout.FloorHeight + 2.4f + shear.y * 0.6f;
+            return Rect.MinMaxRect(left, -0.85f, right, top);
+        }
+
+        /// <summary>Bounds of the hotel itself (building + roof sign + plinth) in world space.</summary>
         public static Bounds FramingBounds(IWorldLayout layout)
         {
             float w = layout.FloorWidth, d = layout.Depth;
@@ -87,10 +133,8 @@ namespace FloorF.Rendering
             var shaftBack = assets.Lit(RenderingStyle.ShaftBack);
             var frame = assets.Lit(RenderingStyle.ShaftFrame);
 
-            // foundation + roof
-            assets.Box(Root, "Foundation", new Vector3(sx, -0.4f, 0f), new Vector3(w + WallThickness * 2f, 0.8f, d + WallThickness), outer);
+            // roof (plinth, cornice, pilasters and roof props: HotelFacade)
             SlabWithShaftHole("Roof", height, slab, slabEdge, includeHole: false);
-            assets.Box(Root, "Parapet", new Vector3(sx, height + 0.25f, -d * 0.5f + 0.1f), new Vector3(w + WallThickness * 2f, 0.5f, 0.2f), outer);
             // outer side walls (full height)
             assets.Box(Root, "Wall L", new Vector3(left - WallThickness * 0.5f, height * 0.5f, 0f), new Vector3(WallThickness, height, d + WallThickness), outer);
             assets.Box(Root, "Wall R", new Vector3(right + WallThickness * 0.5f, height * 0.5f, 0f), new Vector3(WallThickness, height, d + WallThickness), outer);
@@ -107,7 +151,6 @@ namespace FloorF.Rendering
             }
 
             BuildRoofSign(height);
-            BuildStreet(sx, w, d);
         }
 
         void SlabWithShaftHole(string name, float topY, Material slab, Material edge, bool includeHole)
@@ -222,13 +265,37 @@ namespace FloorF.Rendering
             }
             else RenderAssets.SetTexture(e.SignMaterial, tex);
 
-            float sw = tex.width * signTexel, sh = tex.height * signTexel;
+            LayoutSign(floor.Value);
+        }
+
+        /// <summary>Sizes floor <paramref name="i"/>'s plate to whole texels and puts its corner on the pixel grid.</summary>
+        void LayoutSign(int i)
+        {
+            var e = floors[i];
+            if (e.SignTexture == null) return;
+            float sw = e.SignTexture.width * signTexel, sh = e.SignTexture.height * signTexel;
             var plateT = e.Sign.transform.GetChild(0);
             plateT.localScale = new Vector3(sw, sh, 1f);
             float h = layout.FloorHeight, d = layout.Depth, sx = layout.ShaftX;
-            // right edge 0.25 left of the shaft post, vertically centred in the open part of the floor
-            e.Sign.transform.localPosition = new Vector3(sx - ShaftHalfWidth - 0.35f - sw * 0.5f, floor.Value * h + (h - SlabThickness) * 0.58f, -d * 0.5f - 0.06f);
+            // right edge 0.35 left of the shaft post, vertically centred in the open part of the floor
+            var corner = grid.SnapCorner(new Vector3(sx - ShaftHalfWidth - 0.35f - sw, i * h + (h - SlabThickness) * 0.58f - sh * 0.5f, -d * 0.5f - 0.06f));
+            e.Sign.transform.localPosition = corner + new Vector3(sw * 0.5f, sh * 0.5f, 0f);
         }
+
+        /// <summary>
+        /// The active frame's pixel grid (gameplay or zoomed-out title): sign texels stay exactly
+        /// RenderingStyle.SignPixelsPerTexel screen pixels and every plate corner sits on a pixel corner.
+        /// </summary>
+        public void ApplyPixelGrid(PixelGrid g)
+        {
+            if (Mathf.Approximately(g.PixelsPerUnit, grid.PixelsPerUnit) && g.Shear == grid.Shear) return;
+            grid = g;
+            signTexel = RenderingStyle.SignPixelsPerTexel / g.PixelsPerUnit;
+            for (int i = 0; i < floors.Count; i++) LayoutSign(i);
+            LayoutHotelSign();
+        }
+
+        public PixelGrid Grid => grid;
 
         /// <summary>Roof HOTEL sign tint (white = normal, darker = off, &gt;1 not possible: unlit, so use warm whites).</summary>
         public void SetHotelSignTint(Color tint)
@@ -451,7 +518,7 @@ namespace FloorF.Rendering
             get
             {
                 int digits = Mathf.Max(1, layout.FloorCount.ToString().Length);
-                float sw = PixelFont.Measure(new string('8', digits), 1).x * signTexel;
+                float sw = PixelFont.Measure(new string('8', digits), 1).x * signTexelBase;
                 return layout.ShaftX - ShaftHalfWidth - 0.35f - sw;
             }
         }
@@ -636,45 +703,83 @@ namespace FloorF.Rendering
 
         void BuildRoofSign(float height)
         {
-            var tex = assets.Own(PixelFont.CreateTexture("HOTEL", RenderingStyle.HotelSign, new Color(0.10f, 0.05f, 0.06f)));
-            var mat = assets.NewUnlit(Color.white, tex);
+            hotelMask = PixelFont.Rasterize(HotelText, 1, out hotelSize);
+            hotelSignTexture = assets.Own(new Texture2D(hotelSize.x, hotelSize.y, TextureFormat.RGBA32, false)
+            {
+                name = "Sign_HOTEL",
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            });
+            WriteHotelSign();
+            var mat = assets.NewUnlit(Color.white, hotelSignTexture);
             hotelSign = mat;
-            float w = tex.width * signTexel, h = tex.height * signTexel;
-            float d = layout.Depth;
-            var signGo = assets.Plate(Root, "Hotel Sign", new Vector3(layout.ShaftX, height + 0.5f + h * 0.5f, -d * 0.5f + 0.6f), new Vector2(w, h), mat);
-            HotelSign = signGo.transform;
+            float w = hotelSize.x * signTexelBase, h = hotelSize.y * signTexelBase;
+            HotelPlateSize = new Vector2(w, h);
+            HotelSignRoot = new GameObject("Hotel Sign").transform;
+            HotelSignRoot.SetParent(Root, false);
+            var plate = assets.Plate(HotelSignRoot, "Plate", new Vector3(0f, h * 0.5f, 0f), new Vector2(w, h), mat);
+            HotelSign = plate.transform;
             var metal = assets.Lit(new Color(0.22f, 0.22f, 0.25f));
-            assets.Box(Root, "Sign Leg L", new Vector3(layout.ShaftX - w * 0.35f, height + 0.4f, -d * 0.5f + 0.7f), new Vector3(0.12f, 0.8f, 0.12f), metal);
-            assets.Box(Root, "Sign Leg R", new Vector3(layout.ShaftX + w * 0.35f, height + 0.4f, -d * 0.5f + 0.7f), new Vector3(0.12f, 0.8f, 0.12f), metal);
-            assets.Box(Root, "Water Tank", new Vector3(layout.ShaftX + layout.FloorWidth * 0.32f, height + 0.9f, d * 0.2f), new Vector3(1.4f, 1.8f, 1.4f), metal);
+            assets.Box(HotelSignRoot, "Sign Leg L", new Vector3(-w * 0.35f, -HotelSignLift * 0.5f, 0.2f), new Vector3(0.12f, HotelSignLift, 0.12f), metal);
+            assets.Box(HotelSignRoot, "Sign Leg R", new Vector3(w * 0.35f, -HotelSignLift * 0.5f, 0.2f), new Vector3(0.12f, HotelSignLift, 0.12f), metal);
+            LayoutHotelSign();
         }
 
-        void BuildStreet(float sx, float w, float d)
+        /// <summary>Scales the sign assembly so its texels are SignPixelsPerTexel pixels of the active grid; snaps its corner.</summary>
+        void LayoutHotelSign()
         {
-            assets.Box(Root, "Street", new Vector3(sx, -1.0f, 4f), new Vector3(160f, 0.4f, 40f), assets.Lit(RenderingStyle.Ground), false);
-            assets.Box(Root, "Sidewalk", new Vector3(sx, -0.75f, -d * 0.5f - 1.2f), new Vector3(160f, 0.1f, 2.2f), assets.Lit(RenderingStyle.Sidewalk), false);
+            if (HotelSignRoot == null) return;
+            float k = signTexel / signTexelBase;
+            float height = layout.FloorCount * layout.FloorHeight;
+            var corner = grid.SnapCorner(new Vector3(layout.ShaftX - HotelPlateSize.x * 0.5f * k, height + HotelSignLift, HotelSignZ(layout)));
+            HotelSignRoot.localScale = new Vector3(k, k, 1f);
+            HotelSignRoot.localPosition = corner + new Vector3(HotelPlateSize.x * 0.5f * k, 0f, 0f);
+        }
 
-            // dark skyline blocks behind/next to the hotel with a few lit windows
-            var block = assets.Lit(RenderingStyle.Skyline);
-            var window = assets.Unlit(RenderingStyle.WindowGlow * 0.8f);
-            var dim = assets.Unlit(new Color(0.20f, 0.22f, 0.34f));
-            float[] xs = { -30f, -19f, 19f, 29f, -42f, 41f };
-            float[] hs = { 20f, 14f, 17f, 24f, 11f, 13f };
-            float[] ws = { 9f, 8f, 8f, 9f, 10f, 10f };
-            for (int i = 0; i < xs.Length; i++)
-            {
-                float bx = sx + xs[i], bh = hs[i], bw = ws[i], bz = 8f + (i % 2) * 3f;
-                assets.Box(Root, "Skyline " + i, new Vector3(bx, bh * 0.5f - 0.8f, bz), new Vector3(bw, bh, 4f), block, false);
-                int cols = Mathf.FloorToInt(bw / 2f), rows = Mathf.FloorToInt(bh / 3f);
-                for (int r = 0; r < rows; r++)
-                    for (int c = 0; c < cols; c++)
+        /// <summary>
+        /// Per-letter brightness of the HOTEL sign (1 = lit, lower = that letter's tubes are out). Rewrites the small
+        /// texture only when a level changed.
+        /// </summary>
+        public void SetHotelLetterLevels(float[] levels)
+        {
+            bool changed = false;
+            for (int i = 0; i < hotelLevels.Length && i < levels.Length; i++)
+                if (!Mathf.Approximately(hotelLevels[i], levels[i])) { hotelLevels[i] = levels[i]; changed = true; }
+            if (changed) WriteHotelSign();
+        }
+
+        public float GetHotelLetterLevel(int letter) => letter >= 0 && letter < hotelLevels.Length ? hotelLevels[letter] : 1f;
+
+        /// <summary>Ink colour of a texel of the HOTEL texture (tests).</summary>
+        public Color32 GetHotelTexel(int x, int y) => hotelPx[y * hotelSize.x + x];
+        public Vector2Int HotelTextureSize => hotelSize;
+        public bool HotelInk(int x, int y) => hotelMask[y * hotelSize.x + x];
+
+        void WriteHotelSign()
+        {
+            if (hotelSignTexture == null) return;
+            var ink = RenderingStyle.HotelSign;
+            var plate = new Color(0.10f, 0.05f, 0.06f);
+            var rim = plate * 0.6f;
+            rim.a = 1f;
+            var dead = Color.Lerp(plate, ink, 0.22f);
+            for (int y = 0; y < hotelSize.y; y++)
+                for (int x = 0; x < hotelSize.x; x++)
+                {
+                    int i = y * hotelSize.x + x;
+                    bool edge = x == 0 || y == 0 || x == hotelSize.x - 1 || y == hotelSize.y - 1;
+                    Color c;
+                    if (hotelMask[i])
                     {
-                        float hsh = Mathf.Repeat((i * 7 + r * 13 + c * 5) * 0.618f, 1f);
-                        if (hsh > 0.55f) continue;
-                        var m = hsh < 0.18f ? window : dim;
-                        assets.Plate(Root, "Win", new Vector3(bx - bw * 0.5f + 1f + c * 2f, r * 3f + 1.5f, bz - 2.02f), new Vector2(0.8f, 1.1f), m);
+                        int letter = Mathf.Clamp((x - 1) / (PixelFont.GlyphWidth + PixelFont.Spacing), 0, hotelLevels.Length - 1);
+                        c = Color.Lerp(dead, ink, hotelLevels[letter]);
                     }
-            }
+                    else c = edge ? rim : plate;
+                    c.a = 1f;
+                    hotelPx[i] = c;
+                }
+            hotelSignTexture.SetPixels32(hotelPx);
+            hotelSignTexture.Apply(false, false);
         }
     }
 }
