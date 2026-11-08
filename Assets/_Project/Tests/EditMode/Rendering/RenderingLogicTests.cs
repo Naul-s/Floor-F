@@ -63,36 +63,93 @@ namespace FloorF.Tests.EditMode.Rendering
 
     public class CameraFramingTests
     {
+        static Camera MakeCamera(GameObject go, CameraFrame frame)
+        {
+            var cam = go.AddComponent<Camera>();
+            cam.orthographic = true;
+            cam.orthographicSize = frame.OrthographicSize;
+            cam.aspect = 640f / 360f;
+            cam.nearClipPlane = 0.3f;
+            cam.farClipPlane = 200f;
+            go.transform.SetPositionAndRotation(frame.Position, frame.Rotation);
+            cam.projectionMatrix = CameraFraming.ProjectionMatrix(frame, cam.aspect, cam.nearClipPlane, cam.farClipPlane);
+            return cam;
+        }
+
+        static Vector2 Px(Camera cam, Vector3 w)
+        {
+            var v = cam.WorldToViewportPoint(w);
+            return new Vector2(v.x * 640f, v.y * 360f);
+        }
+
         [Test]
-        public void Fit_KeepsWholeBuildingInView_AndSnapsToWholePixels()
+        public void GameplayFrame_KeepsHotelAndSignInView_WholePixels_StreetBelow()
         {
             var layout = new HotelLayout(new HotelLayoutDef(), 9, 8);
-            var bounds = BuildingView.FramingBounds(layout);
-            var rot = Quaternion.Euler(RenderingStyle.CameraPitch, RenderingStyle.CameraYaw, 0f);
-            float aspect = 640f / 360f;
-            var frame = CameraFraming.SnapToWholePixels(CameraFraming.Fit(bounds, rot, aspect, 0.05f, 20f, 360), 360);
+            var frame = RenderingRoot.FitGameplayFrame(layout);
             Assert.AreEqual(Mathf.Round(frame.PixelsPerUnit), frame.PixelsPerUnit, 1e-3f, "integer pixels per unit");
-            Assert.Greater(frame.PixelsPerUnit, 8f, "9 floors should still be reasonably large");
+            Assert.GreaterOrEqual(frame.PixelsPerUnit, 11f, "9 floors stay as large as before the street was added");
+            Assert.AreEqual(Quaternion.identity, frame.Rotation, "oblique camera looks straight down +Z");
+            float ppu = frame.PixelsPerUnit;
+            Assert.AreEqual(Mathf.Round(frame.Position.x * ppu), frame.Position.x * ppu, 1e-3f, "centre on a whole pixel (x)");
+            Assert.AreEqual(Mathf.Round(frame.Position.y * ppu), frame.Position.y * ppu, 1e-3f, "centre on a whole pixel (y)");
 
             var go = new GameObject("FramingTestCam");
             try
             {
-                var cam = go.AddComponent<Camera>();
-                cam.orthographic = true;
-                cam.orthographicSize = frame.OrthographicSize;
-                cam.aspect = aspect;
-                cam.nearClipPlane = 0.1f;
-                cam.farClipPlane = 200f;
-                go.transform.SetPositionAndRotation(frame.Position, frame.Rotation);
-                var c = bounds.center; var e = bounds.extents;
-                for (int i = 0; i < 8; i++)
+                var cam = MakeCamera(go, frame);
+                var b = BuildingView.FramingBounds(layout);
+                float z0 = -layout.Depth * 0.5f;
+                foreach (var p in new[]
+                         {
+                             new Vector3(b.min.x, 0f, z0), new Vector3(b.max.x, 0f, z0),
+                             new Vector3(b.min.x, b.max.y, z0 + 0.6f), new Vector3(b.max.x, b.max.y, b.max.z),
+                         })
                 {
-                    var corner = c + new Vector3((i & 1) == 0 ? -e.x : e.x, (i & 2) == 0 ? -e.y : e.y, (i & 4) == 0 ? -e.z : e.z);
-                    var v = cam.WorldToViewportPoint(corner);
-                    Assert.That(v.x, Is.InRange(0f, 1f), "corner " + i + " x");
-                    Assert.That(v.y, Is.InRange(0f, 1f), "corner " + i + " y");
-                    Assert.Greater(v.z, 0.1f, "corner " + i + " in front of the camera");
+                    var v = cam.WorldToViewportPoint(p);
+                    Assert.That(v.x, Is.InRange(0f, 1f), "hotel corner x " + p);
+                    Assert.That(v.y, Is.InRange(0f, 1f), "hotel corner y " + p);
+                    Assert.Greater(v.z, 0.1f, "in front of the camera");
                 }
+                float signTop = BuildingView.HotelSignTop(layout, ppu);
+                Assert.Less(signTop, CameraFraming.Top(frame), "HOTEL sign inside the top edge");
+                // street: sidewalk, both car lanes (car bottoms) visible above the bottom edge
+                var nearCar = new Vector3(0f, RenderingStyle.RoadY, RenderingStyle.NearLaneZ - 0.5f);
+                Assert.Greater(cam.WorldToViewportPoint(nearCar).y, 0f, "near lane cars on screen");
+                Assert.Less(cam.WorldToViewportPoint(new Vector3(0f, RenderingStyle.GroundY, RenderingStyle.CurbZ)).y,
+                    cam.WorldToViewportPoint(new Vector3(0f, 0f, z0)).y, "street below floor 1");
+            }
+            finally { Object.DestroyImmediate(go); }
+        }
+
+        [Test]
+        public void ObliqueProjection_FrontFacesStayAxisAligned_DepthShiftsUpRight()
+        {
+            var layout = new HotelLayout(new HotelLayoutDef(), 9, 8);
+            var frame = RenderingRoot.FitGameplayFrame(layout);
+            var go = new GameObject("ObliqueTestCam");
+            try
+            {
+                var cam = MakeCamera(go, frame);
+                foreach (float z in new[] { -6f, -2f, 0f, 12f })
+                {
+                    var a = Px(cam, new Vector3(-20f, 3f, z));
+                    var b = Px(cam, new Vector3(20f, 3f, z));
+                    var c = Px(cam, new Vector3(-20f, 25f, z));
+                    Assert.AreEqual(a.y, b.y, 1e-3f, "horizontal edges stay horizontal at z " + z);
+                    Assert.AreEqual(a.x, c.x, 1e-3f, "vertical edges stay vertical at z " + z);
+                    Assert.AreEqual(40f * frame.PixelsPerUnit, b.x - a.x, 1e-2f, "no foreshortening");
+                }
+                var front = Px(cam, new Vector3(0f, 0f, -2f));
+                var back = Px(cam, new Vector3(0f, 0f, 2f));
+                Assert.Greater(back.x, front.x, "right-hand side faces visible");
+                Assert.Greater(back.y, front.y, "top faces visible");
+                // whole world units of the screen plane land on pixel edges
+                var g = frame.Grid;
+                var snapped = g.SnapCorner(new Vector3(1.234f, 5.678f, 7f));
+                var sp = Px(cam, snapped);
+                Assert.AreEqual(Mathf.Round(sp.x), sp.x, 1e-2f);
+                Assert.AreEqual(Mathf.Round(sp.y), sp.y, 1e-2f);
             }
             finally { Object.DestroyImmediate(go); }
         }
@@ -213,11 +270,12 @@ namespace FloorF.Tests.EditMode.Rendering
         public void TitleFrame_IsWider_AndWholePixels()
         {
             var layout = new HotelLayout(new HotelLayoutDef(), 9, 8);
-            var rot = Quaternion.Euler(RenderingStyle.CameraPitch, RenderingStyle.CameraYaw, 0f);
-            var f = CameraFraming.SnapToWholePixels(CameraFraming.Fit(BuildingView.FramingBounds(layout), rot, 640f / 360f, 0.05f, 20f, 360), 360);
+            var f = RenderingRoot.FitGameplayFrame(layout);
             var t = CameraRig.MakeTitleFrame(f, 360);
             Assert.Greater(t.OrthographicSize, f.OrthographicSize);
             Assert.AreEqual(Mathf.Round(t.PixelsPerUnit), t.PixelsPerUnit, 1e-3f);
+            Assert.LessOrEqual(CameraFraming.Bottom(t), CameraFraming.Bottom(f), "title shows at least the same street");
+            Assert.AreEqual(Mathf.Round(t.Position.y * t.PixelsPerUnit), t.Position.y * t.PixelsPerUnit, 1e-3f, "whole-pixel centre");
             Assert.AreNotEqual(CameraRig.TitlePanOffset(0f), CameraRig.TitlePanOffset(CameraRig.TitlePanPeriod * 0.25f));
         }
 

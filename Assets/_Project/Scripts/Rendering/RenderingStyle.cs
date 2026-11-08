@@ -29,11 +29,30 @@ namespace FloorF.Rendering
         public const int ScreenCanvasSortingOrder = PresentationContract.PixelScreenSortingOrder;
         public const float ScreenCanvasPlaneDistance = 10f;
 
-        // ---- camera (orthographic, slightly from above and from the right so side faces read as 3D)
-        public const float CameraPitch = 10f;
-        public const float CameraYaw = -8f;
+        // ---- camera: oblique orthographic (see CameraFrame) - depth shifts the image right/up so top and right-hand
+        // side faces read as 3D (~ the old 10 deg pitch / -8 deg yaw), while front faces stay exact pixel rectangles
+        public static readonly Vector2 CameraShear = new Vector2(0.14f, 0.175f);
         public const float CameraMargin = 0.05f;
         public const float CameraDistance = 20f;
+        /// <summary>Sky above the HOTEL sign in the gameplay frame (world units); the rest of the slack shows the street.</summary>
+        public const float CameraTopHeadroom = 0.3f;
+
+        // ---- street (world units; hotel front at z = -depth/2, floor 1 at y = 0, camera side = -Z)
+        /// <summary>Sidewalk top; the hotel stands on a plinth from here up to floor 1.</summary>
+        public const float GroundY = -1.6f;
+        public const float RoadY = -1.75f;
+        /// <summary>Sidewalk from the hotel front (z = -depth/2 - 0.15) to the curb.</summary>
+        public const float CurbZ = -3.7f;
+        /// <summary>Pedestrian walking lines (z) on the sidewalk.</summary>
+        public static readonly float[] WalkLanes = { -2.65f, -3.05f };
+        /// <summary>Car lanes (z): far lane drives to +X, near lane to -X.</summary>
+        public const float FarLaneZ = -4.3f;
+        public const float NearLaneZ = -5.55f;
+        public const int MaxCars = 8;
+        public const int MaxPedestrians = 12;
+        public const int CitySeed = 1408;
+        /// <summary>Half the street length that is simulated (covers the zoomed-out title frame + its pan).</summary>
+        public const float StreetHalfLength = 44f;
 
         public static readonly Color Background = new Color(0.055f, 0.06f, 0.11f);
         public static readonly Color Ambient = new Color(0.26f, 0.25f, 0.33f);
