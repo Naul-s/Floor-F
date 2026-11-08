@@ -32,6 +32,7 @@ namespace FloorF.Rendering
         CityView city;
         HotelFacade facade;
         StreetLife street;
+        SkyView sky;
         readonly float[] letterLevels = new float[BuildingView.HotelText.Length];
         readonly System.Collections.Generic.Dictionary<int, GuestArchetypeId> archetypes = new System.Collections.Generic.Dictionary<int, GuestArchetypeId>();
         Transform world;
@@ -44,7 +45,9 @@ namespace FloorF.Rendering
         IActorLocator locator;
         IDayQuery dayQuery;
         IMenuFlow menuFlow;
+        IGameFlow gameFlow;
         bool labelsSynced;
+        bool eventHeld;
 
         // juice clock: stops while the game is paused (PauseChanged / IMenuFlow.IsPaused)
         bool eventPaused;
@@ -70,6 +73,9 @@ namespace FloorF.Rendering
         internal CityView City => city;
         internal HotelFacade Facade => facade;
         internal StreetLife Street => street;
+        internal SkyView Sky => sky;
+        /// <summary>Wish stars freeze with the simulation: menu pause or the Day 0 coach-mark hold.</summary>
+        internal bool IsSimHeld => IsPaused || eventHeld || (gameFlow != null && gameFlow.TutorialHold);
         /// <summary>Seconds of street/city time before the first frame (busy street, lights already mixed).</summary>
         public const float StreetPrewarmSeconds = 60f;
 
@@ -105,8 +111,12 @@ namespace FloorF.Rendering
             subs.Add(bus.Subscribe<PauseChanged>(e => eventPaused = e.Paused));
             subs.Add(bus.Subscribe<StickerApplied>(OnStickerApplied));
             subs.Add(bus.Subscribe<EndingReached>(OnEndingReached));
-            subs.Add(bus.Subscribe<GameStarted>(e => ResetEnding()));
+            subs.Add(bus.Subscribe<GameStarted>(e => { ResetEnding(); if (IsBuilt) sky.ClearWishes(); }));
             subs.Add(bus.Subscribe<DayPhaseChanged>(OnDayPhaseChanged));
+            subs.Add(bus.Subscribe<TutorialHoldChanged>(e => eventHeld = e.Held));
+            subs.Add(bus.Subscribe<WishStarAppeared>(e => { if (IsBuilt) sky.WishAppeared(e.Id, e.FromX, e.FromY, e.ToX, e.ToY, e.Seconds); }));
+            subs.Add(bus.Subscribe<WishMade>(e => { if (IsBuilt) sky.WishMade(e.Id); }));
+            subs.Add(bus.Subscribe<WishStarFaded>(e => { if (IsBuilt) sky.WishFaded(e.Id); }));
         }
 
         void OnDisable() => subs.Clear();
@@ -133,6 +143,7 @@ namespace FloorF.Rendering
             if (locator == null) GameServices.TryGet(out locator);
             if (dayQuery == null) GameServices.TryGet(out dayQuery);
             if (menuFlow == null) GameServices.TryGet(out menuFlow);
+            if (gameFlow == null) GameServices.TryGet(out gameFlow);
         }
 
         /// <summary>Night mood: dim moonlight from the scene's directional light, flat dark ambient.</summary>
@@ -181,6 +192,9 @@ namespace FloorF.Rendering
             street = new StreetLife(world, assets, palette, RenderingStyle.CameraShear, z0, RenderingStyle.CitySeed);
             street.Build();
             street.Prewarm(StreetPrewarmSeconds, frame.Grid);
+            sky = new SkyView(world, assets, palette, RenderingStyle.CitySeed);
+            sky.Build();
+            sky.Tick(StreetPrewarmSeconds, 0f, rig.Current, IsStarNightNow);
             TickExterior(0f);
         }
 
@@ -211,6 +225,9 @@ namespace FloorF.Rendering
             building.SetHotelLetterLevels(letterLevels);
             palette.Flush();
         }
+
+        /// <summary>Day 7 "star night" (never on the title, whose attract demo is an ordinary night).</summary>
+        bool IsStarNightNow => dayQuery != null && dayQuery.IsStarNight && dayQuery.Phase != DayPhase.Title;
 
         DestinationId DestinationOf(FloorIndex f)
         {
@@ -266,6 +283,7 @@ namespace FloorF.Rendering
             var grid = rig.Current.Grid;
             building.ApplyPixelGrid(grid);
             street.Tick(jdt, grid);
+            sky.Tick(juiceTime + StreetPrewarmSeconds, IsSimHeld ? 0f : jdt, rig.Current, IsStarNightNow);
             TickExterior(juiceTime);
         }
 

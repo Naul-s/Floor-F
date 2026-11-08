@@ -138,9 +138,6 @@ namespace FloorF.Core
         public bool IsTutorial => dayDef != null && dayDef.tutorial;
         /// <summary>Friday the 13th event day: Unlucky penalties x rules.friday13PenaltyMultiplier, ride distance 13 Unlucky for all.</summary>
         public bool IsFriday13 => dayDef != null && dayDef.friday13;
-        // TODO(gameplay-dev): star night rules + wish stars (contract stubs)
-        public bool IsStarNight => dayDef != null && dayDef.starNight;
-        public bool MakeWish(int starId) => false;
         public float DurationSeconds => dayDef != null ? dayDef.durationSeconds : 0f;
         public float ElapsedSeconds => elapsed;
         /// <summary>Tutorial days have no clock: stays at <see cref="DurationSeconds"/>.</summary>
@@ -172,6 +169,7 @@ namespace FloorF.Core
             ReleaseTutorialHold();
             if (started)
             {
+                FadeAllWishStars();
                 DropAllGuests();
                 Building.ResetLabels();
                 Score.ResetForNewGame();
@@ -210,6 +208,7 @@ namespace FloorF.Core
             luckAtStart = Score.Luck;
             dayDelivered = dayLeft = dayLucky = dayUnlucky = 0;
             Score.BeginDay();
+            ScheduleWishStars();
             SetPhase(DayPhase.Running);
             PublishFlow(new DayStarted(day, data.DayCount, dayDef.durationSeconds, dayDef.tutorial));
             SpawnDue();
@@ -348,6 +347,7 @@ namespace FloorF.Core
         {
             elapsed += dt;
             if (dayDef.tutorial && Guests.Active.Count == 0) waveClock += dt;
+            StepWishStars(dt);
             SpawnDue();
             StepPatience(dt);
             if (phase != DayPhase.Running) return;
@@ -364,7 +364,7 @@ namespace FloorF.Core
 
         void StepEarlyEnd(float dt)
         {
-            if (!AllGuestsDone) { emptyFor = 0f; return; }
+            if (!AllGuestsDone || WishStarsRemaining) { emptyFor = 0f; return; }
             emptyFor += dt;
             if (emptyFor >= EarlyEndDelaySeconds - 1e-4f) EndDay(EndingKind.None);
         }
@@ -446,6 +446,7 @@ namespace FloorF.Core
                     PatienceMax = def.patienceSeconds,
                     Luck = data.GetLuckProfile(def.Id),
                 };
+                g.JudgeLuck = JudgingProfile(g.Luck);
                 if (i == 0) first = g.Id;
                 int slot = Guests.AddWaiting(g);
                 bus.Publish(new GuestSpawned(g.Id, def.Id, party, floor, dest, destFloor, slot));
@@ -723,7 +724,7 @@ namespace FloorF.Core
         void JudgeFloor(GuestRuntime g, FloorIndex floor, FloorLabel label)
         {
             if (!g.SeenFloors.Add(floor.Value)) return;
-            var verdict = LabelNumbers.Judge(g.Luck, label, out int number);
+            var verdict = LabelNumbers.Judge(g.JudgeLuck, label, out int number);
             if (verdict == LuckVerdict.Lucky)
             {
                 dayLucky++;
@@ -732,7 +733,7 @@ namespace FloorF.Core
                 Score.AddLuck(rules.luckyFloorLuckBonus, LuckSource.FloorLabel);
                 if (!g.FloorTipBonusApplied) { g.FloorTipBonusApplied = true; g.TipMultiplier *= rules.luckyFloorTipMultiplier; }
                 SetMood(g, g.Mood == GuestMood.Happy || g.Mood == GuestMood.Delighted ? GuestMood.Delighted : GuestMood.Happy);
-                Speak(g, GuestLineTriggers.LuckyFloor);
+                if (!IsStarOverride(LabelNumbers.Judge(g.Luck, label, out _), verdict)) Speak(g, GuestLineTriggers.LuckyFloor);
             }
             else if (verdict == LuckVerdict.Unlucky)
             {
@@ -778,7 +779,7 @@ namespace FloorF.Core
         void JudgeOccupancy(GuestRuntime g, int occupancy, FloorIndex floor)
         {
             if (!g.SeenOccupancies.Add(occupancy)) return;
-            var verdict = g.Luck.Judge(occupancy);
+            var verdict = g.JudgeLuck.Judge(occupancy);
             if (verdict == LuckVerdict.Lucky)
             {
                 dayLucky++;
@@ -787,7 +788,7 @@ namespace FloorF.Core
                 Score.AddLuck(rules.luckyOccupancyLuckBonus, LuckSource.Occupancy);
                 if (!g.OccupancyTipBonusApplied) { g.OccupancyTipBonusApplied = true; g.TipMultiplier *= rules.luckyOccupancyTipMultiplier; }
                 SetMood(g, g.Mood == GuestMood.Happy || g.Mood == GuestMood.Delighted ? GuestMood.Delighted : GuestMood.Happy);
-                Speak(g, GuestLineTriggers.LuckyOccupancy);
+                if (!IsStarOverride(g.Luck.Judge(occupancy), verdict)) Speak(g, GuestLineTriggers.LuckyOccupancy);
             }
             else if (verdict == LuckVerdict.Unlucky)
             {
@@ -816,12 +817,18 @@ namespace FloorF.Core
             return (int)Math.Round(p, MidpointRounding.AwayFromZero);
         }
 
-        /// <summary>Rule 3 verdict for a ride of <paramref name="distance"/> floors (Friday the 13th: 13 is Unlucky for all).</summary>
-        LuckVerdict JudgeDistanceVerdict(GuestRuntime g, int distance, out bool fridayOverride)
+        /// <summary>
+        /// Rule 3 verdict for a ride of <paramref name="distance"/> floors (star night: 7 is Lucky for all; Friday the 13th:
+        /// 13 is Unlucky for all). <paramref name="globalOverride"/> = the verdict is not the guest's own superstition.
+        /// </summary>
+        LuckVerdict JudgeDistanceVerdict(GuestRuntime g, int distance, out bool globalOverride)
         {
             var own = g.Luck.Judge(distance);
-            fridayOverride = IsFriday13 && distance == StoryRules.FridayDistance && own != LuckVerdict.Unlucky;
-            return fridayOverride ? LuckVerdict.Unlucky : own;
+            var judged = g.JudgeLuck.Judge(distance);
+            bool friday = IsFriday13 && distance == StoryRules.FridayDistance && judged != LuckVerdict.Unlucky;
+            if (friday) judged = LuckVerdict.Unlucky;
+            globalOverride = judged != own;
+            return judged;
         }
 
         /// <summary>
@@ -831,7 +838,7 @@ namespace FloorF.Core
         bool JudgeDistance(GuestRuntime g, FloorIndex floor)
         {
             int distance = g.FloorsTravelled;
-            var verdict = JudgeDistanceVerdict(g, distance, out bool fridayOverride);
+            var verdict = JudgeDistanceVerdict(g, distance, out bool globalOverride);
             if (verdict == LuckVerdict.Lucky)
             {
                 dayLucky++;
@@ -840,7 +847,7 @@ namespace FloorF.Core
                 Score.AddLuck(rules.luckyDistanceLuckBonus, LuckSource.RideDistance);
                 g.TipMultiplier *= rules.luckyDistanceTipMultiplier;
                 SetMood(g, g.Mood == GuestMood.Happy || g.Mood == GuestMood.Delighted ? GuestMood.Delighted : GuestMood.Happy);
-                return Speak(g, GuestLineTriggers.LuckyDistance);
+                return !globalOverride && Speak(g, GuestLineTriggers.LuckyDistance);
             }
             if (verdict == LuckVerdict.Unlucky)
             {
@@ -850,7 +857,7 @@ namespace FloorF.Core
                 Score.AddLuck(-UnluckyPenalty(rules.unluckyDistanceLuckPenalty, g, distance), LuckSource.RideDistance);
                 SetMood(g, GuestMood.Scared);
                 // the Friday override is not the guest's own superstition: no own-number line (presentation shows Friday 13)
-                return !fridayOverride && Speak(g, GuestLineTriggers.UnluckyDistance);
+                return !globalOverride && Speak(g, GuestLineTriggers.UnluckyDistance);
             }
             return false;
         }
@@ -919,7 +926,7 @@ namespace FloorF.Core
                 foreach (var m in line) if (m == g || (!g.Party.IsNone && m.Party == g.Party)) size++;
                 int after = Elevator.Occupancy + size;
                 if (after > Elevator.Capacity) continue;
-                if (g.Def.HasTrait(GuestTraits.Gambler) && !g.Luck.IsLucky(after)) continue;
+                if (g.Def.HasTrait(GuestTraits.Gambler) && !g.JudgeLuck.IsLucky(after)) continue;
 
                 transfer.Clear();
                 foreach (var m in line) if (m == g || (!g.Party.IsNone && m.Party == g.Party)) transfer.Add(m);
@@ -997,6 +1004,7 @@ namespace FloorF.Core
         {
             if (phase != DayPhase.Running) return;
             DropAllGuests();
+            FadeAllWishStars();
             lastSummary = new DaySummary(dayDelivered, dayLeft, Score.TipsEarnedToday, luckAtStart, Score.Luck, dayLucky, dayUnlucky, Score.BestStreakToday);
             PublishFlow(new DayEnded(day, lastSummary));
             if (endingNow != EndingKind.None) ReachEnding(endingNow);

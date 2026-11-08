@@ -32,6 +32,8 @@ namespace FloorF.Tests.EditMode.Content
         [TestCase("mystery_guest")]
         [TestCase("western_priest")]
         [TestCase("italian_nonno")]
+        [TestCase("chinese_wedding_party")]
+        [TestCase("japanese_wedding_guest")]
         public void MvpGuest_Exists(string id)
         {
             Assert.IsTrue(data.TryGetGuest(new GuestArchetypeId(id), out _), id);
@@ -44,11 +46,11 @@ namespace FloorF.Tests.EditMode.Content
         }
 
         [Test]
-        public void FiveDays_PlusDay0Tutorial()
+        public void SevenDays_PlusDay0Tutorial()
         {
-            Assert.AreEqual(6, data.DayCount, "Day 0 training shift + 5 real days");
+            Assert.AreEqual(8, data.DayCount, "Day 0 training shift + 7 real days");
             Assert.AreEqual(1, data.TutorialDayCount);
-            Assert.AreEqual(5, data.PlayableDayCount);
+            Assert.AreEqual(7, data.PlayableDayCount);
             Assert.IsTrue(data.GetDay(DayId.First).tutorial);
             Assert.AreEqual(0, data.DisplayDayNumber(DayId.First), "internal day 1 reads Day 0");
             Assert.IsFalse(data.GetDay(DayId.First.Next).tutorial, "the first real day has a clock");

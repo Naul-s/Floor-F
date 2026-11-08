@@ -117,6 +117,36 @@ namespace FloorF.Tests.EditMode.Rendering
             Check(t => B(LightSchedule.StartFlicker(t)), 3f, "fluorescent start");
         }
 
+        [Test]
+        public void NightSky_Twinkles_Glints_Meteors_WishStars_AtMostThreeTransitionsPerSecond([Values(1408, 3)] int seed)
+        {
+            for (int g = 0; g < StarField.TwinkleGroups; g++)
+            {
+                int group = g;
+                Check(t => SkySchedule.TwinkleLevel(seed, group, t), 600f, "twinkle group " + g);
+            }
+            // every glint star alone, and all glints together (one sky)
+            for (int i = 0; i < StarField.GlintCount; i++)
+            {
+                int index = i;
+                Check(t => SkySchedule.GlintLevel(seed, StarField.GlintCount, index, t), 900f, "glint " + i);
+            }
+            int glints = Check(t => SkySchedule.Glint(seed, StarField.GlintCount, t, out _), 900f, "all glints");
+            Assert.Greater(glints, 100, "glints do happen");
+            int meteors = Check(t => SkySchedule.MeteorBrightness(seed, t), 900f, "meteor shower");
+            Assert.Greater(meteors, 100, "meteors do happen");
+            // wish star head: fade in, cross, fade out (wished on early / late)
+            foreach (float end in new[] { 0.1f, 0.5f, 3f })
+                Check(t => SkySchedule.WishHeadLevel(t, t >= end ? end : -1f), 6f, "wish head ending at " + end);
+            Check(t => SkySchedule.WishPulse(t) ? 1f : 0.5f, 20f, "wish head pulse");
+            Check(SkySchedule.SparkleLevel, 2f, "tail sparkle");
+            for (int i = 0; i < SkySchedule.BurstCount; i++)
+            {
+                int index = i;
+                Check(t => SkySchedule.BurstLevel(t, index), 2f, "wish burst spark " + i);
+            }
+        }
+
         // ------------------------------------------------------------------ event-driven floor lights
 
         static FloorLighting Make(int floors, Color baseColor)
