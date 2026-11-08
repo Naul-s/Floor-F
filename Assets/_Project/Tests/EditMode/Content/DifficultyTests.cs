@@ -49,10 +49,11 @@ namespace FloorF.Tests.EditMode.Content
         /// A fresh pilot each day (a human starts each day fresh too); reaction delay 0-0.5 s from the seed.
         /// </summary>
         RunResult Run(int seed, ShopPolicy shop, int lastDay = int.MaxValue, AutoPilotStrategy strategy = AutoPilotStrategy.LuckBlind,
-            SortedDictionary<string, int> ledger = null)
+            SortedDictionary<string, int> ledger = null, Action<EventBus> onBus = null)
         {
             var bus = new EventBus();
             var s = new GameSession(data, bus, new Random(seed));
+            onBus?.Invoke(bus);
             if (ledger != null)
                 bus.Subscribe<LuckChanged>(e =>
                 {
@@ -116,7 +117,7 @@ namespace FloorF.Tests.EditMode.Content
         [Test]
         public void LuckLedger_Report([Values] AutoPilotStrategy strategy)
         {
-            foreach (var seed in new[] { 1, 2 })
+            foreach (var seed in new[] { 1, 2, 5 })
             {
                 var ledger = new SortedDictionary<string, int>();
                 var r = Run(seed, ShopPolicy.None, strategy: strategy, ledger: ledger);
@@ -169,6 +170,41 @@ namespace FloorF.Tests.EditMode.Content
                 var r = Run(seed, ShopPolicy.None);
                 TestContext.WriteLine("seed " + seed + ": " + r);
                 Assert.AreEqual(data.DayCount, r.EndingDay, "seed " + seed + ": luck-blind play should still see the last day - " + r);
+            }
+        }
+
+        /// <summary>7 days: careless play ends Modest (or the 4th floor), never in the Haunted hotel - on any day.</summary>
+        [Test]
+        public void LuckBlindBot_NeverHaunted([Values] ShopPolicy shop)
+        {
+            foreach (var seed in Seeds)
+            {
+                var r = Run(seed, shop);
+                TestContext.WriteLine("seed " + seed + " shop " + shop + ": " + r);
+                Assert.AreNotEqual(EndingKind.Haunted, r.Ending, "seed " + seed + ": " + r);
+                Assert.IsTrue(r.LuckAfterDay.All(l => l > 0), "seed " + seed + ": " + r);
+            }
+        }
+
+        /// <summary>The star night's wishes: the luck player wishes on every star of the last day, the careless one on none.</summary>
+        [Test]
+        public void StarNight_Wishes_LuckAwareTakesThemAll()
+        {
+            var last = data.GetDay(new DayId(data.DayCount));
+            Assert.IsTrue(last.starNight);
+            foreach (var strategy in new[] { AutoPilotStrategy.LuckAware, AutoPilotStrategy.LuckBlind })
+            {
+                int wishes = 0, faded = 0, appeared = 0;
+                var r = Run(1, ShopPolicy.None, strategy: strategy, onBus: bus =>
+                {
+                    bus.Subscribe<WishStarAppeared>(e => appeared++);
+                    bus.Subscribe<WishMade>(e => wishes++);
+                    bus.Subscribe<WishStarFaded>(e => faded++);
+                });
+                TestContext.WriteLine(strategy + ": " + r + ", wishes " + wishes + "/" + appeared);
+                Assert.AreEqual(last.wishStars, appeared, strategy + ": every star of the night shows up");
+                Assert.AreEqual(strategy == AutoPilotStrategy.LuckAware ? last.wishStars : 0, wishes, strategy.ToString());
+                Assert.AreEqual(appeared, wishes + faded, "each star ends once");
             }
         }
 

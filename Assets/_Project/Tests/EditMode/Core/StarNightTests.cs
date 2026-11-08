@@ -439,20 +439,25 @@ namespace FloorF.Tests.EditMode.Core
             }
         }
 
+        /// <summary>
+        /// A rider with no numbers of its own (lucky 99) and two pickups, on floors 3 and 7: only the star night makes the
+        /// 7th floor's label worth more than the nearer pickup.
+        /// </summary>
         [Test]
-        public void AutoPilot_LuckAware_StarNight_DetoursToFloorSeven()
+        public void AutoPilot_LuckAware_StarNight_PrefersTheSeventhFloor([Values] bool starNight)
         {
-            // a rider with no numbers of its own: only the star night makes the 7th floor worth a stop on the way up
-            var sim = StarNight(0);
+            var sim = starNight ? StarNight(0) : PlainNight();
             sim.Spawn("plain", 1, 9);
+            sim.Spawn("plain", 3, 2);
+            sim.Spawn("plain", 7, 8);
             var pilot = new AutoPilot(sim.S.Elevator, sim.S, sim.S.Guests, sim.S.Building, AutoPilotStrategy.LuckAware);
-            for (int i = 0; i < 2000 && sim.S.Guests.ActiveGuests.Count > 0; i++)
+            for (int i = 0; i < 400 && sim.Events<ElevatorDeparted>().Count == 0; i++)
             {
                 pilot.Step();
                 sim.Run(0.05f);
             }
-            Assert.IsTrue(sim.Events<DoorsOpened>().Any(e => e.Floor == F(7)), "opened at the lucky 7th floor");
-            Assert.IsTrue(Judged(sim, LuckSource.FloorLabel).Any(e => e.Verdict == LuckVerdict.Lucky && e.Number == 7));
+            Assert.AreEqual(1, sim.S.Elevator.Occupancy, "picked up the lobby rider first");
+            Assert.AreEqual(starNight ? F(7) : F(3), sim.Events<ElevatorDeparted>()[0].To);
         }
     }
 }

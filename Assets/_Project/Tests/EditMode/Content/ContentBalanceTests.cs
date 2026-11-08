@@ -562,7 +562,7 @@ namespace FloorF.Tests.EditMode.Content
         }
 
         /// <summary>
-        /// Day 6, the wedding day: even numbers are lucky for the Chinese wedding guests (2, 6, 8; "good things come in pairs"),
+        /// Day 6, the wedding day: even numbers are lucky for the Chinese wedding guests (6, 8; "good things come in pairs"),
         /// odd ones for the Japanese guest's gift money (3, 5, 7: an odd sum cannot be split in two). A head count that pleases
         /// one side leaves the other cold; both fear 4.
         /// </summary>
@@ -572,7 +572,7 @@ namespace FloorF.Tests.EditMode.Content
             var cn = data.GetGuest(new GuestArchetypeId("chinese_wedding_party"));
             var jp = data.GetGuest(new GuestArchetypeId("japanese_wedding_guest"));
             Assert.IsTrue(cn.lucky.Length > 0 && cn.lucky.All(x => x % 2 == 0), "Chinese wedding: even numbers");
-            CollectionAssert.AreEquivalent(new[] { 2, 6, 8 }, cn.lucky);
+            CollectionAssert.AreEquivalent(new[] { 6, 8 }, cn.lucky);
             Assert.IsTrue(jp.lucky.Length > 0 && jp.lucky.All(x => x % 2 == 1), "Japanese wedding gift: odd numbers");
             CollectionAssert.AreEquivalent(new[] { 3, 5, 7 }, jp.lucky);
             CollectionAssert.Contains(cn.unlucky, 4);
@@ -583,7 +583,7 @@ namespace FloorF.Tests.EditMode.Content
             var day = data.Days.First(d => d.spawns.Any(s => s.guest == cn.id));
             Assert.AreEqual(day, data.Days.First(d => d.spawns.Any(s => s.guest == jp.id)), "both arrive on the same day");
             Assert.AreEqual(6, data.DisplayDayNumber(day.Id), "the wedding is Day 6");
-            foreach (var t in new[] { day.intro, day.introKo }) { StringAssert.Contains("2, 6, 8", t); StringAssert.Contains("3, 5, 7", t); }
+            foreach (var t in new[] { day.intro, day.introKo }) { StringAssert.Contains("6, 8", t); StringAssert.Contains("3, 5, 7", t); }
             // the opening: a pair and the Japanese guest board together -> 3 riders, lucky for one side only
             var open = day.spawns.Where(s => s.time <= 5f).ToArray();
             Assert.IsTrue(open.Any(s => s.guest == cn.id) && open.Any(s => s.guest == jp.id) && open.Select(s => s.floor).Distinct().Count() == 1,
