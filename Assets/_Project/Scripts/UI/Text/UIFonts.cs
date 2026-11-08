@@ -107,6 +107,15 @@ namespace FloorF.UI
 
         public static bool IsGalmuri(TMP_FontAsset fa) => fa != null && fa.faceInfo.familyName == FamilyName;
 
+        /// <summary>First character of <paramref name="s"/> the UI font cannot draw, or null when it has them all.</summary>
+        public static string MissingGlyph(string s)
+        {
+            var f = Main;
+            if (f == null) return s;
+            foreach (char c in s ?? "") if (!char.IsWhiteSpace(c) && !f.HasCharacter(c, false, true)) return c.ToString();
+            return null;
+        }
+
         static int starGlyph; // 0 = unknown, 1 = has ★, 2 = no
 
         /// <summary>"★" when the UI font has it (Galmuri covers KS X 1001 symbols), else "*".</summary>

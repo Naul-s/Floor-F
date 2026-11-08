@@ -101,14 +101,10 @@ namespace FloorF.Tests.PlayMode.UI
         public IEnumerator CharmGlyphs_AreInTheFont()
         {
             yield return UITestDriver.LoadMain();
-            var font = UIFonts.Main;
-            Assert.IsTrue(UIFonts.IsGalmuri(font));
+            Assert.IsTrue(UITestDriver.UI().FontIsGalmuri);
             foreach (var e in new[] { StickerEffects.Shield, StickerEffects.Patience, StickerEffects.Speed, StickerEffects.Tips, "unknown" })
-            {
-                string g = UIFormat.CharmGlyph(e);
-                Assert.IsTrue(font.HasCharacter(g[0], false, true), "glyph '" + g + "' for " + e);
-            }
-            Assert.IsTrue(font.HasCharacter('→', false, true));
+                Assert.IsNull(UIFonts.MissingGlyph(UIFormat.CharmGlyph(e)), "glyph for " + e);
+            Assert.IsNull(UIFonts.MissingGlyph("→·"));
         }
 
         // ------------------------------------------------------------------ reroll
