@@ -11,13 +11,20 @@ namespace FloorF.UI
     /// the name only when it fits whole beside the icon - DestinationBadge.NameMode.FullOrNone).
     /// Waiting guests: one chip above each head, packed left-to-right in line order so neighbours never overlap.
     /// Riders: grouped in a 4-wide grid hugging the left side of the car (they stand too close to label one by one).
+    /// Riders' chips grow an odometer row on top (rule 3: "↕5" = floors travelled since boarding, GuestInfo.FloorsTravelled),
+    /// gold / red when stepping out now would be lucky / unlucky (UIFormat.DistanceVerdict, Friday the 13th included).
     /// Position: IActorLocator -> Camera.main.WorldToViewportPoint -> PresentationContract.ViewportToScreen.
     /// </summary>
     sealed class GuestBubblesView
     {
         public const float ChipW = 80f, ChipH = 62f, BadgeH = 26f, BadgeSize = 24f;
-        const float HeadHeight = 1.45f, Spacing = 3f, ColumnMargin = 4f;
+        /// <summary>Odometer row on top of a rider's chip; rider chips are <see cref="RiderChipH"/> tall.</summary>
+        public const float OdoH = 24f, RiderChipH = ChipH + OdoH;
+        public const float Spacing = 3f;
+        const float HeadHeight = 1.45f, ColumnMargin = 4f;
         public const int RiderColumns = 3;
+
+        public static readonly Color OdoNeutral = new Color(0.2f, 0.21f, 0.26f, 1f);
 
         sealed class Chip
         {
@@ -28,6 +35,12 @@ namespace FloorF.UI
             public DestinationBadge Badge;
             public RectTransform Patience;
             public Image PatienceImage;
+            public RectTransform Odo;
+            public Image OdoFill;
+            public TextMeshProUGUI OdoText;
+            public bool Riding;
+            public int ShownFloors = -1;
+            public LuckVerdict OdoVerdict;
             public int Seen;
             public DestinationId ShownDestination;
             public bool LanguageKorean;
@@ -62,9 +75,17 @@ namespace FloorF.UI
             c.Rect.anchorMin = c.Rect.anchorMax = Vector2.zero;
             c.Rect.pivot = new Vector2(0.5f, 0f);
             c.Rect.sizeDelta = new Vector2(ChipW, ChipH);
+            // everything hangs from the bottom edge: a rider's chip grows upward by the odometer row
             c.Numbers = UIBuild.Text("Numbers", c.Rect, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(c.Numbers.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -1f), new Vector2(ChipW - 4f, 26f));
+            UIBuild.Place(c.Numbers.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, ChipH - 1f - 26f), new Vector2(ChipW - 4f, 26f));
             c.Numbers.textWrappingMode = TextWrappingModes.NoWrap;
+            c.OdoFill = UIBuild.Box("Odometer", c.Rect, OdoNeutral);
+            c.Odo = c.OdoFill.rectTransform;
+            UIBuild.Place(c.Odo, new Vector2(0.5f, 0f), new Vector2(0f, ChipH - 2f), new Vector2(ChipW - 6f, OdoH - 2f));
+            c.OdoText = UIBuild.Text("Distance", c.Odo, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Stretch(c.OdoText.rectTransform);
+            c.OdoText.textWrappingMode = TextWrappingModes.NoWrap;
+            c.Odo.gameObject.SetActive(false);
             c.Badge = new DestinationBadge(c.Rect, BadgeSize, DestinationBadge.NameMode.FullOrNone);
             UIBuild.Place(c.Badge.Rect, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, BadgeH));
             var track = UIBuild.Box("PatienceTrack", c.Rect, new Color(0f, 0f, 0f, 0.9f));
@@ -91,7 +112,7 @@ namespace FloorF.UI
             return c;
         }
 
-        void Fill(Chip c, in GuestInfo info)
+        void Fill(Chip c, in GuestInfo info, bool riding)
         {
             if (c.ShownDestination != info.Destination || c.LanguageKorean != ctx.Korean)
             {
@@ -103,7 +124,55 @@ namespace FloorF.UI
             c.Patience.anchorMax = new Vector2(p, 1f);
             c.Patience.offsetMax = Vector2.zero;
             c.PatienceImage.color = UIStyle.Patience(p);
+            SetRiding(c, riding);
+            if (riding) FillOdometer(c, info);
             c.Seen = frame;
+        }
+
+        static void SetRiding(Chip c, bool riding)
+        {
+            if (c.Riding == riding) return;
+            c.Riding = riding;
+            c.Odo.gameObject.SetActive(riding);
+            c.Rect.sizeDelta = new Vector2(ChipW, riding ? RiderChipH : ChipH);
+            c.ShownFloors = -1;
+        }
+
+        /// <summary>Test hook: guest id -> floors shown instead of GuestInfo.FloorsTravelled (wide numbers, colours).</summary>
+        internal static readonly Dictionary<int, int> DistanceOverride = new Dictionary<int, int>();
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => DistanceOverride.Clear();
+
+        void FillOdometer(Chip c, in GuestInfo info)
+        {
+            int floors = Mathf.Max(0, DistanceOverride.TryGetValue(info.Id.Value, out int forced) ? forced : info.FloorsTravelled);
+            var v = UIFormat.DistanceVerdict(info.Luck, info.HideNumbers, floors, ctx.Day != null && ctx.Day.IsFriday13);
+            if (floors == c.ShownFloors && v == c.OdoVerdict) return;
+            c.ShownFloors = floors;
+            c.OdoVerdict = v;
+            c.OdoText.text = UIFormat.Distance(floors);
+            c.OdoFill.color = OdoColor(v);
+            c.OdoText.color = v == LuckVerdict.Lucky ? UIStyle.Dark : v == LuckVerdict.Unlucky ? Color.white : UIStyle.Ink;
+        }
+
+        public static Color OdoColor(LuckVerdict v) => v == LuckVerdict.Lucky ? UIStyle.Lucky : v == LuckVerdict.Unlucky ? UIStyle.Unlucky : OdoNeutral;
+
+        /// <summary>
+        /// Bottom-right corner of the riders' chip grid (left of the car / the floor-sign column) and its row count; the
+        /// grid is pulled down when its top row would leave the screen. PopupsView anchors rider speech on the same point.
+        /// </summary>
+        public static bool RiderGridAnchor(UIContext ctx, float canvasHeight, int riderCount, out Vector2 anchor, out int rows)
+        {
+            rows = Mathf.Max(1, (riderCount + RiderColumns - 1) / RiderColumns);
+            anchor = default;
+            if (ctx.Locator == null) return false;
+            float halfCar = ctx.CarWidth * 0.5f + 0.1f;
+            var car = UIContext.ToVector3(ctx.Locator.CarPosition);
+            if (!ctx.WorldToCanvas(car + new Vector3(-halfCar, 0.1f, 0f), out anchor)) return false;
+            if (ctx.CenterColumn(ColumnMargin, out float colMin, out _)) anchor.x = Mathf.Min(anchor.x, colMin);
+            anchor.y = Mathf.Min(anchor.y, canvasHeight - 8f - rows * (RiderChipH + Spacing));
+            return true;
         }
 
         public void Tick()
@@ -127,27 +196,21 @@ namespace FloorF.UI
                         pos.x = Mathf.Max(pos.x, minX);
                         minX = pos.x + ChipW + Spacing;
                         var c = Get(info);
-                        Fill(c, info);
+                        Fill(c, info, riding: false);
                         c.Rect.anchoredPosition = pos;
                     }
                 }
 
                 var riders = ctx.Elevator.Riders;
-                if (riders.Count > 0)
+                if (riders.Count > 0 && RiderGridAnchor(ctx, layer.rect.height, riders.Count, out var anchor, out _))
                 {
-                    float halfCar = ctx.CarWidth * 0.5f + 0.1f;
-                    var car = UIContext.ToVector3(ctx.Locator.CarPosition);
-                    if (ctx.WorldToCanvas(car + new Vector3(-halfCar, 0.1f, 0f), out var anchor))
+                    for (int i = 0; i < riders.Count; i++)
                     {
-                        if (haveColumn) anchor.x = Mathf.Min(anchor.x, colMin);
-                        for (int i = 0; i < riders.Count; i++)
-                        {
-                            if (!ctx.Guests.TryGet(riders[i], out var info)) continue;
-                            int col = i % RiderColumns, row = i / RiderColumns;
-                            var c = Get(info);
-                            Fill(c, info);
-                            c.Rect.anchoredPosition = new Vector2(anchor.x - 6f - ChipW * 0.5f - col * (ChipW + Spacing), anchor.y + row * (ChipH + Spacing));
-                        }
+                        if (!ctx.Guests.TryGet(riders[i], out var info)) continue;
+                        int col = i % RiderColumns, row = i / RiderColumns;
+                        var c = Get(info);
+                        Fill(c, info, riding: true);
+                        c.Rect.anchoredPosition = new Vector2(anchor.x - 6f - ChipW * 0.5f - col * (ChipW + Spacing), anchor.y + row * (RiderChipH + Spacing));
                     }
                 }
             }
@@ -174,11 +237,45 @@ namespace FloorF.UI
             {
                 if (!chips.TryGetValue(riders[i].Value, out var c) || !c.Rect.gameObject.activeSelf || c.Seen != frame) continue;
                 var p = c.Rect.anchoredPosition;
-                var r = new Rect(p.x - ChipW * 0.5f, p.y, ChipW, ChipH);
+                var r = new Rect(p.x - ChipW * 0.5f, p.y, ChipW, c.Rect.sizeDelta.y);
                 rect = any ? Rect.MinMaxRect(Mathf.Min(rect.xMin, r.xMin), Mathf.Min(rect.yMin, r.yMin), Mathf.Max(rect.xMax, r.xMax), Mathf.Max(rect.yMax, r.yMax)) : r;
                 any = true;
             }
             return any;
+        }
+
+        /// <summary>
+        /// Visible chips' odometers (test hook): "↕5" plain, "↕7:Lucky" / "↕13:Unlucky" when coloured, "-" for a chip
+        /// without one (waiting guests). Keyed by guest id.
+        /// </summary>
+        public string Odometer(GuestId guest)
+        {
+            if (!chips.TryGetValue(guest.Value, out var c) || !c.Rect.gameObject.activeSelf) return null;
+            if (!c.Odo.gameObject.activeSelf) return "-";
+            return c.OdoText.text + (c.OdoVerdict == LuckVerdict.Neutral ? "" : ":" + c.OdoVerdict);
+        }
+
+        /// <summary>Odometer plate colour of a visible rider chip (test hook).</summary>
+        public Color OdometerColor(GuestId guest) => chips.TryGetValue(guest.Value, out var c) ? c.OdoFill.color : Color.clear;
+
+        /// <summary>Canvas rect of a visible chip (test hook), or an empty rect.</summary>
+        public Rect ChipRect(GuestId guest)
+        {
+            if (!chips.TryGetValue(guest.Value, out var c) || !c.Rect.gameObject.activeSelf) return default;
+            var p = c.Rect.anchoredPosition;
+            return new Rect(p.x - ChipW * 0.5f, p.y, ChipW, c.Rect.sizeDelta.y);
+        }
+
+        /// <summary>Widest odometer text vs its plate (test hook): null when every visible one fits, else the offender.</summary>
+        public string OdometerOverflow()
+        {
+            foreach (var c in chips.Values)
+            {
+                if (!c.Rect.gameObject.activeSelf || !c.Odo.gameObject.activeSelf) continue;
+                float w = c.OdoText.GetPreferredValues(c.OdoText.text, float.PositiveInfinity, float.PositiveInfinity).x;
+                if (w > c.Odo.rect.width + 0.5f) return "'" + c.OdoText.text + "' " + w.ToString("0") + "px in a " + c.Odo.rect.width.ToString("0") + "px plate";
+            }
+            return null;
         }
 
         /// <summary>First visible chip crossing the canvas x-range, or null (test hook).</summary>

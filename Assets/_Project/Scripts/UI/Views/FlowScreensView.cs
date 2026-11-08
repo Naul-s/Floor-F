@@ -16,6 +16,10 @@ namespace FloorF.UI
     {
         readonly UIContext ctx;
         readonly RectTransform dim, card;
+        readonly Image cardEdge, cardFill;
+        /// <summary>Friday the 13th intro: red edge on near-black, red title, a red-black dim.</summary>
+        public static readonly Color FridayFill = new Color(0.04f, 0.01f, 0.012f, 0.97f), FridayDim = new Color(0.08f, 0f, 0f, 0.78f);
+        bool fridayCard;
         readonly TextMeshProUGUI title, body, extra;
         readonly UIBuild.ButtonParts action, toTitle, skip;
         DayPhase shown = (DayPhase)(-1);
@@ -34,9 +38,10 @@ namespace FloorF.UI
             dim = UIBuild.Box("FlowDim", canvas, UIStyle.Dim, raycast: true).rectTransform;
             UIBuild.Stretch(dim);
 
-            card = UIBuild.Box("Card", dim, UIStyle.CardEdge).rectTransform;
+            cardEdge = UIBuild.Box("Card", dim, UIStyle.CardEdge);
+            card = cardEdge.rectTransform;
             UIBuild.Place(card, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(880f, 300f));
-            var fill = UIBuild.Box("Fill", card, UIStyle.Card);
+            var fill = cardFill = UIBuild.Box("Fill", card, UIStyle.Card);
             UIBuild.Stretch(fill.rectTransform, 3f);
             fill.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
             var v = card.gameObject.AddComponent<VerticalLayoutGroup>();
@@ -170,7 +175,8 @@ namespace FloorF.UI
             }
             if (!modal) return;
             bool ko = ctx.Korean;
-            title.color = UIStyle.Lucky;
+            SetFridayLook(phase == DayPhase.Intro && ctx.Day.IsFriday13 && !ctx.Day.IsTutorial);
+            title.color = fridayCard ? UIStyle.Unlucky : UIStyle.Lucky;
             toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
             toTitle.Label.text = ctx.S(UIStrings.ToTitle);
             bool canSkip = phase == DayPhase.Intro && ctx.Day.IsTutorial && ctx.Flow != null;
@@ -201,12 +207,31 @@ namespace FloorF.UI
             body.gameObject.SetActive(!string.IsNullOrEmpty(intro));
             // Day 0 teaches step by step in the game itself; the real Day 1 gets the list as a recap (hints on)
             bool howTo = !tutorial && ctx.Settings != null && ctx.Settings.ShowTutorialHints && ctx.Day.DisplayDay == 1;
-            extra.gameObject.SetActive(howTo);
+            extra.gameObject.SetActive(howTo || fridayCard);
+            extra.text = "";
             if (howTo)
                 extra.text = "<b><color=#C9A15A>" + ctx.S(UIStrings.HowToTitle) + "</color></b>\n" +
                              string.Format(ctx.S(UIStrings.HowTo), UIFormat.LuckyHex, UIFormat.UnluckyHex);
+            if (fridayCard)
+            {
+                float m = ctx.Data != null ? ctx.Data.Rules.friday13PenaltyMultiplier : 1.5f;
+                extra.text += (howTo ? "\n\n" : "") + "<color=" + UIFormat.UnluckyHex + ">" +
+                              ctx.F(UIStrings.Friday13Intro, UIFormat.Multiplier(m), UIFormat.Multiplier(m).Substring(1)) + "</color>";
+            }
             action.Label.text = ctx.S(UIStrings.Start);
         }
+
+        void SetFridayLook(bool on)
+        {
+            if (on == fridayCard) return;
+            fridayCard = on;
+            cardEdge.color = on ? UIStyle.Unlucky : UIStyle.CardEdge;
+            cardFill.color = on ? FridayFill : UIStyle.Card;
+            dim.GetComponent<Image>().color = on ? FridayDim : UIStyle.Dim;
+        }
+
+        public bool FridayLook => dim.gameObject.activeSelf && fridayCard;
+        public Color CardEdgeColor => cardEdge.color;
 
         void FillSummary(bool ko)
         {
