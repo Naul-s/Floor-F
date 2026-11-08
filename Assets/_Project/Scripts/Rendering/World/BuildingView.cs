@@ -360,7 +360,9 @@ namespace FloorF.Rendering
             if (e.Reveal != null) return;
             var tex = assets.Own(PixelFont.CreateTexture(original, ink, plate));
             var mat = assets.NewUnlit(Color.white, tex);
-            e.Reveal = assets.Plate(e.Sign.transform, "Reveal", new Vector3(0f, 0f, 0.015f), new Vector2(tex.width * signTexel, tex.height * signTexel), mat);
+            // right-aligned with the sign plate (a marked sticker sign is wider on its left)
+            float rw = tex.width * signTexel, sw = e.Sign.transform.childCount > 0 ? e.Sign.transform.GetChild(0).localScale.x : rw;
+            e.Reveal = assets.Plate(e.Sign.transform, "Reveal", new Vector3((sw - rw) * 0.5f, 0f, 0.015f), new Vector2(rw, tex.height * signTexel), mat);
             e.RevealText = original;
             if (e.SignText == original) { e.Fallen = true; return; }
             e.Falling = true;
