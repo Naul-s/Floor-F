@@ -23,6 +23,24 @@ namespace FloorF.Core
     ///
     /// Lucky streak (every day, Day 0 included): each LuckJudged is followed by LuckStreakChanged when the streak moved;
     /// tips are multiplied by <see cref="ScoreKeeper.StreakTipMultiplier"/> at payment (guest steps out).
+    ///
+    /// Rule 3, ride distance (<see cref="LuckSource.RideDistance"/>): every rider accumulates the floors the car moves with
+    /// them inside (detours and reversals included; <see cref="GuestInfo.FloorsTravelled"/>). When a rider steps out at
+    /// the destination the distance is judged once against the same lucky/unlucky numbers as rules 1 and 2, BEFORE the tip:
+    ///   GuestExited -> LuckJudged(RideDistance, distance, exit floor) -> LuckStreakChanged? -> LuckChanged? ->
+    ///   GuestMoodChanged? -> GuestSpoke(lucky_distance | unlucky_distance)? -> GuestDelivered(tip) -> LuckChanged(Delivery)? ->
+    ///   TipsChanged -> GuestSpoke(delivered | special)
+    /// Lucky: tip x rules.luckyDistanceTipMultiplier (the streak step it adds counts at this payment), Luck +luckyDistanceLuckBonus.
+    /// Unlucky: Luck -unluckyDistanceLuckPenalty; if that empties the meter on a real day the hotel is Haunted at once (the
+    /// guest is not paid). A distance line replaces the delivered line (one bubble per exit; the 4th-floor "special" wins).
+    /// Parties are judged per member (same distance). Neutral distances publish nothing.
+    ///
+    /// Unlucky penalties (every Unlucky LuckJudged: floor label, occupancy, ride distance, honest sticker):
+    ///   base x <see cref="StoryRules.DevoutPenaltyFactor"/> when a devout guest's number is <see cref="StoryRules.DevoutNumber"/>
+    ///   ("666"), x rules.friday13PenaltyMultiplier on a Friday-the-13th day, rounded half away from zero.
+    /// Friday the 13th (<see cref="IsFriday13"/>): a ride distance of <see cref="StoryRules.FridayDistance"/> is Unlucky for
+    /// every guest, even one whose own lucky number is 13 (no own-number line is said for that override). Patience
+    /// penalties are not verdicts and are not multiplied.
     /// </summary>
     public sealed partial class GameSession : IElevatorControl, IDayQuery, IGameFlow, IShopService, IMenuFlow
     {
@@ -118,7 +136,7 @@ namespace FloorF.Core
         /// <summary>Visible phase: <see cref="DayPhase.Title"/> while the title/demo runs (the demo's own day phases stay internal).</summary>
         public DayPhase Phase => onTitle ? DayPhase.Title : phase;
         public bool IsTutorial => dayDef != null && dayDef.tutorial;
-        // TODO(gameplay-dev): Friday the 13th rules (contract stub: flag only)
+        /// <summary>Friday the 13th event day: Unlucky penalties x rules.friday13PenaltyMultiplier, ride distance 13 Unlucky for all.</summary>
         public bool IsFriday13 => dayDef != null && dayDef.friday13;
         public float DurationSeconds => dayDef != null ? dayDef.durationSeconds : 0f;
         public float ElapsedSeconds => elapsed;
@@ -498,20 +516,22 @@ namespace FloorF.Core
             bus.Publish(new GuestMoodChanged(g.Id, prev, mood));
         }
 
-        void Speak(GuestRuntime g, string trigger)
+        /// <summary>Publishes the guest's line for <paramref name="trigger"/>; false when nothing was said (no line, not the speaker, throttled).</summary>
+        bool Speak(GuestRuntime g, string trigger)
         {
-            if (!g.IsSpeaker) return;
+            if (!g.IsSpeaker) return false;
             var line = g.Def.FindLine(trigger);
-            if (line == null) return;
+            if (line == null) return false;
             var text = line.Get(UseKorean);
-            if (string.IsNullOrEmpty(text)) return;
+            if (string.IsNullOrEmpty(text)) return false;
             if (trigger != GuestLineTriggers.Special)
             {
                 var key = g.Def.id + "|" + trigger;
-                if (lastLineAt.TryGetValue(key, out var at) && elapsed - at < SameLineCooldownSeconds - 1e-4f) return;
+                if (lastLineAt.TryGetValue(key, out var at) && elapsed - at < SameLineCooldownSeconds - 1e-4f) return false;
                 lastLineAt[key] = elapsed;
             }
             bus.Publish(new GuestSpoke(g.Id, trigger, text));
+            return true;
         }
 
         // =========================================================================================== elevator control
@@ -618,6 +638,10 @@ namespace FloorF.Core
             bool arrive = move >= dist - 1e-5f;
             float next = arrive ? target : pos + (up ? move : -move);
 
+            // rule 3: everyone inside rides these floors (doors are closed while moving: every rider is Riding)
+            double moved = Math.Abs(next - pos);
+            foreach (var g in Elevator.RiderGuests) g.Travelled += moved;
+
             // floors strictly crossed (not the target): LED tick, no judgement (GDD rule 1: passing is fine)
             if (up)
             {
@@ -712,7 +736,7 @@ namespace FloorF.Core
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.FloorLabel, number, verdict, floor));
                 Score.OnVerdict(verdict);
-                Score.AddLuck(-rules.unluckyFloorLuckPenalty, LuckSource.FloorLabel);
+                Score.AddLuck(-UnluckyPenalty(rules.unluckyFloorLuckPenalty, g, number), LuckSource.FloorLabel);
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyFloor);
             }
@@ -723,7 +747,7 @@ namespace FloorF.Core
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Sticker, -1, LuckVerdict.Unlucky, floor));
                 Score.OnVerdict(LuckVerdict.Unlucky);
-                Score.AddLuck(-rules.honestGuestLuckPenalty, LuckSource.Sticker);
+                Score.AddLuck(-UnluckyPenalty(rules.honestGuestLuckPenalty, g, -1), LuckSource.Sticker);
                 SetMood(g, GuestMood.Angry);
             }
             // everyone comments on the first sticker they see (once per guest, after the luck line; no luck effect)
@@ -767,10 +791,65 @@ namespace FloorF.Core
                 dayUnlucky++;
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Occupancy, occupancy, verdict, floor));
                 Score.OnVerdict(verdict);
-                Score.AddLuck(-rules.unluckyOccupancyLuckPenalty, LuckSource.Occupancy);
+                Score.AddLuck(-UnluckyPenalty(rules.unluckyOccupancyLuckPenalty, g, occupancy), LuckSource.Occupancy);
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyOccupancy);
             }
+        }
+
+        /// <summary>
+        /// Luck lost for one Unlucky verdict: <paramref name="basePenalty"/> x2 for a devout guest's 6 ("666"),
+        /// x rules.friday13PenaltyMultiplier on Friday the 13th (NaN/negative = 1), rounded half away from zero.
+        /// </summary>
+        internal int UnluckyPenalty(int basePenalty, GuestRuntime g, int number)
+        {
+            double p = basePenalty;
+            if (number == StoryRules.DevoutNumber && g.Def.HasTrait(GuestTraits.Devout)) p *= StoryRules.DevoutPenaltyFactor;
+            if (IsFriday13)
+            {
+                float m = rules.friday13PenaltyMultiplier;
+                p *= m >= 0f ? m : 1f; // NaN fails the comparison -> 1
+            }
+            return (int)Math.Round(p, MidpointRounding.AwayFromZero);
+        }
+
+        /// <summary>Rule 3 verdict for a ride of <paramref name="distance"/> floors (Friday the 13th: 13 is Unlucky for all).</summary>
+        LuckVerdict JudgeDistanceVerdict(GuestRuntime g, int distance, out bool fridayOverride)
+        {
+            var own = g.Luck.Judge(distance);
+            fridayOverride = IsFriday13 && distance == StoryRules.FridayDistance && own != LuckVerdict.Unlucky;
+            return fridayOverride ? LuckVerdict.Unlucky : own;
+        }
+
+        /// <summary>
+        /// Rule 3: judged once when the rider steps out at the destination, before payment. Returns true when a distance
+        /// line was said (it replaces the delivered line).
+        /// </summary>
+        bool JudgeDistance(GuestRuntime g, FloorIndex floor)
+        {
+            int distance = g.FloorsTravelled;
+            var verdict = JudgeDistanceVerdict(g, distance, out bool fridayOverride);
+            if (verdict == LuckVerdict.Lucky)
+            {
+                dayLucky++;
+                bus.Publish(new LuckJudged(g.Id, LuckSource.RideDistance, distance, verdict, floor));
+                Score.OnVerdict(verdict);
+                Score.AddLuck(rules.luckyDistanceLuckBonus, LuckSource.RideDistance);
+                g.TipMultiplier *= rules.luckyDistanceTipMultiplier;
+                SetMood(g, g.Mood == GuestMood.Happy || g.Mood == GuestMood.Delighted ? GuestMood.Delighted : GuestMood.Happy);
+                return Speak(g, GuestLineTriggers.LuckyDistance);
+            }
+            if (verdict == LuckVerdict.Unlucky)
+            {
+                dayUnlucky++;
+                bus.Publish(new LuckJudged(g.Id, LuckSource.RideDistance, distance, verdict, floor));
+                Score.OnVerdict(verdict);
+                Score.AddLuck(-UnluckyPenalty(rules.unluckyDistanceLuckPenalty, g, distance), LuckSource.RideDistance);
+                SetMood(g, GuestMood.Scared);
+                // the Friday override is not the guest's own superstition: no own-number line (presentation shows Friday 13)
+                return !fridayOverride && Speak(g, GuestLineTriggers.UnluckyDistance);
+            }
+            return false;
         }
 
         // =========================================================================================== boarding / exiting
@@ -870,6 +949,9 @@ namespace FloorF.Core
                     g.State = GuestState.Delivered;
                     g.Floor = floor;
                     bus.Publish(new GuestExited(g.Id, floor, true, Elevator.Occupancy));
+                    // rule 3 before the payment: a lucky distance multiplies this tip, an unlucky one may haunt the hotel
+                    bool distanceLine = JudgeDistance(g, floor);
+                    if (CheckHaunted()) return; // EndDay dropped everyone (this guest included): no payment
                     // lucky streak bonus taken at payment time (see ScoreKeeper)
                     int tip = (int)Math.Round((double)g.Def.baseTip * g.TipMultiplier * Score.StreakTipMultiplier, MidpointRounding.AwayFromZero);
                     bus.Publish(new GuestDelivered(g.Id, floor, tip));
@@ -878,7 +960,8 @@ namespace FloorF.Core
                     Score.AddTips(tip, earned: true);
                     // 4th-floor ending: the mystery guest gets off at the real 4th floor while a sticker hides it
                     bool fourth = g.Def.HasTrait(GuestTraits.Mystery) && floor == StoryRules.RealFourthFloor && Building.IsRelabelled(floor);
-                    Speak(g, fourth ? GuestLineTriggers.Special : GuestLineTriggers.Delivered);
+                    if (fourth) Speak(g, GuestLineTriggers.Special);
+                    else if (!distanceLine) Speak(g, GuestLineTriggers.Delivered);
                     Guests.Remove(g);
                     if (fourth) fourthFloorEnding = true;
                 }

@@ -48,10 +48,27 @@ namespace FloorF.Tests.EditMode.Content
         /// Plays with the luck-blind AutoPilot until an ending (or <paramref name="lastDay"/> ends).
         /// A fresh pilot each day (a human starts each day fresh too); reaction delay 0-0.5 s from the seed.
         /// </summary>
-        RunResult Run(int seed, ShopPolicy shop, int lastDay = int.MaxValue, AutoPilotStrategy strategy = AutoPilotStrategy.LuckBlind)
+        RunResult Run(int seed, ShopPolicy shop, int lastDay = int.MaxValue, AutoPilotStrategy strategy = AutoPilotStrategy.LuckBlind,
+            SortedDictionary<string, int> ledger = null)
         {
             var bus = new EventBus();
             var s = new GameSession(data, bus, new Random(seed));
+            if (ledger != null)
+                bus.Subscribe<LuckChanged>(e =>
+                {
+                    if (s.Phase != DayPhase.Running) return;
+                    var key = "day " + s.DisplayDay + " " + e.Source + (e.Delta < 0 ? " -" : " +");
+                    ledger.TryGetValue(key, out int sum);
+                    ledger[key] = sum + e.Delta;
+                });
+            if (ledger != null)
+                bus.Subscribe<LuckJudged>(e =>
+                {
+                    if (s.Phase != DayPhase.Running || !s.Guests.TryGet(e.Guest, out var g)) return;
+                    var key = "day " + s.DisplayDay + "   " + e.Verdict + " " + e.Source + " " + e.Number + " " + g.Archetype.Value;
+                    ledger.TryGetValue(key, out int n);
+                    ledger[key] = n + 1;
+                });
             var luckAfterDay = new List<int>();
             var ending = EndingKind.None;
             int endingDay = 0, finalLuck = -1;
@@ -94,6 +111,19 @@ namespace FloorF.Tests.EditMode.Content
         }
 
         // ------------------------------------------------------------ tests
+
+        /// <summary>Report only: where each bot gains and loses Luck, per day and source (numbers for balance.md).</summary>
+        [Test]
+        public void LuckLedger_Report([Values] AutoPilotStrategy strategy)
+        {
+            foreach (var seed in new[] { 1, 2 })
+            {
+                var ledger = new SortedDictionary<string, int>();
+                var r = Run(seed, ShopPolicy.None, strategy: strategy, ledger: ledger);
+                TestContext.WriteLine(strategy + " seed " + seed + ": " + r);
+                foreach (var kv in ledger) TestContext.WriteLine("  " + kv.Key + " " + kv.Value);
+            }
+        }
 
         [Test]
         public void LuckBlindBot_DoesNotProsper([Values] ShopPolicy shop)
@@ -178,8 +208,8 @@ namespace FloorF.Tests.EditMode.Content
                 Assert.Greater(r.LuckAfterDay[0], 0, "seed " + seed + ": haunted in the tutorial");
             }
 
-            // Worst case on paper: every tutorial guest suffers every unlucky label once and every reachable unlucky
-            // headcount once (or walks out) - the hotel must still stand.
+            // Worst case on paper: every tutorial guest suffers every unlucky label once, every reachable unlucky
+            // headcount once and an unlucky ride distance (one a straight ride can reach) - or walks out. The hotel must still stand.
             var day1 = data.GetDay(firstReal);
             int people = day1.spawns.Sum(sp => data.GetGuest(sp.Guest).partySize);
             int worst = 0;
@@ -191,7 +221,13 @@ namespace FloorF.Tests.EditMode.Content
                 for (int f = 0; f < data.FloorCount; f++)
                     if (data.GetFloor(new FloorIndex(f)).InitialLabel.TryGetNumber(out var n) && p.Judge(n) == LuckVerdict.Unlucky) labels++;
                 int heads = Enumerable.Range(1, people).Count(n => p.Judge(n) == LuckVerdict.Unlucky);
-                int ride = labels * r0.unluckyFloorLuckPenalty + heads * r0.unluckyOccupancyLuckPenalty;
+                // a ride of n floors is possible when n >= the straight distance and has its parity (detours add 2k floors)
+                int dest = sp.HasDestinationFloor ? sp.destinationFloor
+                    : data.TryFindDestinationFloor(new DestinationId(sp.destination), out var df) ? df.PhysicalNumber : -1;
+                int straight = dest > 0 ? Math.Abs(dest - sp.floor) : 1;
+                bool distance = g.unlucky.Any(n => n >= 1 && (dest < 0 || (n >= straight && (n - straight) % 2 == 0)));
+                int ride = labels * r0.unluckyFloorLuckPenalty + heads * r0.unluckyOccupancyLuckPenalty
+                           + (distance ? r0.unluckyDistanceLuckPenalty : 0);
                 worst += g.partySize * Math.Max(ride, r0.patienceOutLuckPenalty);
             }
             Assert.Less(worst, r0.startLuck, "day 1 worst case (" + worst + ") could haunt the hotel");

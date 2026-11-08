@@ -49,5 +49,14 @@ namespace FloorF.Core
 
         /// <summary>Default of RulesDef.impatientPatienceFraction (the data value is what GameSession uses).</summary>
         public const float ImpatientFraction = 0.3f;
+
+        /// <summary>"666": the number a devout guest (<see cref="GuestTraits.Devout"/>) fears twice as much.</summary>
+        public const int DevoutNumber = 6;
+
+        /// <summary>An Unlucky <see cref="DevoutNumber"/> from a devout guest counts double (any source).</summary>
+        public const int DevoutPenaltyFactor = 2;
+
+        /// <summary>Friday the 13th (<see cref="IDayQuery.IsFriday13"/>): this ride distance is Unlucky for every guest.</summary>
+        public const int FridayDistance = 13;
     }
 }

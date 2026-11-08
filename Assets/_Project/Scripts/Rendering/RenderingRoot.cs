@@ -27,6 +27,12 @@ namespace FloorF.Rendering
         JuiceFx fx;
         CameraRig rig;
         EndingDirector ending;
+        PaletteAtlas palette;
+        LivingLights livingLights;
+        CityView city;
+        HotelFacade facade;
+        StreetLife street;
+        readonly float[] letterLevels = new float[BuildingView.HotelText.Length];
         Transform world;
 
         IWorldLayout layout;
@@ -58,6 +64,13 @@ namespace FloorF.Rendering
         internal bool IsPaused => menuFlow != null ? menuFlow.IsPaused || eventPaused : eventPaused;
         internal float JuiceTime => juiceTime;
         internal bool IsBuilt => building != null;
+        internal PaletteAtlas Palette => palette;
+        internal LivingLights LivingLights => livingLights;
+        internal CityView City => city;
+        internal HotelFacade Facade => facade;
+        internal StreetLife Street => street;
+        /// <summary>Seconds of street/city time before the first frame (busy street, lights already mixed).</summary>
+        public const float StreetPrewarmSeconds = 60f;
 
         void Awake()
         {
@@ -142,11 +155,7 @@ namespace FloorF.Rendering
 
         void Build()
         {
-            var rotation = Quaternion.Euler(RenderingStyle.CameraPitch, RenderingStyle.CameraYaw, 0f);
-            var frame = CameraFraming.Fit(BuildingView.FramingBounds(layout), rotation,
-                (float)RenderingStyle.PixelWidth / RenderingStyle.PixelHeight, RenderingStyle.CameraMargin,
-                RenderingStyle.CameraDistance, RenderingStyle.PixelHeight);
-            frame = CameraFraming.SnapToWholePixels(frame, RenderingStyle.PixelHeight);
+            var frame = FitGameplayFrame(layout);
             rig = new CameraRig(pipeline, frame, RenderingStyle.PixelHeight);
 
             building = new BuildingView(world, assets, layout, lighting, frame.PixelsPerUnit);
@@ -159,6 +168,47 @@ namespace FloorF.Rendering
             guests = new GuestViews(world, assets, layout, 1f / frame.PixelsPerUnit);
             fx = new JuiceFx(world, assets);
             ending = new EndingDirector(lighting, building, elevator, fx, OriginalLabel);
+
+            // exterior: one palette (city + facade lights + cars), living lights, street life
+            float z0 = -layout.Depth * 0.5f;
+            palette = new PaletteAtlas(assets, "City Palette");
+            livingLights = new LivingLights(palette, RenderingStyle.CitySeed);
+            city = new CityView(world, palette, livingLights, RenderingStyle.CameraShear, z0);
+            city.Build(z0 - 0.15f);
+            facade = new HotelFacade(world, assets, layout, building, palette, livingLights);
+            facade.Build();
+            street = new StreetLife(world, assets, palette, RenderingStyle.CameraShear, z0, RenderingStyle.CitySeed);
+            street.Build();
+            street.Prewarm(StreetPrewarmSeconds, frame.Grid);
+            TickExterior(0f);
+        }
+
+        /// <summary>
+        /// Gameplay frame: whole pixels per unit from the hotel's screen rectangle (plinth top to HOTEL sign), top edge a
+        /// little above the sign; the remaining slack shows the street below floor 1.
+        /// </summary>
+        internal static CameraFrame FitGameplayFrame(IWorldLayout layout)
+        {
+            float aspect = (float)RenderingStyle.PixelWidth / RenderingStyle.PixelHeight;
+            int h = RenderingStyle.PixelHeight;
+            float z0 = -layout.Depth * 0.5f;
+            var frame = CameraFraming.FitOblique(BuildingView.FramingRect(layout), RenderingStyle.CameraShear, z0, RenderingStyle.CurbZ - 4f,
+                aspect, RenderingStyle.CameraMargin, RenderingStyle.CameraDistance, h);
+            frame = CameraFraming.SnapToWholePixels(frame, h);
+            return CameraFraming.AnchorTop(frame, BuildingView.HotelSignTop(layout, frame.PixelsPerUnit) + RenderingStyle.CameraTopHeadroom, h);
+        }
+
+        /// <summary>City windows, facade lamps, HOTEL letters (juice clock + prewarm offset so the city is mixed at boot).</summary>
+        void TickExterior(float time)
+        {
+            float t = time + StreetPrewarmSeconds;
+            bool eerie = dayQuery != null && dayQuery.IsFriday13;
+            livingLights.Eerie = eerie;
+            livingLights.Tick(t);
+            for (int i = 0; i < letterLevels.Length; i++)
+                letterLevels[i] = LightSchedule.SignLetterLevel(RenderingStyle.CitySeed, i, letterLevels.Length, t, eerie);
+            building.SetHotelLetterLevels(letterLevels);
+            palette.Flush();
         }
 
         DestinationId DestinationOf(FloorIndex f)
@@ -212,6 +262,10 @@ namespace FloorF.Rendering
             lighting.Tick(juiceTime, jdt);
             rig.SetTitle(dayQuery != null && dayQuery.Phase == DayPhase.Title);
             rig.Tick(jdt);
+            var grid = rig.Current.Grid;
+            building.ApplyPixelGrid(grid);
+            street.Tick(jdt, grid);
+            TickExterior(juiceTime);
         }
 
         void ResetEnding()

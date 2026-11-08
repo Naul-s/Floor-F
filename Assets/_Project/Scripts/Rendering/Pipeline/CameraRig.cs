@@ -15,6 +15,8 @@ namespace FloorF.Rendering
         public const float TitleZoomOut = 1.18f;
         public const float TitlePanPixels = 26f;
         public const float TitlePanPeriod = 18f;
+        /// <summary>Title: world units of extra street below the gameplay frame's bottom edge.</summary>
+        public const float TitleExtraRoad = 0.6f;
 
         readonly PixelPipeline pipeline;
         readonly int targetHeight;
@@ -42,14 +44,14 @@ namespace FloorF.Rendering
             pipeline.ApplyFrame(baseFrame);
         }
 
-        /// <summary>Zoomed-out frame with the same centre and rotation, still whole pixels per unit.</summary>
+        /// <summary>
+        /// Zoomed-out frame, still whole pixels per unit: same street line at the bottom (a little more road), the extra
+        /// room goes to sky and neighbouring buildings.
+        /// </summary>
         public static CameraFrame MakeTitleFrame(CameraFrame f, int targetHeight)
         {
-            var wide = new CameraFrame(f.Position, f.Rotation, f.OrthographicSize * TitleZoomOut, targetHeight);
-            // nudge the centre up a little so the HOTEL sign and sky get the extra room
-            var up = f.Rotation * Vector3.up;
-            var centred = new CameraFrame(f.Position + up * f.OrthographicSize * (TitleZoomOut - 1f) * 0.5f, f.Rotation, wide.OrthographicSize, targetHeight);
-            return CameraFraming.SnapToWholePixels(centred, targetHeight);
+            var wide = CameraFraming.SnapToWholePixels(f.WithSize(f.OrthographicSize * TitleZoomOut, targetHeight), targetHeight);
+            return CameraFraming.AnchorBottom(wide, CameraFraming.Bottom(f) - TitleExtraRoad, targetHeight);
         }
 
         public void Shake(float seconds = ShakeSeconds, float amplitudePixels = ShakePixels)
@@ -101,7 +103,7 @@ namespace FloorF.Rendering
             var right = frame.Rotation * Vector3.right;
             var up = frame.Rotation * Vector3.up;
             var pos = frame.Position + right * (OffsetPixels.x * unit) + up * (OffsetPixels.y * unit);
-            Current = new CameraFrame(pos, frame.Rotation, frame.OrthographicSize, targetHeight);
+            Current = frame.WithPosition(pos, targetHeight);
             pipeline.ApplyFrame(Current);
         }
     }

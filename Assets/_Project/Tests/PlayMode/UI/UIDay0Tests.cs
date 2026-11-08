@@ -303,7 +303,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsNull(ui.TutorialTarget);
             Assert.IsFalse(ui.CoachVisible, "no freeze between waves: the next one has to come");
 
-            // ---- wave 2: three grandmas -> go down, OPEN, wait for all, CLOSE (3 = lucky), streak, sauna
+            // ---- wave 2: three grandmas -> go down, OPEN, wait for all, CLOSE (3 = lucky), streak, rooms
             yield return Day0Driver.WaitForWave(ui, 2);
             yield return UITestDriver.Frames(2);
             Assert.AreEqual(TutorialView.Step.GoTo, ui.TutorialStep, "car is at 3, guests at 1");
@@ -351,9 +351,9 @@ namespace FloorF.Tests.PlayMode.UI
             yield return Day0Driver.Shot("ui_day0_streak" + suffix, true);
             yield return Day0Driver.Continue(ui, "streak");
 
-            var sauna = FloorIndex.FromPhysicalNumber(5);
-            Assert.AreEqual("Floor 5", ui.TutorialTarget);
-            yield return Day0Driver.GoTo(ui, sauna);
+            var rooms = FloorIndex.FromPhysicalNumber(6); // 5 floors: a neutral ride distance (rule 3)
+            Assert.AreEqual("Floor 6", ui.TutorialTarget);
+            yield return Day0Driver.GoTo(ui, rooms);
             yield return Day0Driver.Open(ui);
             var seen = new List<string>();
             yield return Day0Driver.ContinueAll(ui, seen);
