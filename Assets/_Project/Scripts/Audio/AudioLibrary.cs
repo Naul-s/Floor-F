@@ -41,6 +41,12 @@ namespace FloorF.Audio
         StreakBroken = 14,
         /// <summary>Soft clock tick once per second over the last <see cref="AudioLibrary.clockTickSeconds"/> s of a real day (rising pitch).</summary>
         ClockTick = 15,
+        /// <summary>WishStarAppeared (star night): soft rising shimmer + climbing pentatonic pings (procedural clip).</summary>
+        WishStar = 16,
+        /// <summary>WishMade: bright C-major bell arpeggio (procedural clip). WishStarFaded is silent.</summary>
+        Wish = 17,
+        /// <summary>Star night only: a quiet high sparkle layered on every Lucky judgement (the wish-star twinkle, pitched up).</summary>
+        StarSparkle = 18,
     }
 
     public enum MusicTrack
@@ -120,6 +126,23 @@ namespace FloorF.Audio
         /// <summary>A door cue starting within this many seconds after the arrival Ding is played <see cref="doorUnderDingDb"/> lower.</summary>
         public float dingGuardSeconds = 0.6f;
         public float doorUnderDingDb = -6f;
+
+        /// <summary>
+        /// Elevator travel loop ("wing-wing", procedural, Audio/Generated): one dedicated looping voice that fades in when
+        /// the car departs and out so it is silent at arrival (before the ding). Never stacks: a re-departure keeps it going.
+        /// </summary>
+        public AudioClip travelHum;
+        /// <summary>Level of the hum at full fade (x MasterVolume, x titleSfxScale on the title demo). An ambience: under the SFX.</summary>
+        public float travelHumVolume = 0.3f;
+        public float travelFadeInSeconds = 0.15f;
+        /// <summary>Fade-out length; it starts this long before the predicted arrival, so the hum is out when the ding plays.</summary>
+        public float travelFadeOutSeconds = 0.2f;
+        /// <summary>Pitch at departure, rising (smoothstep) to 1 over <see cref="travelSpinUpSeconds"/> ("accelerating").</summary>
+        public float travelPitchStart = 0.93f;
+        public float travelSpinUpSeconds = 0.5f;
+        /// <summary>Pitch at arrival, dipping (smoothstep) over the last <see cref="travelSpinDownSeconds"/> ("braking").</summary>
+        public float travelPitchArrive = 0.95f;
+        public float travelSpinDownSeconds = 0.4f;
 
         public CueDef Find(AudioCue cue)
         {

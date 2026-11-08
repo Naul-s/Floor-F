@@ -151,6 +151,33 @@ MonoBehaviour:
     pitch: 0.9
     pitchJitter: 0.05
     minInterval: 0.25
+  - cue: 16
+    clips:
+    - {fileID: 8300000, guid: 59bc57ee37317a9479092433237f2c6b, type: 3}
+    layer: {fileID: 0}
+    layerVolume: 0.4
+    volume: 0.3
+    pitch: 1
+    pitchJitter: 0.05
+    minInterval: 0.5
+  - cue: 17
+    clips:
+    - {fileID: 8300000, guid: 7c8095e671efd8249b3ece74ca3d7a8d, type: 3}
+    layer: {fileID: 0}
+    layerVolume: 0.4
+    volume: 0.5
+    pitch: 1
+    pitchJitter: 0.05
+    minInterval: 0.3
+  - cue: 18
+    clips:
+    - {fileID: 8300000, guid: 6e7c75aaca687c24c851afea04cd7942, type: 3}
+    layer: {fileID: 0}
+    layerVolume: 0.4
+    volume: 0.12
+    pitch: 1
+    pitchJitter: 0.08
+    minInterval: 0.15
   tracks:
   - track: 1
     clip: {fileID: 8300000, guid: 954a44d2f1424a70babf33d36ef7f40c, type: 3}
@@ -179,3 +206,11 @@ MonoBehaviour:
   doorCutFadeSeconds: 0.03
   dingGuardSeconds: 0.6
   doorUnderDingDb: -6
+  travelHum: {fileID: 8300000, guid: a8d174088dd26404dac852aa7edee64d, type: 3}
+  travelHumVolume: 0.15
+  travelFadeInSeconds: 0.15
+  travelFadeOutSeconds: 0.2
+  travelPitchStart: 0.93
+  travelSpinUpSeconds: 0.5
+  travelPitchArrive: 0.95
+  travelSpinDownSeconds: 0.4

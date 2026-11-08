@@ -23,6 +23,8 @@ namespace FloorF.Audio
     /// MasterVolume and the WebGL gesture lock. All timing uses unscaled time (the clock ticks follow the day clock).
     /// Door cues have their own voice pair (never stacked: a new door cue fades the previous one out in
     /// <see cref="AudioLibrary.doorCutFadeSeconds"/>) and are played lower right after the arrival ding.
+    /// The elevator travel hum has one dedicated looping voice (<see cref="TravelHum"/>): in on ElevatorDeparted, out
+    /// before the predicted arrival (speed measured from IElevatorQuery.Position), paused with the game / coach-mark hold.
     /// The AudioListener is on the scene's Main Camera.
     /// </summary>
     sealed class AudioRoot : MonoBehaviour
@@ -77,6 +79,19 @@ namespace FloorF.Audio
         DayPhase phase = DayPhase.None;
         EndingKind ending = EndingKind.None;
 
+        readonly TravelHum hum = new TravelHum();
+        AudioSource humSource;
+        /// <summary>Play() was called on the hum voice and it was not stopped since (isPlaying is false without a device).</summary>
+        bool humOn;
+        bool humPaused;
+        /// <summary>Car speed (floors per unscaled second) measured from IElevatorQuery.Position; 0 = not measured yet.</summary>
+        float carSpeed;
+        float lastCarPos;
+        bool haveCarPos;
+        /// <summary>IElevatorQuery reported the car moving during the current trip (so Idle afterwards = arrived/reset).</summary>
+        bool carSeenMoving;
+        float humEta = -1f;
+
         // ------------------------------------------------------------------ test hooks (internal)
         internal AudioLibrary Library => lib;
         internal IReadOnlyList<CueRecord> Played => played;
@@ -105,8 +120,22 @@ namespace FloorF.Audio
         internal void ClearRecords()
         {
             played.Clear(); SuppressedCount = 0; throttle.Clear(); pendingStreak = 0;
-            DoorCutCount = 0; lastDingTime = float.NegativeInfinity;
+            DoorCutCount = 0; lastDingTime = float.NegativeInfinity; HumStarts = 0;
         }
+
+        /// <summary>The travel hum's own looping voice (never one of <see cref="SfxSources"/>).</summary>
+        internal AudioSource HumSource => humSource;
+        internal bool HumMoving => hum.Moving;
+        internal float HumGain => hum.Gain;
+        internal float HumPitch => hum.Pitch;
+        internal bool HumOn => humOn;
+        internal bool HumPaused => humPaused;
+        /// <summary>Seconds to the predicted arrival (-1 = unknown).</summary>
+        internal float HumEta => humEta;
+        /// <summary>Play() calls on the hum voice (since the last ClearRecords): a re-departure while it sounds adds none.</summary>
+        internal int HumStarts { get; private set; }
+        /// <summary>Hum level without the fade: master x travelHumVolume x title scale.</summary>
+        internal float HumFullVolume => master * lib.travelHumVolume * (phase == DayPhase.Title ? lib.titleSfxScale : 1f);
 
         internal bool TryGetLastPlayed(AudioCue cue, out CueRecord record)
         {
@@ -142,6 +171,10 @@ namespace FloorF.Audio
                 go.transform.SetParent(sfxRoot, false);
                 sfx[i] = MakeSource(go, loop: false, priority: 128);
             }
+            var humGo = new GameObject("Travel Hum");
+            humGo.transform.SetParent(transform, false);
+            humSource = MakeSource(humGo, loop: true, priority: 64);
+            humSource.clip = lib.travelHum;
             for (int i = 0; i < 2; i++)
             {
                 var go = new GameObject(i == 0 ? "Music A" : "Music B");
@@ -164,7 +197,10 @@ namespace FloorF.Audio
         void OnEnable()
         {
             var bus = GameServices.Events;
-            subs.Add(bus.Subscribe<ElevatorArrived>(_ => Play(AudioCue.Ding)));
+            subs.Add(bus.Subscribe<ElevatorArrived>(_ => { hum.Arrive(); Play(AudioCue.Ding); }));
+            subs.Add(bus.Subscribe<ElevatorDeparted>(_ => OnDeparted()));
+            subs.Add(bus.Subscribe<WishStarAppeared>(_ => Play(AudioCue.WishStar)));
+            subs.Add(bus.Subscribe<WishMade>(_ => Play(AudioCue.Wish)));
             subs.Add(bus.Subscribe<DoorsOpened>(_ => Play(AudioCue.DoorsOpen)));
             subs.Add(bus.Subscribe<DoorsClosed>(_ => Play(AudioCue.DoorsClose)));
             subs.Add(bus.Subscribe<LuckJudged>(OnLuckJudged));
@@ -200,6 +236,7 @@ namespace FloorF.Audio
             if (GameServices.TryGet<IDayQuery>(out var day)) TickCountdown(day.Phase, day.IsTutorial, day.RemainingSeconds);
             UpdateMusic(Time.unscaledTime, Time.unscaledDeltaTime);
             StepCutFades(Time.unscaledDeltaTime);
+            UpdateHum(Time.unscaledDeltaTime);
         }
 
         /// <summary>After every Update (Core ticks in Gameplay's Update): one StreakUp note for this frame's increases.</summary>
@@ -228,6 +265,8 @@ namespace FloorF.Audio
             var cue = AudioEventMap.For(e);
             Play(cue);
             if (cue == AudioCue.Unlucky && !paused) dip.Trigger(Time.unscaledTime);
+            bool starNight = GameServices.TryGet<IDayQuery>(out var day) && day.IsStarNight;
+            Play(AudioEventMap.StarNightLayer(cue, starNight));
         }
 
         void OnStreak(LuckStreakChanged e)
@@ -248,6 +287,7 @@ namespace FloorF.Audio
         {
             if (AudioRules.IsPlayerDrivenTransition(e.Previous, e.Current)) Unlock();
             phase = e.Current;
+            hum.Arrive(); // a new phase starts with the car parked (day start / end, title <-> game): fade the hum out
             if (phase != DayPhase.Running) held = false; // leaving Running always releases the coach-mark hold
             if (phase == DayPhase.Ending && GameServices.TryGet<IDayQuery>(out var day)) ending = day.Ending;
             else if (phase != DayPhase.Ending) ending = EndingKind.None;
@@ -265,6 +305,7 @@ namespace FloorF.Audio
         {
             Unlock(); // pausing is always the player's doing
             paused = e.Paused;
+            ApplyHumFreeze();
             if (!paused) return;
             for (int i = 0; i < sfx.Length; i++) { sfx[i].Stop(); sfxCut[i] = false; sfxFade[i] = 1f; }
             doorEndsAt = float.NegativeInfinity;
@@ -375,6 +416,74 @@ namespace FloorF.Audio
                 sfxCut[i] = false;
                 sfxFade[i] = 1f;
             }
+        }
+
+        // ------------------------------------------------------------------ travel hum
+
+        void OnDeparted()
+        {
+            hum.Depart();
+            carSeenMoving = false;
+            haveCarPos = false;
+        }
+
+        /// <summary>Paused or coach-mark hold: the sim is frozen, so the hum voice pauses (state kept) and resumes after.</summary>
+        void ApplyHumFreeze()
+        {
+            bool frozen = paused || held;
+            if (frozen && humOn && !humPaused) { humSource.Pause(); humPaused = true; }
+            else if (!frozen && humPaused) { humPaused = false; if (humOn) humSource.UnPause(); }
+        }
+
+        internal void UpdateHum(float dt)
+        {
+            ApplyHumFreeze();
+            if (paused || held) { haveCarPos = false; return; }
+            humEta = MeasureEta(dt);
+            hum.Step(dt, humEta, unlock.IsUnlocked && lib.travelHum != null, TravelHumSettings.From(lib));
+            if (hum.Active && !humOn)
+            {
+                humSource.clip = lib.travelHum;
+                humSource.time = 0f;
+                humSource.Play();
+                humOn = true;
+                HumStarts++;
+            }
+            else if (!hum.Active && humOn)
+            {
+                humSource.Stop();
+                humOn = false;
+            }
+            humSource.volume = HumFullVolume * hum.Gain;
+            humSource.pitch = hum.Pitch;
+        }
+
+        /// <summary>
+        /// Seconds until the car arrives, from IElevatorQuery (distance to target / measured speed); -1 = unknown (no
+        /// query, idle car, speed not measured yet). Also ends the trip if the car stopped without an ElevatorArrived
+        /// (run reset, title demo restart).
+        /// </summary>
+        float MeasureEta(float dt)
+        {
+            if (!GameServices.TryGet<IElevatorQuery>(out var q)) return -1f;
+            if (q.Motion == ElevatorMotion.Idle)
+            {
+                haveCarPos = false;
+                if (carSeenMoving && hum.Moving) hum.Arrive();
+                carSeenMoving = false;
+                return -1f;
+            }
+            carSeenMoving = true;
+            float pos = q.Position;
+            if (haveCarPos && dt > 0f)
+            {
+                float d = Mathf.Abs(pos - lastCarPos);
+                if (d > 1e-5f) carSpeed = carSpeed <= 0f ? d / dt : Mathf.Lerp(carSpeed, d / dt, 0.3f);
+            }
+            lastCarPos = pos;
+            haveCarPos = true;
+            if (carSpeed <= 0f || !q.HasTarget) return -1f;
+            return Mathf.Abs(q.TargetFloor.Value - pos) / carSpeed;
         }
 
         // ------------------------------------------------------------------ music
