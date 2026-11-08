@@ -22,6 +22,8 @@ namespace FloorF.Core
         public float TipMultiplier = 1f;
         public bool FloorTipBonusApplied;
         public bool OccupancyTipBonusApplied;
+        /// <summary>Rule 3: floors the car moved with this guest inside (exact, detours and reversals included).</summary>
+        public double Travelled;
         /// <summary>A guest reacts to each floor / each headcount at most once per ride (no open/close farming).</summary>
         public readonly HashSet<int> SeenFloors = new HashSet<int>();
         public readonly HashSet<int> SeenOccupancies = new HashSet<int>();
@@ -35,7 +37,10 @@ namespace FloorF.Core
         public GuestArchetypeId Archetype => Def.Id;
         public float Patience01 => PatienceMax <= 0 ? 0f : Math.Max(0f, Math.Min(1f, Patience / PatienceMax));
 
-        public GuestInfo ToInfo() => new GuestInfo(Id, Archetype, Party, State, Mood, Floor, Destination, DestinationFloor, Patience01, Luck, Def.hideNumbers);
+        /// <summary>Whole floors travelled since boarding (<see cref="LuckSource.RideDistance"/>); 0 while waiting.</summary>
+        public int FloorsTravelled => (int)Math.Floor(Travelled + 1e-3);
+
+        public GuestInfo ToInfo() => new GuestInfo(Id, Archetype, Party, State, Mood, Floor, Destination, DestinationFloor, Patience01, Luck, Def.hideNumbers, FloorsTravelled);
     }
 
     /// <summary><see cref="IGuestQuery"/>: active guests and per-floor waiting lines.</summary>
