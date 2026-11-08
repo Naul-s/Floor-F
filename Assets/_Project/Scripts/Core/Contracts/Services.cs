@@ -168,6 +168,8 @@ namespace FloorF.Core
         /// Presentation: moon, Milky Way, meteor shower.
         /// </summary>
         bool IsStarNight { get; }
+        /// <summary>DayDef.weather == "rain" (Day 5): rain + distant lightning, rain ambience. Presentation only.</summary>
+        bool IsRainy { get; }
         float DurationSeconds { get; }
         float ElapsedSeconds { get; }
         float RemainingSeconds { get; }
@@ -222,13 +224,31 @@ namespace FloorF.Core
         }
     }
 
+    /// <summary>
+    /// The shop between days. Every purchase lasts ONE day: labels stuck and charms bought after day N are active during
+    /// day N+1 and expire when it ends (labels go back to their originals, <see cref="StickersExpired"/>), before the next
+    /// shop opens. Offers: <c>rules.shopOfferCount</c> drawn at random (seeded, weighted) from the day's shopStickers pool;
+    /// <see cref="Reroll"/> redraws them (cost grows each time, at most rules.maxRerolls per visit).
+    /// </summary>
     public interface IShopService
     {
         bool IsOpen { get; }
         IReadOnlyList<ShopOffer> Offers { get; }
         /// <summary>Dry run of <see cref="TryBuyAndApply"/> (for greying out buttons / highlighting valid floors).</summary>
         StickerApplyResult CanBuyAndApply(StickerId sticker, FloorIndex floor);
+        /// <summary>Label stickers only (charms: WrongKind).</summary>
         StickerApplyResult TryBuyAndApply(StickerId sticker, FloorIndex floor);
+        /// <summary>Dry run of <see cref="TryBuy"/>.</summary>
+        StickerApplyResult CanBuy(StickerId charm);
+        /// <summary>Charms only (labels: WrongKind). Publishes CharmBought + TipsChanged.</summary>
+        StickerApplyResult TryBuy(StickerId charm);
+        int RerollsLeft { get; }
+        /// <summary>Price of the next reroll.</summary>
+        int RerollCost { get; }
+        /// <summary>Shop open, rerolls left, enough tips. Publishes ShopRerolled + TipsChanged; Offers is replaced.</summary>
+        bool Reroll();
+        /// <summary>Charms bought for (shop) or active during (Running) the next/current day.</summary>
+        IReadOnlyList<StickerDef> ActiveCharms { get; }
     }
 
     /// <summary>

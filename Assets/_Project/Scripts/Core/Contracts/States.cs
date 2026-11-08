@@ -98,5 +98,9 @@ namespace FloorF.Core
         NotApplicable = 5,
         /// <summary>Not in the Shop phase.</summary>
         ShopClosed = 6,
+        /// <summary>Label stickers need a floor (TryBuyAndApply); charms are bought without one (TryBuy).</summary>
+        WrongKind = 7,
+        /// <summary>That charm is already active for tomorrow.</summary>
+        AlreadyActive = 8,
     }
 }

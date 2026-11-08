@@ -241,6 +241,42 @@ namespace FloorF.Core
         public FloorLabelChanged(FloorIndex floor, FloorLabel previous, FloorLabel current) { Floor = floor; Previous = previous; Current = current; }
     }
 
+    /// <summary>Shop offers were redrawn for a price.</summary>
+    public readonly struct ShopRerolled
+    {
+        public readonly int Cost;
+        public readonly int RerollsLeft;
+        public readonly int NextCost;
+        public ShopRerolled(int cost, int rerollsLeft, int nextCost) { Cost = cost; RerollsLeft = rerollsLeft; NextCost = nextCost; }
+    }
+
+    /// <summary>A charm was bought (active the next day). Followed by TipsChanged.</summary>
+    public readonly struct CharmBought
+    {
+        public readonly StickerId Charm;
+        public readonly int Price;
+        public CharmBought(StickerId charm, int price) { Charm = charm; Price = price; }
+    }
+
+    /// <summary>
+    /// The one-day purchases ran out at the end of the day they were active: labels went back to their originals
+    /// (each also publishes FloorLabelChanged) and charms ended. Published after DayEnded, before Summary/Ending.
+    /// </summary>
+    public readonly struct StickersExpired
+    {
+        public readonly int Labels;
+        public readonly int Charms;
+        public StickersExpired(int labels, int charms) { Labels = labels; Charms = charms; }
+    }
+
+    /// <summary>A charm's effect actually helped (e.g. the shield ate an Unlucky verdict) — for feedback.</summary>
+    public readonly struct CharmTriggered
+    {
+        public readonly StickerId Charm;
+        public readonly GuestId Guest;
+        public CharmTriggered(StickerId charm, GuestId guest) { Charm = charm; Guest = guest; }
+    }
+
     /// <summary>A sticker was bought and stuck on a floor. Followed by FloorLabelChanged and TipsChanged.</summary>
     public readonly struct StickerApplied
     {

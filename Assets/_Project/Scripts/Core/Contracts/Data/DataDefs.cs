@@ -101,6 +101,14 @@ namespace FloorF.Core
         public float wishStarSeconds = 3f;
         public int wishLuckBonus = 4;
 
+        // shop: random offers + rerolls (per visit)
+        /// <summary>Offers drawn (weighted, without repeats) from the day's shopStickers pool each visit/reroll.</summary>
+        public int shopOfferCount = 4;
+        public int rerollBaseCost = 20;
+        /// <summary>Each reroll costs the previous cost x this (20, 40, 80 ...).</summary>
+        public float rerollCostMultiplier = 2f;
+        public int maxRerolls = 3;
+
         // endings
         /// <summary>Luck at the end of the last day needed for the Prosperous ending (else Modest).</summary>
         public int prosperousEndingLuck = 70;
@@ -215,6 +223,26 @@ namespace FloorF.Core
     }
 
     /// <summary>Known values for GuestDef.traits. Unknown traits are ignored by gameplay (data can run ahead of code).</summary>
+    /// <summary>StickerDef.kind values.</summary>
+    public static class StickerKinds
+    {
+        public const string Label = "label";
+        public const string Charm = "charm";
+    }
+
+    /// <summary>Charm effects (StickerDef.effect) — all last exactly the next day. Unknown effects are ignored by gameplay.</summary>
+    public static class StickerEffects
+    {
+        /// <summary>Guests' patience x (1 + amount).</summary>
+        public const string Patience = "patience";
+        /// <summary>Elevator travel and doors x (1 + amount) faster.</summary>
+        public const string Speed = "speed";
+        /// <summary>The first (amount, rounded, min 1) Unlucky verdict(s) of the day cost no Luck.</summary>
+        public const string Shield = "shield";
+        /// <summary>Tips x (1 + amount).</summary>
+        public const string Tips = "tips";
+    }
+
     public static class GuestTraits
     {
         /// <summary>Day-1 tutorial guest: patient, explains the rule.</summary>
@@ -254,6 +282,8 @@ namespace FloorF.Core
         public bool friday13;
         /// <summary>"Star night" (see IDayQuery.IsStarNight).</summary>
         public bool starNight;
+        /// <summary>Presentation weather: "" (clear) or "rain" (rain + distant lightning). No rule effect.</summary>
+        public string weather = "";
         /// <summary>Wish stars that cross the sky during this day (spread over the clock, seeded). 0 = none.</summary>
         public int wishStars;
         /// <summary>Sticker ids offered in the shop AFTER this day.</summary>
@@ -309,8 +339,20 @@ namespace FloorF.Core
         public int price = 10;
         /// <summary>Purchases per shop visit. -1 = unlimited.</summary>
         public int stock = 1;
+        /// <summary>
+        /// "label" (default): relabels one floor (from/to). "charm": no floor, a one-day effect (<see cref="effect"/>).
+        /// EVERY purchase lasts ONE day: bought in the shop after day N, active during day N+1, gone when it ends.
+        /// </summary>
+        public string kind = StickerKinds.Label;
+        /// <summary>Charm effect id (StickerEffects), ignored for labels.</summary>
+        public string effect = "";
+        /// <summary>Charm strength (meaning per effect, see StickerEffects).</summary>
+        public float amount;
+        /// <summary>Weight in the random shop draw (0 = never offered at random).</summary>
+        public float weight = 1f;
 
         public StickerId Id => new StickerId(id);
+        public bool IsCharm => string.Equals(kind, StickerKinds.Charm, StringComparison.OrdinalIgnoreCase);
         public bool MatchesAnyLabel => string.IsNullOrWhiteSpace(from) || from.Trim() == AnyLabel;
         public FloorLabel ResultLabel => new FloorLabel(to);
 

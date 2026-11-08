@@ -1029,6 +1029,15 @@ namespace FloorF.Core
         public IReadOnlyList<ShopOffer> Offers => offersView;
         ShopOffer[] offersView = Array.Empty<ShopOffer>();
 
+        // TODO(gameplay-dev): shop rework (contract stubs) - one-day purchases, charms, random offers, rerolls
+        public StickerApplyResult CanBuy(StickerId charm) => StickerApplyResult.WrongKind;
+        public StickerApplyResult TryBuy(StickerId charm) => StickerApplyResult.WrongKind;
+        public int RerollsLeft => 0;
+        public int RerollCost => 0;
+        public bool Reroll() => false;
+        public IReadOnlyList<StickerDef> ActiveCharms => Array.Empty<StickerDef>();
+        public bool IsRainy => dayDef != null && string.Equals(dayDef.weather, "rain", StringComparison.OrdinalIgnoreCase);
+
         bool OpenShop()
         {
             CloseShop();
