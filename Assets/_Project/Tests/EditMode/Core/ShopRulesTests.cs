@@ -448,6 +448,19 @@ namespace FloorF.Tests.EditMode.Core
             Assert.AreEqual(luck - 10, sim.S.Score.Luck);
             Assert.AreEqual(0, sim.S.ShieldLeft);
             Assert.IsTrue(sim.Events<GuestMoodChanged>().Any(m => m.Guest == g3 && m.Current == GuestMood.Scared));
+
+            // order: each shielded verdict = CharmTriggered IMMEDIATELY before its LuckJudged, no LuckChanged in between
+            foreach (var g in new[] { g1, g2 })
+            {
+                int t = sim.IndexOf<CharmTriggered>(e => e.Guest == g);
+                Assert.IsInstanceOf<LuckJudged>(sim.Log[t + 1], "CharmTriggered right before the verdict it protects");
+                Assert.AreEqual(g, ((LuckJudged)sim.Log[t + 1]).Guest);
+                int next = sim.IndexOf<LuckJudged>(null, t + 2);
+                int end = next < 0 ? sim.Log.Count : next;
+                Assert.AreEqual(-1, sim.Log.Skip(t).Take(end - t).ToList().FindIndex(o => o is LuckChanged), "no Luck loss for a shielded verdict");
+            }
+            int third = sim.IndexOf<LuckJudged>(e => e.Guest == g3);
+            Assert.IsNotInstanceOf<CharmTriggered>(sim.Log[third - 1]);
         }
 
         [Test]

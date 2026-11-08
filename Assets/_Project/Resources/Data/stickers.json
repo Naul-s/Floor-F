@@ -8,7 +8,7 @@
       "descriptionKo": "한국의 많은 건물처럼 4를 F(Four)로 가린다. 언제나 재고 있음.",
       "from": "4",
       "to": "F",
-      "price": 25,
+      "price": 30,
       "stock": 1,
       "weight": 2
     },
@@ -20,8 +20,8 @@
       "descriptionKo": "3은 한국에서 좋은 숫자(삼세판!)이고, 중국어로는 '생(生)'과 소리가 비슷하다.",
       "from": "*",
       "to": "3",
-      "price": 30,
-      "stock": 2,
+      "price": 60,
+      "stock": 1,
       "weight": 2
     },
     {
@@ -32,8 +32,8 @@
       "descriptionKo": "중국어로 8은 '발(發, 번창)'과 소리가 같다. 대박! 정직한 손님은 알아챈다.",
       "from": "*",
       "to": "8",
-      "price": 90,
-      "stock": 2,
+      "price": 120,
+      "stock": 1,
       "weight": 2
     },
     {
@@ -44,8 +44,8 @@
       "descriptionKo": "황금빛 행운의 7. 서양의 행운, 별이 쏟아지는 밤엔 모두의 행운. 정직한 손님은 알아챈다.",
       "from": "*",
       "to": "7",
-      "price": 120,
-      "stock": 2,
+      "price": 150,
+      "stock": 1,
       "weight": 2
     },
     {
@@ -56,8 +56,8 @@
       "descriptionKo": "9는 중국어로 '구(久, 오래감)', 일본어로는 '쿠(苦, 괴로움)'. 손님을 가려서 쓸 것.",
       "from": "*",
       "to": "9",
-      "price": 50,
-      "stock": 2,
+      "price": 70,
+      "stock": 1,
       "weight": 1.5
     },
     {
@@ -68,8 +68,8 @@
       "descriptionKo": "중국에서 6은 '만사형통(六六大順)'. 신부님 눈에는 666이라 두 배로 질겁한다.",
       "from": "*",
       "to": "6",
-      "price": 50,
-      "stock": 2,
+      "price": 70,
+      "stock": 1,
       "weight": 1.2
     },
     {
@@ -80,7 +80,7 @@
       "descriptionKo": "이탈리아에서 13은 행운의 숫자('fare tredici' = 대박). 서양 관광객 생각은 다르다.",
       "from": "*",
       "to": "13",
-      "price": 45,
+      "price": 60,
       "stock": 1,
       "weight": 1
     },
@@ -94,7 +94,7 @@
       "effect": "patience",
       "amount": 0.5,
       "to": "-",
-      "price": 40,
+      "price": 50,
       "stock": 1,
       "weight": 1.5
     },
@@ -108,7 +108,7 @@
       "effect": "speed",
       "amount": 0.25,
       "to": "-",
-      "price": 60,
+      "price": 70,
       "stock": 1,
       "weight": 1.5
     },
@@ -122,7 +122,7 @@
       "effect": "shield",
       "amount": 2,
       "to": "-",
-      "price": 80,
+      "price": 100,
       "stock": 1,
       "weight": 2
     },
@@ -136,7 +136,7 @@
       "effect": "tips",
       "amount": 0.3,
       "to": "-",
-      "price": 120,
+      "price": 130,
       "stock": 1,
       "weight": 1.5
     }

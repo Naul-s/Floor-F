@@ -30,7 +30,19 @@ namespace FloorF.Tests.EditMode.Content
 
         // ------------------------------------------------------------ bot runner
 
-        public enum ShopPolicy { None, BuyEverythingOnFour }
+        /// <summary>
+        /// None: never buys. HideFour: every visit only the 4 -> F staple onto the real 4th floor (one-day stickers: so the
+        /// last day's floor 4 is hidden for the mystery guest). Greedy: <see cref="ShopBot"/> spends everything it can.
+        /// </summary>
+        public enum ShopPolicy { None, HideFour, Greedy }
+
+        static void HideFour(GameSession s)
+        {
+            var four = StoryRules.RealFourthFloor;
+            foreach (var o in s.Offers)
+                if (!o.Sticker.IsCharm && !o.Sticker.MatchesAnyLabel && s.CanBuyAndApply(o.Id, four) == StickerApplyResult.Applied)
+                    s.TryBuyAndApply(o.Id, four);
+        }
 
         readonly struct RunResult
         {
@@ -77,6 +89,7 @@ namespace FloorF.Tests.EditMode.Content
             bus.Subscribe<EndingReached>(e => { ending = e.Ending; endingDay = e.Day.Number; finalLuck = e.FinalLuck; });
 
             var reaction = new Random(seed * 7919 + 13);
+            var shopper = new ShopBot(data);
             AutoPilot pilot = null;
             float wait = 0f;
             const float dt = 1f / 30f;
@@ -96,8 +109,8 @@ namespace FloorF.Tests.EditMode.Content
                         s.ContinueFromSummary();
                         break;
                     case DayPhase.Shop:
-                        if (shop == ShopPolicy.BuyEverythingOnFour)
-                            foreach (var o in s.Offers) s.TryBuyAndApply(o.Id, StoryRules.RealFourthFloor);
+                        if (shop == ShopPolicy.HideFour) HideFour(s);
+                        else if (shop == ShopPolicy.Greedy) shopper.Shop(s);
                         s.FinishShopping();
                         break;
                     case DayPhase.Running:
@@ -222,8 +235,17 @@ namespace FloorF.Tests.EditMode.Content
                 Assert.AreNotEqual(EndingKind.FourthFloor, plain.Ending, "seed " + seed + ": honest 4th floor still gave the 4th-floor ending");
                 Assert.AreEqual(data.DayCount, plain.EndingDay, "seed " + seed + ": " + plain);
 
-                var hidden = Run(seed, ShopPolicy.BuyEverythingOnFour, strategy: AutoPilotStrategy.LuckAware);
+                var trace = new List<string>();
+                var hidden = Run(seed, ShopPolicy.HideFour, strategy: AutoPilotStrategy.LuckAware, onBus: bus =>
+                {
+                    bus.Subscribe<GuestSpawned>(e => { if (e.Archetype.Value == "mystery_guest") trace.Add("mystery spawned " + e.Guest); });
+                    bus.Subscribe<GuestBoarded>(e => trace.Add("boarded " + e.Guest));
+                    bus.Subscribe<GuestDelivered>(e => trace.Add("delivered " + e.Guest + " @" + e.Floor.PhysicalNumber));
+                    bus.Subscribe<FloorLabelChanged>(e => { if (e.Floor == StoryRules.RealFourthFloor) trace.Add("floor 4 -> " + e.Current); });
+                    bus.Subscribe<DayStarted>(e => trace.Add("day " + e.Day.Number));
+                });
                 TestContext.WriteLine("seed " + seed + " floor 4 hidden: " + hidden);
+                if (hidden.Ending != EndingKind.FourthFloor) TestContext.WriteLine(string.Join(" | ", trace.Skip(Math.Max(0, trace.Count - 60))));
                 Assert.AreEqual(EndingKind.FourthFloor, hidden.Ending, "seed " + seed + ": hidden 4th floor + mystery guest should end there");
                 Assert.AreEqual(data.DayCount, hidden.EndingDay, "seed " + seed + ": " + hidden);
             }

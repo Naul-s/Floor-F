@@ -38,8 +38,9 @@ namespace FloorF.Core
     /// Unlucky penalties (every Unlucky LuckJudged: floor label, occupancy, ride distance, honest sticker):
     ///   base x <see cref="StoryRules.DevoutPenaltyFactor"/> when a devout guest's number is <see cref="StoryRules.DevoutNumber"/>
     ///   ("666"), x rules.friday13PenaltyMultiplier on a Friday-the-13th day, rounded half away from zero.
-    /// A shield charm can eat that loss (CharmTriggered instead of LuckChanged; see GameSession.Shop.cs for the shop,
-    /// one-day purchases and charms).
+    /// Shield charm (one day, see GameSession.Shop.cs for the shop, one-day purchases and charms): a shielded Unlucky
+    /// verdict publishes CharmTriggered(shield, guest) IMMEDIATELY BEFORE its LuckJudged(Unlucky), then no LuckChanged:
+    ///   CharmTriggered -> LuckJudged(Unlucky) -> LuckStreakChanged? -> GuestMoodChanged? -> GuestSpoke?
     /// Friday the 13th (<see cref="IsFriday13"/>): a ride distance of <see cref="StoryRules.FridayDistance"/> is Unlucky for
     /// every guest, even one whose own lucky number is 13 (no own-number line is said for that override). Patience
     /// penalties are not verdicts and are not multiplied.
@@ -738,9 +739,11 @@ namespace FloorF.Core
             else if (verdict == LuckVerdict.Unlucky)
             {
                 dayUnlucky++;
+                int penalty = UnluckyPenalty(rules.unluckyFloorLuckPenalty, g, number);
+                bool shielded = TryShield(g, penalty); // CharmTriggered BEFORE the verdict it protects
                 bus.Publish(new LuckJudged(g.Id, LuckSource.FloorLabel, number, verdict, floor));
                 Score.OnVerdict(verdict);
-                LoseLuck(g, UnluckyPenalty(rules.unluckyFloorLuckPenalty, g, number), LuckSource.FloorLabel);
+                if (!shielded) Score.AddLuck(-penalty, LuckSource.FloorLabel);
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyFloor);
             }
@@ -749,9 +752,11 @@ namespace FloorF.Core
             {
                 // GDD 5 counterweight: honest guests hate stickers (once per floor per ride, like every floor reaction)
                 dayUnlucky++;
+                int penalty = UnluckyPenalty(rules.honestGuestLuckPenalty, g, -1);
+                bool shielded = TryShield(g, penalty); // CharmTriggered BEFORE the verdict it protects
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Sticker, -1, LuckVerdict.Unlucky, floor));
                 Score.OnVerdict(LuckVerdict.Unlucky);
-                LoseLuck(g, UnluckyPenalty(rules.honestGuestLuckPenalty, g, -1), LuckSource.Sticker);
+                if (!shielded) Score.AddLuck(-penalty, LuckSource.Sticker);
                 SetMood(g, GuestMood.Angry);
             }
             // everyone comments on the first sticker they see (once per guest, after the luck line; no luck effect)
@@ -793,9 +798,11 @@ namespace FloorF.Core
             else if (verdict == LuckVerdict.Unlucky)
             {
                 dayUnlucky++;
+                int penalty = UnluckyPenalty(rules.unluckyOccupancyLuckPenalty, g, occupancy);
+                bool shielded = TryShield(g, penalty); // CharmTriggered BEFORE the verdict it protects
                 bus.Publish(new LuckJudged(g.Id, LuckSource.Occupancy, occupancy, verdict, floor));
                 Score.OnVerdict(verdict);
-                LoseLuck(g, UnluckyPenalty(rules.unluckyOccupancyLuckPenalty, g, occupancy), LuckSource.Occupancy);
+                if (!shielded) Score.AddLuck(-penalty, LuckSource.Occupancy);
                 SetMood(g, GuestMood.Scared);
                 Speak(g, GuestLineTriggers.UnluckyOccupancy);
             }
@@ -852,9 +859,11 @@ namespace FloorF.Core
             if (verdict == LuckVerdict.Unlucky)
             {
                 dayUnlucky++;
+                int penalty = UnluckyPenalty(rules.unluckyDistanceLuckPenalty, g, distance);
+                bool shielded = TryShield(g, penalty); // CharmTriggered BEFORE the verdict it protects
                 bus.Publish(new LuckJudged(g.Id, LuckSource.RideDistance, distance, verdict, floor));
                 Score.OnVerdict(verdict);
-                LoseLuck(g, UnluckyPenalty(rules.unluckyDistanceLuckPenalty, g, distance), LuckSource.RideDistance);
+                if (!shielded) Score.AddLuck(-penalty, LuckSource.RideDistance);
                 SetMood(g, GuestMood.Scared);
                 // the Friday override is not the guest's own superstition: no own-number line (presentation shows Friday 13)
                 return !globalOverride && Speak(g, GuestLineTriggers.UnluckyDistance);

@@ -26,8 +26,8 @@ namespace FloorF.Core
     /// Charms (StickerDef.kind "charm", bought with <see cref="TryBuy"/>, no floor; same id twice = AlreadyActive):
     ///   patience: new guests' patience x (1 + amount) | speed: elevator travel and door open/close x (1 + amount) faster
     ///   (boarding walks are not sped up) | tips: every tip x (1 + amount), published CharmTriggered after GuestDelivered
-    ///   | shield: the first round(amount) (min 1) Unlucky verdicts of the day with a Luck cost cost nothing - LuckJudged
-    ///   is still published (mood, streak and lines as usual) and CharmTriggered replaces LuckChanged.
+    ///   | shield: the first round(amount) (min 1) Unlucky verdicts of the day with a Luck cost cost nothing:
+    ///   CharmTriggered(shield, guest) -> LuckJudged(Unlucky) -> LuckStreakChanged? -> (no LuckChanged) -> mood/lines as usual.
     ///   Several charms with the same effect (different ids) add their amounts. Unknown effects do nothing.
     /// </summary>
     public sealed partial class GameSession
@@ -309,24 +309,23 @@ namespace FloorF.Core
         static int ShieldCapacity(StickerDef c) => Math.Max(1, (int)Math.Round(c.amount, MidpointRounding.AwayFromZero));
 
         /// <summary>
-        /// Luck loss of one Unlucky verdict (after <see cref="UnluckyPenalty"/>). A shield charm with uses left eats it:
-        /// CharmTriggered instead of LuckChanged.
+        /// Called for each Unlucky verdict BEFORE its LuckJudged is published: if a shield charm has a use left and the
+        /// verdict would cost Luck (<paramref name="penalty"/> &gt; 0), uses it and publishes CharmTriggered(shield, guest).
+        /// True = the caller skips the Luck loss (no LuckChanged for that verdict).
         /// </summary>
-        void LoseLuck(GuestRuntime g, int penalty, LuckSource source)
+        bool TryShield(GuestRuntime g, int penalty)
         {
-            if (penalty > 0 && phase == DayPhase.Running)
+            if (penalty <= 0 || phase != DayPhase.Running) return false;
+            foreach (var c in charms)
             {
-                foreach (var c in charms)
-                {
-                    if (!string.Equals(c.effect, StickerEffects.Shield, StringComparison.OrdinalIgnoreCase)) continue;
-                    shieldUsed.TryGetValue(c.Id, out int used);
-                    if (used >= ShieldCapacity(c)) continue;
-                    shieldUsed[c.Id] = used + 1;
-                    bus.Publish(new CharmTriggered(c.Id, g.Id));
-                    return;
-                }
+                if (!string.Equals(c.effect, StickerEffects.Shield, StringComparison.OrdinalIgnoreCase)) continue;
+                shieldUsed.TryGetValue(c.Id, out int used);
+                if (used >= ShieldCapacity(c)) continue;
+                shieldUsed[c.Id] = used + 1;
+                bus.Publish(new CharmTriggered(c.Id, g.Id));
+                return true;
             }
-            Score.AddLuck(-penalty, source);
+            return false;
         }
 
         /// <summary>Shield uses left today (tests / debug).</summary>
