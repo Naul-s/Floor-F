@@ -196,7 +196,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(banner.xMin >= -UIStyle.RefWidth && banner.yMax <= ui.CanvasSize.y, "banner on the canvas");
             Assert.IsTrue(ui.StarBadgeVisible, "star night badge");
             Assert.IsFalse(ui.FridayBadgeVisible);
-            Assert.AreEqual(ko ? "별이 쏟아지는 밤 · 7 = 모두 행운" : "STAR NIGHT · 7 lucky for all", ui.StarBadgeText);
+            Assert.AreEqual(ko ? "별이 쏟아지는 밤\n7 = 모두 행운" : "STAR NIGHT\n7 lucky for all", ui.StarBadgeText);
+            Assert.IsTrue(ui.StarBadgeFits, "both badge lines fit");
             Assert.GreaterOrEqual(ui.StarBadgeFontSize, 24f, "badge readable (not shrunk)");
             StringAssert.Contains(ko ? "7 = 모두 행운" : "7 = lucky for ALL", ui.RulesText);
             Assert.IsNull(ui.RulesOverflow(), "rule lines fit");

@@ -18,6 +18,8 @@ namespace FloorF.UI
         public const float StreakTop = 148f, StreakH = 38f, RulesTop = 192f, RulesH = 132f, RulesBottom = RulesTop + RulesH;
         /// <summary>Friday the 13th: the rule box gets one more (red) line and the badge sits under it.</summary>
         public const float Friday13LineH = 22f, BadgeGap = 8f, BadgeH = 40f;
+        /// <summary>Star night badge: two 24px lines ("STAR NIGHT" / "7 lucky for all") - the Korean line is too long for one.</summary>
+        public const float StarBadgeH = 64f;
         const float BrokenLife = 1.6f, PopLife = 0.35f;
         readonly UIContext ctx;
         readonly TextMeshProUGUI dayText, clockText, luckCaption, luckValue, luckDelta, tipsCaption, tipsValue, tipsDelta;
@@ -125,9 +127,9 @@ namespace FloorF.UI
             // star night badge (same slot; deep blue with a violet edge, a star at each end)
             starEdge = UIBuild.Framed("StarNightBadge", canvas, StarBoxFill, StarEdge, 3f);
             starBadge = starEdge.rectTransform;
-            UIBuild.Place(starBadge, new Vector2(1f, 1f), new Vector2(-24f, -(RulesBottom + Friday13LineH + BadgeGap)), new Vector2(MeterW + 32f, BadgeH));
+            UIBuild.Place(starBadge, new Vector2(1f, 1f), new Vector2(-24f, -(RulesBottom + Friday13LineH + BadgeGap)), new Vector2(MeterW + 32f, StarBadgeH));
             starText = UIBuild.Text("Text", starBadge, "", 24f, StarInk, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Stretch(starText.rectTransform, 6f);
+            UIBuild.Stretch(starText.rectTransform, 3f);
             starText.textWrappingMode = TextWrappingModes.NoWrap;
             starBadge.gameObject.SetActive(false);
 
@@ -208,8 +210,8 @@ namespace FloorF.UI
             fridayText.text = ctx.F(UIStrings.Friday13Badge, UIFormat.Multiplier(Friday13Multiplier));
             UIBuild.Fit(fridayText, 24f);
             UIBuild.Set(ruleStar, ctx.S(UIStrings.RuleStarNight));
-            starText.text = ctx.S(UIStrings.StarNightBadge);
-            UIBuild.Fit(starText, 24f);
+            starText.text = StarBadgeLines(ctx.S(UIStrings.StarNightBadge));
+            starText.fontSize = 24f;
             if (!string.Equals(language.Label.text, ctx.S(UIStrings.Language), System.StringComparison.Ordinal))
             {
                 language.Label.text = ctx.S(UIStrings.Language);
@@ -405,10 +407,20 @@ namespace FloorF.UI
         public bool FridayBadgeVisible => fridayBadge.gameObject.activeInHierarchy;
         public string FridayBadgeText => FridayBadgeVisible ? fridayText.text : null;
         public float FridayBadgeFontSize => fridayText.fontSize;
+        /// <summary>"A · B" -> two lines.</summary>
+        public static string StarBadgeLines(string s) => s.Replace(" · ", "\n");
         public RectTransform StarBadge => starBadge;
         public bool StarBadgeVisible => starBadge.gameObject.activeInHierarchy;
         public string StarBadgeText => StarBadgeVisible ? starText.text : null;
         public float StarBadgeFontSize => starText.fontSize;
+        public bool StarBadgeFits
+        {
+            get
+            {
+                var p = starText.GetPreferredValues(starText.text, float.PositiveInfinity, float.PositiveInfinity);
+                return p.x <= starText.rectTransform.rect.width + 0.5f && p.y <= starText.rectTransform.rect.height + 0.5f;
+            }
+        }
         /// <summary>The rule box's visible lines, top to bottom (rich text), "\n"-joined.</summary>
         public string RulesText
         {

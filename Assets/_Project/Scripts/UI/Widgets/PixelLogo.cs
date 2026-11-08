@@ -151,7 +151,7 @@ namespace FloorF.UI
                     {
                         // halo: display pixels next to a lit segment
                         bool next = (xx > 0 && lit[i - 1]) || (xx < W - 1 && lit[i + 1]) || (yy > 0 && lit[i - W]) || (yy < H - 1 && lit[i + W]);
-                        if (next) ledPixels[t] = new Color32(255, 80, 50, 96);
+                        if (next) ledPixels[t] = new Color32(255, 80, 50, 64);
                     }
                 }
             baseTex = MakeTexture(name + "Base", basePixels);

@@ -11,7 +11,7 @@ namespace FloorF.UI
     /// </summary>
     sealed class DayBannerView
     {
-        public const float In = 0.3f, Hold = 1.1f, Out = 0.35f, Life = In + Hold + Out, Slide = 220f, Height = 64f, CentreY = 0.62f;
+        public const float In = 0.3f, Hold = 1.1f, Out = 0.35f, Life = In + Hold + Out, Slide = 220f, Height = 56f, CentreY = 0.62f;
         readonly UIContext ctx;
         readonly RectTransform root;
         readonly CanvasGroup group;
@@ -45,7 +45,7 @@ namespace FloorF.UI
                 rt.sizeDelta = new Vector2(0f, 3f);
                 edges[i] = e;
             }
-            text = UIBuild.Text("Text", root, "", 48f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            text = UIBuild.Text("Text", root, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
             UIBuild.Stretch(text.rectTransform);
             text.textWrappingMode = TextWrappingModes.NoWrap;
             text.enableVertexGradient = true;
@@ -76,10 +76,9 @@ namespace FloorF.UI
                 : MenuView.GoldGradient;
             text.color = Color.white;
             float w = text.GetPreferredValues(label, float.PositiveInfinity, float.PositiveInfinity).x;
-            root.sizeDelta = new Vector2(Mathf.Max(360f, Mathf.Ceil(w) + 120f), Height);
+            root.sizeDelta = new Vector2(Mathf.Max(320f, Mathf.Ceil(w) + 72f), Height);
             age = 0f;
             root.gameObject.SetActive(true);
-            root.SetAsLastSibling();
             Animate();
         }
 

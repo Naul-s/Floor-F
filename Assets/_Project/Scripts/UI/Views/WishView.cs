@@ -20,7 +20,7 @@ namespace FloorF.UI
     {
         /// <summary>Click target edge (canvas units): the streak is a few pixels, the target is generous.</summary>
         public const float TargetSize = 112f;
-        public const float GrantLife = 1.8f, SparkLife = 0.6f, CardLife = 9f, Grace = 0.4f;
+        public const float GrantLife = 1.8f, SparkLife = 0.6f, CardLife = 7.5f, Grace = 0.4f;
         const int Sparks = 8;
 
         sealed class Star
@@ -76,7 +76,7 @@ namespace FloorF.UI
             card.gameObject.SetActive(false);
 
             // the hint next to a star
-            var he = UIBuild.Framed("WishHint", Fx, new Color(0.02f, 0.02f, 0.07f, 0.9f), UIStyle.Lucky, 2f);
+            var he = UIBuild.Framed("WishHint", Fx, new Color(0.02f, 0.02f, 0.07f, 1f), UIStyle.Lucky, 2f);
             hint = he.rectTransform;
             hint.anchorMin = hint.anchorMax = Vector2.zero;
             hint.pivot = new Vector2(0f, 1f);
@@ -87,7 +87,7 @@ namespace FloorF.UI
         }
 
         /// <summary>Explain card: top edge (px from the screen top) and width (the HUD's right column).</summary>
-        public const float CardTop = HudView.RulesBottom + HudView.Friday13LineH + HudView.BadgeGap + HudView.BadgeH + 10f, HudCardW = 376f;
+        public const float CardTop = HudView.RulesBottom + HudView.Friday13LineH + HudView.BadgeGap + HudView.StarBadgeH + 10f, HudCardW = 376f;
 
         bool Running => ctx.HasGame && ctx.Phase == DayPhase.Running;
         bool HintsOn => ctx.Settings == null || ctx.Settings.ShowTutorialHints;
@@ -207,7 +207,7 @@ namespace FloorF.UI
             }
             if (cardAge >= 0f)
             {
-                if (!ctx.Paused) cardAge += Time.unscaledDeltaTime;
+                if (!ctx.Paused) cardAge += dt; // gone before the first star (>= 8 s in)
                 if (cardAge >= CardLife || !HintsOn) { card.gameObject.SetActive(false); cardAge = -1f; }
             }
 
@@ -365,7 +365,7 @@ namespace FloorF.UI
                 sp.sizeDelta = new Vector2(6f, 6f);
                 g.Sparks[i] = sp;
             }
-            var back = UIBuild.Framed("Back", g.Rect, new Color(0f, 0f, 0f, 0.78f), UIStyle.Lucky, 2f);
+            var back = UIBuild.Framed("Back", g.Rect, new Color(0.03f, 0.025f, 0.04f, 1f), UIStyle.Lucky, 2f);
             UIBuild.Stretch(back.rectTransform);
             g.Text = UIBuild.Text("Text", g.Rect, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
             UIBuild.Stretch(g.Text.rectTransform);

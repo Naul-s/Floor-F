@@ -23,7 +23,7 @@ namespace FloorF.UI
         /// <summary>Title layout (1280x720 reference): logo top edge below the screen top, canvas units per logo pixel
         /// (<see cref="PixelLogo"/>), the tagline plate under it, button stack centre above the screen centre.
         /// Logo + tagline end above ~22% of the screen height (the hotel's sign sits below that in the title framing).</summary>
-        public const float LogoTop = 12f, LogoPixel = 6f, TaglineGap = 2f, TaglineH = 20f, StackCentreY = 16f, StackGap = 16f;
+        public const float LogoTop = 12f, LogoPixel = 6f, TaglineGap = 4f, TaglineH = 20f, StackCentreY = 16f, StackGap = 16f;
         /// <summary>Pause card's mini logo: canvas units per logo pixel, gap above the card.</summary>
         public const float PauseLogoPixel = 3f, PauseLogoGap = 10f;
         public static readonly Vector2 StartSize = new Vector2(400f, 76f), ButtonSize = new Vector2(300f, 52f);
@@ -54,7 +54,7 @@ namespace FloorF.UI
             titleLogo = new PixelLogo("Logo", titleMenu, LogoPixel);
             logo = titleLogo.Root;
             UIBuild.Place(logo, new Vector2(0.5f, 1f), new Vector2(0f, -LogoTop), titleLogo.Size);
-            tagline = UIBuild.Framed("Tagline", logo, new Color(0.035f, 0.03f, 0.06f, 0.9f), UIStyle.CardEdge, 1f).rectTransform;
+            tagline = UIBuild.Framed("Tagline", logo, new Color(0.035f, 0.03f, 0.06f, 1f), UIStyle.CardEdge, 1f).rectTransform;
             UIBuild.Place(tagline, new Vector2(0.5f, 0f), new Vector2(0f, -TaglineGap), new Vector2(300f, TaglineH));
             tagline.pivot = new Vector2(0.5f, 1f);
             taglineText = UIBuild.Text("Text", tagline, "", 12f, UIStyle.Lucky, TextAlignmentOptions.Center);
