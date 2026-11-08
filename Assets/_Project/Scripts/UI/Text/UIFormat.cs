@@ -19,18 +19,31 @@ namespace FloorF.UI
         /// Rich text for a guest's numbers: lucky in gold, unlucky in red + strikethrough ("3 <s>4</s>").
         /// Mystery guests (hideNumbers) show "?". A guest without numbers shows "-".
         /// </summary>
-        public static string Numbers(LuckProfile luck, bool hide)
+        public static string Numbers(LuckProfile luck, bool hide) => Numbers(luck, hide, false);
+
+        /// <summary>Star night: a guest's own unlucky 7 loses - it shows as a lucky (gold) 7.</summary>
+        public static string Numbers(LuckProfile luck, bool hide, bool starNight)
         {
             if (hide) return "<color=" + HiddenHex + ">?</color>";
             if (luck == null) luck = LuckProfile.None;
             sb.Clear();
+            bool sevenLucky = false;
             for (int i = 0; i < luck.Lucky.Count; i++)
             {
                 if (sb.Length > 0) sb.Append(' ');
                 sb.Append("<color=").Append(LuckyHex).Append('>').Append(N(luck.Lucky[i])).Append("</color>");
+                if (luck.Lucky[i] == StarNightNumber) sevenLucky = true;
             }
             for (int i = 0; i < luck.Unlucky.Count; i++)
             {
+                if (starNight && luck.Unlucky[i] == StarNightNumber)
+                {
+                    if (sevenLucky) continue;
+                    if (sb.Length > 0) sb.Append(' ');
+                    sb.Append("<color=").Append(LuckyHex).Append('>').Append(N(StarNightNumber)).Append("</color>");
+                    sevenLucky = true;
+                    continue;
+                }
                 if (sb.Length > 0) sb.Append(' ');
                 sb.Append("<color=").Append(UnluckyHex).Append("><s>").Append(N(luck.Unlucky[i])).Append("</s></color>");
             }
@@ -88,15 +101,24 @@ namespace FloorF.UI
         /// numbers (hidden for a mystery guest), plus Friday the 13th's "13 is unlucky for everyone" (it beats their own
         /// lucky 13). 0 floors = nothing travelled yet = Neutral.
         /// </summary>
-        public static LuckVerdict DistanceVerdict(LuckProfile luck, bool hideNumbers, int floors, bool friday13)
+        public static LuckVerdict DistanceVerdict(LuckProfile luck, bool hideNumbers, int floors, bool friday13) =>
+            DistanceVerdict(luck, hideNumbers, floors, friday13, false);
+
+        /// <summary>Star night (IDayQuery.IsStarNight): 7 is lucky for every guest, beating their own unlucky 7.</summary>
+        public static LuckVerdict DistanceVerdict(LuckProfile luck, bool hideNumbers, int floors, bool friday13, bool starNight)
         {
             if (floors <= 0) return LuckVerdict.Neutral;
             if (friday13 && floors == Friday13Number) return LuckVerdict.Unlucky;
+            if (starNight && floors == StarNightNumber) return LuckVerdict.Lucky;
             if (hideNumbers || luck == null) return LuckVerdict.Neutral;
             return luck.Judge(floors);
         }
 
-        public const int Friday13Number = 13;
+        public const int Friday13Number = 13, StarNightNumber = 7;
+
+        /// <summary>Head-count preview on star night: 7 riders is lucky for everyone.</summary>
+        public static LuckVerdict OccupancyPreview(int occupancy, LuckProfile[] riders, int riderCount, bool starNight) =>
+            starNight && occupancy == StarNightNumber ? LuckVerdict.Lucky : OccupancyPreview(occupancy, riders, riderCount);
 
         /// <summary>The 666 flourish: an UNLUCKY 6 (any source) from a devout guest (GuestTraits.Devout).</summary>
         public const int CurseNumber = 6;

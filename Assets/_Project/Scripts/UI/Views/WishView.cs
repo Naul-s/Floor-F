@@ -232,7 +232,9 @@ namespace FloorF.UI
         void Place(Star s)
         {
             var v = Vector2.Lerp(s.From, s.To, Mathf.Clamp01(s.Age / s.Seconds));
-            var p = StarCanvasPos(v.x, v.y);
+            // Rendering draws the head on pixel floor(vp x (640, 360)): centre the target on that pixel
+            const float pw = PresentationContract.PixelWidth, ph = PresentationContract.PixelHeight;
+            var p = StarCanvasPos((Mathf.Floor(v.x * pw) + 0.5f) / pw, (Mathf.Floor(v.y * ph) + 0.5f) / ph);
             s.Rect.anchoredPosition = new Vector2(Mathf.Round(p.x), Mathf.Round(p.y));
             // brackets breathe slowly (1.25 Hz scale, no flashing)
             float k = 1f + 0.08f * Mathf.Sin(Time.unscaledTime * 7.85f);

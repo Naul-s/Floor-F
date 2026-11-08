@@ -105,7 +105,7 @@ namespace FloorF.UI
             c = Make();
             c.Id = info.Id;
             c.Edge.color = ctx.GuestColor(info.Archetype);
-            c.Numbers.text = UIFormat.Numbers(info.Luck, info.HideNumbers);
+            c.Numbers.text = UIFormat.Numbers(info.Luck, info.HideNumbers, ctx.Day != null && ctx.Day.IsStarNight && !ctx.Day.IsTutorial);
             UIBuild.Fit(c.Numbers, 24f);
             c.ShownDestination = new DestinationId("\u0000");
             chips.Add(info.Id.Value, c);
@@ -147,7 +147,7 @@ namespace FloorF.UI
         void FillOdometer(Chip c, in GuestInfo info)
         {
             int floors = Mathf.Max(0, DistanceOverride.TryGetValue(info.Id.Value, out int forced) ? forced : info.FloorsTravelled);
-            var v = UIFormat.DistanceVerdict(info.Luck, info.HideNumbers, floors, ctx.Day != null && ctx.Day.IsFriday13);
+            var v = UIFormat.DistanceVerdict(info.Luck, info.HideNumbers, floors, ctx.Day != null && ctx.Day.IsFriday13, ctx.Day != null && ctx.Day.IsStarNight);
             if (floors == c.ShownFloors && v == c.OdoVerdict) return;
             c.ShownFloors = floors;
             c.OdoVerdict = v;

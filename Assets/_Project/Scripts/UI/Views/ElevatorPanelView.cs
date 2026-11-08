@@ -216,7 +216,7 @@ namespace FloorF.UI
             var riders = e.Riders;
             for (int i = 0; i < riders.Count && count < riderProfiles.Length; i++)
                 if (ctx.Guests != null && ctx.Guests.TryGet(riders[i], out var info) && !info.HideNumbers) riderProfiles[count++] = info.Luck;
-            var v = UIFormat.OccupancyPreview(e.Occupancy, riderProfiles, count);
+            var v = UIFormat.OccupancyPreview(e.Occupancy, riderProfiles, count, ctx.Day != null && ctx.Day.IsStarNight && !ctx.Day.IsTutorial);
             for (int i = 0; i < count; i++) riderProfiles[i] = null;
             UIBuild.Set(occupancyValue, e.Occupancy.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/" + e.Capacity.ToString(System.Globalization.CultureInfo.InvariantCulture));
             occupancyValue.color = v == LuckVerdict.Lucky ? UIStyle.Lucky : v == LuckVerdict.Unlucky ? UIStyle.Unlucky : UIStyle.Ink;

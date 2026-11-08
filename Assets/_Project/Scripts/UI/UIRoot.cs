@@ -334,6 +334,42 @@ namespace FloorF.UI
         internal Rect TitlePartRect(MenuView.TitlePart p) => menu.TitlePartRect(ctx.CanvasRect, p);
         internal bool TitleLabelFits(MenuView.TitlePart p, out float fontSize) => menu.TitleLabelFits(p, out fontSize);
         internal string TitleMenuPanels => menu.TitleMenuPanels();
+        internal string TaglineText => menu.TaglineText;
+        internal float TaglineFontSize => menu.TaglineFontSize;
+        internal bool TaglineFits => menu.TaglineFits;
+        internal PixelLogo TitleLogo => menu.TitleLogo;
+        internal PixelLogo PauseLogo => menu.PauseLogo;
+        internal Rect PauseLogoRect => menu.PauseLogoRect(ctx.CanvasRect);
+        internal Rect PauseCardRect => menu.PauseCardRect(ctx.CanvasRect);
+
+        // star night / wish stars / day banner
+        internal bool StarBadgeVisible => hud.StarBadgeVisible;
+        internal string StarBadgeText => hud.StarBadgeText;
+        internal float StarBadgeFontSize => hud.StarBadgeFontSize;
+        internal Rect StarBadgeRect => UIBuild.CanvasRect(ctx.CanvasRect, hud.StarBadge);
+        internal bool FlowStarLook => flow.StarLook;
+        internal int WishTargetCount => wish.TargetCount;
+        internal Rect WishTargetRect(int id) { var r = wish.TargetRect(id); return r != null ? UIBuild.CanvasRect(ctx.CanvasRect, r) : default; }
+        internal void ClickWish(int id) => wish.Click(id);
+        internal bool WishHintVisible => wish.HintVisible;
+        internal string WishHintText => wish.HintText;
+        internal Rect WishHintRect => wish.HintVisible ? UIBuild.CanvasRect(ctx.CanvasRect, wish.Hint) : default;
+        internal bool WishCardVisible => wish.CardVisible;
+        internal string WishCardText => wish.CardText;
+        internal Rect WishCardRect => wish.CardVisible ? UIBuild.CanvasRect(ctx.CanvasRect, wish.Card) : default;
+        internal int WishGrantCount => wish.GrantCount;
+        internal string WishGrantText => wish.GrantText;
+        internal Rect WishGrantRect => wish.GrantRect != null ? UIBuild.CanvasRect(ctx.CanvasRect, wish.GrantRect) : default;
+        /// <summary>Viewport (0..1) -> canvas position, as the wish targets map it.</summary>
+        internal Vector2 ViewportToCanvas(float vx, float vy)
+        {
+            var size = ctx.CanvasRect.rect.size;
+            PresentationContract.ViewportToScreen(vx, vy, 1f, size.x, size.y, out float sx, out float sy);
+            return new Vector2(sx, sy);
+        }
+        internal bool DayBannerVisible => banner.Visible;
+        internal string DayBannerText => banner.Text;
+        internal Rect DayBannerRect => banner.Visible ? UIBuild.CanvasRect(ctx.CanvasRect, banner.Rect) : default;
 
         /// <summary>Name of the topmost UI raycast target at canvas point <paramref name="p"/> (what a click there hits), or null.</summary>
         internal string RaycastAt(Vector2 p)
