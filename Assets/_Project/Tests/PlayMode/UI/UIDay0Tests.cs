@@ -420,11 +420,21 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(sawLeftColumn, "pointed at floor 4");
             Assert.IsTrue(sawUnlucky, "floor 4 was judged unlucky");
 
-            // ---- two closing pages (click each), then the training summary
+            // ---- three closing pages (click each), then the training summary
             yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.Closing || ui.CoachAwaitingContinue, 40);
             yield return Day0Driver.ContinueAll(ui, seen);
             yield return UITestDriver.Until(() => ui.TutorialStep == TutorialView.Step.Closing, 20);
             Assert.AreEqual(TutorialView.Step.Closing, ui.TutorialStep, "closing page after the last wave");
+            // page 0: rule 3 (floors travelled), pointing at the rule box that lists it
+            StringAssert.Contains(UIFormat.DistanceGlyph, ui.TutorialPrompt, "the chip's odometer glyph");
+            StringAssert.Contains(ko ? "움직인 층수" : "floors they travelled", ui.TutorialPrompt);
+            Assert.AreEqual("RulesBox", ui.TutorialTarget, "rule 3 page points at the rule box");
+            StringAssert.Contains(ko ? "움직인 층수" : "FLOORS TRAVELLED", ui.RulesText, "the rule box lists rule 3");
+            Day0Driver.AssertExplainCoach(ui, "closing rule 3");
+            Day0Driver.AssertCardsClear(ui, "closing rule 3");
+            yield return Day0Driver.Shot("ui_day0_closing_rule3" + suffix, true);
+            yield return Day0Driver.Continue(ui, "closing rule 3");
+            Assert.AreEqual(TutorialView.Step.Closing, ui.TutorialStep, "page 1");
             StringAssert.Contains(data.Rules.prosperousEndingLuck.ToString(), ui.TutorialPrompt);
             if (en) StringAssert.Contains("Haunted", ui.TutorialPrompt);
             Assert.AreEqual("LuckBox", ui.TutorialTarget, "page 1 points at the Luck meter");
@@ -434,7 +444,7 @@ namespace FloorF.Tests.PlayMode.UI
             yield return Day0Driver.AssertStaysFrozen(ui, "closing 1");
             Assert.AreEqual(DayPhase.Running, day.Phase, "the shift waits for the player to read");
             yield return Day0Driver.Continue(ui, "closing 1");
-            Assert.AreEqual(TutorialView.Step.Closing, ui.TutorialStep, "page 2");
+            Assert.AreEqual(TutorialView.Step.Closing, ui.TutorialStep, "page 3");
             if (en) { StringAssert.Contains("reset", ui.TutorialPrompt); StringAssert.Contains("leave", ui.TutorialPrompt); }
             Assert.AreEqual("DayBox", ui.TutorialTarget, "page 2 points at the clock");
             Day0Driver.AssertExplainCoach(ui, "closing 2");

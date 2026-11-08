@@ -40,8 +40,11 @@ namespace FloorF.UI
 
             textRoot = UIBuild.Rect("Text", root);
             UIBuild.Place(textRoot, new Vector2(0.5f, 0.6f), Vector2.zero, new Vector2(560f, 200f));
-            shadow = UIBuild.Text("Shadow", textRoot, UIStrings.CurseNumber, 120f, new Color(0f, 0f, 0f, 0.85f), TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(shadow.rectTransform, new Vector2(0.5f, 1f), new Vector2(6f, -6f), new Vector2(560f, 140f));
+            // a dark plate behind the number: it reads over the busy building
+            var back = UIBuild.Box("NumberPlate", textRoot, new Color(0.02f, 0f, 0f, 0.82f));
+            UIBuild.Place(back.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 4f), new Vector2(340f, 148f));
+            shadow = UIBuild.Text("Shadow", textRoot, UIStrings.CurseNumber, 120f, new Color(0f, 0f, 0f, 0.9f), TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(shadow.rectTransform, new Vector2(0.5f, 1f), new Vector2(4f, -4f), new Vector2(560f, 140f));
             shadow.textWrappingMode = TextWrappingModes.NoWrap;
             number = UIBuild.Text("Number", textRoot, UIStrings.CurseNumber, 120f, UIStyle.Unlucky, TextAlignmentOptions.Center, bold: true);
             UIBuild.Place(number.rectTransform, new Vector2(0.5f, 1f), Vector2.zero, new Vector2(560f, 140f));
@@ -67,7 +70,8 @@ namespace FloorF.UI
                 {
                     float dx = (x + 0.5f) / n * 2f - 1f, dy = (y + 0.5f) / n * 2f - 1f;
                     float d = Mathf.Sqrt(dx * dx + dy * dy) / 1.4142f; // 0 centre .. 1 corner
-                    float a = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 0.95f, d));
+                    float a = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.45f, 1f, d));
+                    a *= a; // edges and corners only: the building in the middle stays readable
                     px[y * n + x] = new Color32(255, 255, 255, (byte)(a * 255f));
                 }
             tex.SetPixels32(px);
@@ -125,7 +129,7 @@ namespace FloorF.UI
             // vignette: in fast, two heartbeat pulses, out with the group
             float env = t < 0.1f ? t / 0.1f : 1f;
             float beat = 0.55f + 0.45f * Mathf.Abs(Mathf.Cos(t * Mathf.PI * 2f));
-            vignette.color = new Color(0.85f, 0.02f, 0.02f, 0.85f * env * beat);
+            vignette.color = new Color(0.85f, 0.02f, 0.02f, 0.9f * env * beat);
             group.alpha = t > Life - FadeTime ? Mathf.Clamp01((Life - t) / FadeTime) : 1f;
         }
 

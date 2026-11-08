@@ -23,8 +23,11 @@ namespace FloorF.UI
         readonly TextMeshProUGUI dayText, clockText, luckCaption, luckValue, luckDelta, tipsCaption, tipsValue, tipsDelta;
         readonly TextMeshProUGUI rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleLegend, fridayText;
         readonly RectTransform luckFill, luckGhost, rulesBox, dayBox, luckBox, tipsBox, streakBox, fridayBadge;
-        readonly Image rulesEdge, fridayEdge;
+        readonly Image rulesEdge, rulesFill, fridayEdge;
         bool friday;
+        /// <summary>Friday line ink: a lighter red that reads on the dark box (UIStyle.Unlucky is the edge).</summary>
+        public static readonly Color FridayInk = UIStyle.Hex("#FF7A7A");
+        static readonly Color FridayBoxFill = new Color(0.07f, 0.015f, 0.02f, 0.97f);
         readonly TextMeshProUGUI streakText;
         readonly Image streakEdge;
         int streak;
@@ -89,6 +92,7 @@ namespace FloorF.UI
             // rule reminder (right, under the streak slot)
             rulesEdge = UIBuild.Framed("RulesBox", canvas, UIStyle.Box, RulesEdgeColor, 2f);
             rulesBox = rulesEdge.rectTransform;
+            rulesFill = rulesBox.GetChild(0).GetComponent<Image>();
             UIBuild.Place(rulesBox, new Vector2(1f, 1f), new Vector2(-24f, -RulesTop), new Vector2(MeterW + 32f, RulesH));
             rulesTitle = UIBuild.Text("Title", rulesBox, "", 12f, UIStyle.CardEdge, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(rulesTitle.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -6f), new Vector2(MeterW, 22f));
@@ -98,7 +102,7 @@ namespace FloorF.UI
             UIBuild.Place(ruleClose.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -54f), new Vector2(MeterW + 10f, 22f));
             ruleDistance = UIBuild.Text("Distance", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left);
             UIBuild.Place(ruleDistance.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -78f), new Vector2(MeterW + 10f, 22f));
-            ruleFriday = UIBuild.Text("Friday13", rulesBox, "", 12f, UIStyle.Unlucky, TextAlignmentOptions.Left);
+            ruleFriday = UIBuild.Text("Friday13", rulesBox, "", 12f, FridayInk, TextAlignmentOptions.Left);
             UIBuild.Place(ruleFriday.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -102f), new Vector2(MeterW + 10f, 22f));
             ruleFriday.gameObject.SetActive(false);
             ruleLegend = UIBuild.Text("Legend", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
@@ -135,6 +139,7 @@ namespace FloorF.UI
                 ruleLegend.rectTransform.anchoredPosition = new Vector2(14f, on ? -102f - Friday13LineH : -102f);
                 rulesBox.sizeDelta = new Vector2(MeterW + 32f, on ? RulesH + Friday13LineH : RulesH);
                 rulesEdge.color = on ? UIStyle.Unlucky : RulesEdgeColor;
+                rulesFill.color = on ? FridayBoxFill : UIStyle.Box; // the edge sits behind the fill: no red wash
             }
             bool badge = on && running;
             if (fridayBadge.gameObject.activeSelf != badge) fridayBadge.gameObject.SetActive(badge);

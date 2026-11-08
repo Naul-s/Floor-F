@@ -177,6 +177,7 @@ namespace FloorF.UI
             bool ko = ctx.Korean;
             SetFridayLook(phase == DayPhase.Intro && ctx.Day.IsFriday13 && !ctx.Day.IsTutorial);
             title.color = fridayCard ? UIStyle.Unlucky : UIStyle.Lucky;
+            extra.alignment = TextAlignmentOptions.Left; // the Friday-only intro line centres it (FillIntro)
             toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
             toTitle.Label.text = ctx.S(UIStrings.ToTitle);
             bool canSkip = phase == DayPhase.Intro && ctx.Day.IsTutorial && ctx.Flow != null;
@@ -216,7 +217,8 @@ namespace FloorF.UI
             {
                 float m = ctx.Data != null ? ctx.Data.Rules.friday13PenaltyMultiplier : 1.5f;
                 extra.text += (howTo ? "\n\n" : "") + "<color=" + UIFormat.UnluckyHex + ">" +
-                              ctx.F(UIStrings.Friday13Intro, UIFormat.Multiplier(m), UIFormat.Multiplier(m).Substring(1)) + "</color>";
+                              ctx.F(UIStrings.Friday13Intro, UIFormat.Multiplier(m).Substring(1)) + "</color>";
+                if (!howTo) extra.alignment = TextAlignmentOptions.Center;
             }
             action.Label.text = ctx.S(UIStrings.Start);
         }

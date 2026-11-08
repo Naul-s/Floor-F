@@ -30,14 +30,14 @@ namespace FloorF.UI
         /// <summary>Friday the 13th rule-box line (IDayQuery.IsFriday13).</summary>
         public static readonly Loc RuleFriday13 = new Loc("Friday 13th: travelled 13 = unlucky for ALL", "13일의 금요일: 이동 13 = 모두 불길");
         /// <summary>Friday the 13th HUD badge. {0} = penalty multiplier ("x1.5").</summary>
-        public static readonly Loc Friday13Badge = new Loc("FRIDAY THE 13TH · bad luck {0}", "13일의 금요일 · 불운 {0}");
-        /// <summary>Friday the 13th intro card line under the data intro. {0} = "x1.5", {1} = "1.5".</summary>
-        public static readonly Loc Friday13Intro = new Loc("Today every UNLUCKY moment costs {0} Luck - and travelling 13 floors is unlucky for EVERYONE.",
-            "오늘은 불길한 판정마다 운이 {1}배로 깎여요 - 그리고 13층을 이동하면 누구에게나 불길해요.");
+        public static readonly Loc Friday13Badge = new Loc("FRIDAY 13TH · bad luck {0}", "13일의 금요일 · 불운 {0}");
+        /// <summary>Friday the 13th intro card line under the data intro. {0} = the penalty multiplier ("1.5").</summary>
+        public static readonly Loc Friday13Intro = new Loc("Today every UNLUCKY moment costs {0}x the Luck - and travelling 13 floors is unlucky for EVERYONE.",
+            "오늘은 불길한 판정마다 운이 {0}배로 깎여요 - 그리고 13층을 이동하면 누구에게나 불길해요.");
 
         // ---- 666 curse (an unlucky 6 from a devout guest)
         public const string CurseNumber = "666!";
-        public static readonly Loc CurseCaption = new Loc("A devout guest: an unlucky 6 counts DOUBLE!", "신앙심 깊은 손님: 불길한 6은 두 배!");
+        public static readonly Loc CurseCaption = new Loc("Devout guest: unlucky 6 counts DOUBLE!", "신앙심 깊은 손님: 불길한 6은 두 배!");
 
         // ---- elevator panel
         public static readonly Loc Open = new Loc("OPEN", "열기");

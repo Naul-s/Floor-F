@@ -247,6 +247,7 @@ namespace FloorF.UI
         internal float CurseVignetteAlpha => curse.VignetteAlpha;
         internal Rect CurseTextRect => curse.TextRect(ctx.CanvasRect);
         internal void PlayCurse() => curse.Play();
+        internal float CurseCaptionFontSize => curse.CaptionFontSize;
         internal bool FridayBadgeVisible => hud.FridayBadgeVisible;
         internal string FridayBadgeText => hud.FridayBadgeText;
         internal float FridayBadgeFontSize => hud.FridayBadgeFontSize;
