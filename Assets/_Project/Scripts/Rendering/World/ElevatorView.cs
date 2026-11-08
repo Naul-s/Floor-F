@@ -24,6 +24,10 @@ namespace FloorF.Rendering
         readonly float doorSeconds;
         readonly Light carLight;
         readonly Material lampMat;
+        readonly Transform arrow;
+        float lastFloorPosition = float.NaN;
+        /// <summary>Warm amber like the landing lamps.</summary>
+        public static readonly Color ArrowColor = new Color(1.00f, 0.70f, 0.25f);
         float open01;
         int lastIndicatorFloor = -1;
         Color lastIndicatorColor;
@@ -36,6 +40,31 @@ namespace FloorF.Rendering
         public float Open01 => open01;
         public bool IsBumping => bumpAge < BumpSeconds;
         public float LightLevel => lightLevel;
+        /// <summary>+1 = arrow up, -1 = arrow down, 0 = hidden (car idle).</summary>
+        public int ArrowDirection { get; private set; }
+
+        /// <summary>Triangle pointing up (+Y), facing the camera (-Z), centred on the origin.</summary>
+        static Mesh ArrowMesh(float width, float height)
+        {
+            var m = new Mesh { name = "Direction Arrow" };
+            m.SetVertices(new System.Collections.Generic.List<Vector3>
+            {
+                new Vector3(-width * 0.5f, -height * 0.5f, 0f), new Vector3(0f, height * 0.5f, 0f), new Vector3(width * 0.5f, -height * 0.5f, 0f),
+            });
+            m.SetNormals(new System.Collections.Generic.List<Vector3> { Vector3.back, Vector3.back, Vector3.back });
+            m.SetUVs(0, new System.Collections.Generic.List<Vector2> { Vector2.zero, new Vector2(0.5f, 1f), Vector2.right });
+            // double-sided so the down arrow (scale.y = -1 flips the winding) still shows
+            m.SetTriangles(new[] { 0, 1, 2, 0, 2, 1 }, 0);
+            m.RecalculateBounds();
+            return m;
+        }
+
+        /// <summary>Pure: arrow direction from the gameplay motion, else from the car's movement this frame.</summary>
+        public static int Direction(ElevatorMotion? motion, float floorDelta)
+        {
+            if (motion.HasValue) return motion.Value == ElevatorMotion.MovingUp ? 1 : motion.Value == ElevatorMotion.MovingDown ? -1 : 0;
+            return floorDelta > 1e-3f ? 1 : floorDelta < -1e-3f ? -1 : 0;
+        }
 
         public ElevatorView(Transform parent, RenderAssets assets, IWorldLayout layout, BuildingView building, float doorSeconds)
         {
@@ -66,6 +95,17 @@ namespace FloorF.Rendering
             // front lip so the car reads as a box from the camera
             assets.Box(B, "Car Lip Top", new Vector3(0f, h - 0.12f, zc - d * 0.5f + 0.04f), new Vector3(w, 0.24f, 0.08f), shell);
             assets.Box(B, "Car Lip Bottom", new Vector3(0f, 0.1f, zc - d * 0.5f + 0.04f), new Vector3(w, 0.2f, 0.08f), shell);
+            // direction lamp on the top lip: a small glowing up/down triangle while the car travels
+            var arrowGo = new GameObject("Direction Arrow");
+            arrowGo.transform.SetParent(B, false);
+            arrowGo.transform.localPosition = new Vector3(0f, h - 0.12f, zc - d * 0.5f - 0.02f);
+            arrowGo.AddComponent<MeshFilter>().sharedMesh = assets.Own(ArrowMesh(0.56f, 0.3f));
+            var arrowRenderer = arrowGo.AddComponent<MeshRenderer>();
+            arrowRenderer.sharedMaterial = assets.Unlit(ArrowColor);
+            arrowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            arrowRenderer.receiveShadows = false;
+            arrow = arrowGo.transform;
+            arrowGo.SetActive(false);
 
             // own warm light so the car is the brightest, easiest-to-follow thing in the shaft
             var lightGo = new GameObject("Car Light");
@@ -199,6 +239,20 @@ namespace FloorF.Rendering
             var b = BumpPose(bumpAge, bumpStrength);
             body.localScale = new Vector3(b.x, b.y, 1f);
             body.localPosition = new Vector3(b.z, 0f, 0f);
+
+            // direction arrow (frozen with the juice clock: a paused car keeps its arrow)
+            if (juiceDt > 0f || elevator != null)
+            {
+                float delta = float.IsNaN(lastFloorPosition) ? 0f : FloorPosition - lastFloorPosition;
+                int dir = Direction(elevator != null ? elevator.Motion : (ElevatorMotion?)null, delta);
+                if (dir != ArrowDirection)
+                {
+                    ArrowDirection = dir;
+                    arrow.gameObject.SetActive(dir != 0);
+                    arrow.localScale = new Vector3(1f, dir < 0 ? -1f : 1f, 1f);
+                }
+            }
+            lastFloorPosition = FloorPosition;
 
             // landing lamps
             int here = Mathf.RoundToInt(FloorPosition);
