@@ -93,6 +93,40 @@ namespace FloorF.Tests.EditMode.Rendering
         }
 
         [Test]
+        public void Friday13_EerieSign_FlickersMore_ButStillGently_AndFewerWindows()
+        {
+            int normal = 0, eerie = 0;
+            var recent = new System.Collections.Generic.Queue<float>();
+            float prev = 1f;
+            for (float t = 0f; t < 300f; t += 0.02f)
+            {
+                float n = 1f, v = 1f;
+                for (int l = 0; l < 5; l++)
+                {
+                    n = System.Math.Min(n, LightSchedule.SignLetterLevel(Seed, l, 5, t));
+                    v = System.Math.Min(v, LightSchedule.SignLetterLevel(Seed, l, 5, t, eerie: true));
+                }
+                if (n < 1f) normal++;
+                if (v < 1f) eerie++;
+                if (v != prev)
+                {
+                    recent.Enqueue(t);
+                    while (recent.Count > 0 && t - recent.Peek() > 1f) recent.Dequeue();
+                    Assert.LessOrEqual(recent.Count, 4, "no strobing at " + t);
+                }
+                prev = v;
+            }
+            Assert.Greater(eerie, normal, "Friday the 13th sign misbehaves more often");
+            int lit = 0, litEerie = 0;
+            for (int i = 0; i < 400; i++)
+            {
+                if (LightSchedule.WindowLit(Seed, i, 500f, 0.36f)) lit++;
+                if (LightSchedule.WindowLit(Seed, i, 500f, 0.36f * LightSchedule.EerieWindowFactor)) litEerie++;
+            }
+            Assert.Less(litEerie, lit, "darker city");
+        }
+
+        [Test]
         public void Bulbs_And_Beacon_AreSlow()
         {
             Assert.AreNotEqual(LightSchedule.BulbPhase(0.1f), LightSchedule.BulbPhase(0.1f + LightSchedule.BulbStep));

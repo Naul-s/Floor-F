@@ -23,6 +23,9 @@ namespace FloorF.Rendering
         public const float SignEventChance = 0.6f;
         public const float SignDim = 0.2f;
         public const float BulbStep = 0.75f;
+        public const float EerieSignPeriod = 6.5f;
+        /// <summary>Friday the 13th: fewer windows lit across the city.</summary>
+        public const float EerieWindowFactor = 0.5f;
 
         static uint Mix(uint x)
         {
@@ -80,14 +83,15 @@ namespace FloorF.Rendering
         /// HOTEL sign letter brightness (1 = lit, <see cref="SignDim"/> = out). Every ~11 s slot there may be one event on
         /// one letter: a short stutter, sometimes followed by a few seconds dark.
         /// </summary>
-        public static float SignLetterLevel(int seed, int letter, int letterCount, float time)
+        public static float SignLetterLevel(int seed, int letter, int letterCount, float time, bool eerie = false)
         {
             if (letterCount <= 0) return 1f;
-            float p = SignEventPeriod;
+            // eerie (Friday the 13th): an event in every ~6 s slot instead of 60% of ~11 s slots - same gentle pattern
+            float p = eerie ? EerieSignPeriod : SignEventPeriod;
             float tt = Mathf.Max(0f, time);
             int k = Mathf.FloorToInt(tt / p);
             float u = tt - k * p;
-            if (Hash(seed, 70, k, 0) >= SignEventChance) return 1f;
+            if (!eerie && Hash(seed, 70, k, 0) >= SignEventChance) return 1f;
             int target = Mathf.Min(letterCount - 1, (int)(Hash(seed, 70, k, 1) * letterCount));
             if (target != letter) return 1f;
             float start = 1f + Hash(seed, 70, k, 2) * (p - 6f);
@@ -172,9 +176,13 @@ namespace FloorF.Rendering
                 case Kind.BulbA: return LightSchedule.BulbPhase(time) == 0;
                 case Kind.BulbB: return LightSchedule.BulbPhase(time) == 1;
                 case Kind.Beacon: return LightSchedule.BeaconLit(time);
+                case Kind.Window: return LightSchedule.WindowLit(seed, i, time, Eerie ? l.OnRatio * LightSchedule.EerieWindowFactor : l.OnRatio);
                 default: return LightSchedule.WindowLit(seed, i, time, l.OnRatio);
             }
         }
+
+        /// <summary>Friday the 13th mood: half as many windows lit (changes roll in over the windows' own schedules).</summary>
+        public bool Eerie { get; set; }
 
         public void Tick(float time)
         {

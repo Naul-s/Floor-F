@@ -202,9 +202,11 @@ namespace FloorF.Rendering
         void TickExterior(float time)
         {
             float t = time + StreetPrewarmSeconds;
+            bool eerie = dayQuery != null && dayQuery.IsFriday13;
+            livingLights.Eerie = eerie;
             livingLights.Tick(t);
             for (int i = 0; i < letterLevels.Length; i++)
-                letterLevels[i] = LightSchedule.SignLetterLevel(RenderingStyle.CitySeed, i, letterLevels.Length, t);
+                letterLevels[i] = LightSchedule.SignLetterLevel(RenderingStyle.CitySeed, i, letterLevels.Length, t, eerie);
             building.SetHotelLetterLevels(letterLevels);
             palette.Flush();
         }
