@@ -12,7 +12,9 @@ namespace FloorF.Rendering
         public const float ShakeSeconds = 0.32f;
         public const float ShakePixels = 3f;
         /// <summary>Title: orthographic size grows by this factor (whole building plus sky/street around it).</summary>
-        public const float TitleZoomOut = 1.18f;
+        // 1.18 left the HOTEL sign under the UI's top logo at a real 16:9 canvas (batch captures letterbox the world
+        // view 0.75x and hid it); 1.34 keeps ~30% sky above the sign
+        public const float TitleZoomOut = 1.34f;
         public const float TitlePanPixels = 26f;
         public const float TitlePanPeriod = 18f;
         /// <summary>Title: world units of extra street below the gameplay frame's bottom edge.</summary>
