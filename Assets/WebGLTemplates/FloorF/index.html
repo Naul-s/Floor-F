@@ -26,14 +26,7 @@
       var STEP_MS = 320;          // at least this long per floor, so every floor is seen
       var HOLD_MS = 900;          // stay on 9 once loaded, then fade
 
-      function fit() {
-        var w = window.innerWidth, h = window.innerHeight;
-        var s = Math.min(w / 16, h / 9);
-        stage.style.width = Math.floor(16 * s) + "px";
-        stage.style.height = Math.floor(9 * s) + "px";
-      }
-      window.addEventListener("resize", fit);
-      fit();
+      // sizing is pure CSS (style.css #stage), so a hidden-then-shown or fullscreened iframe always fits
 
       // ---- 5x7 bitmap font (rows top -> bottom, "#" = pixel)
       var FONT = {

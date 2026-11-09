@@ -2,7 +2,12 @@
 html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #07070c; }
 body { display: flex; align-items: center; justify-content: center; font-family: "Courier New", Consolas, monospace; }
 
-#stage { position: relative; background: #0b0b14; }
+/* 16:9 stage that always fits its window, in pure CSS: itch.io loads the page in an iframe that may start hidden
+   (0x0) and later goes fullscreen; a JS measure-once fit got stuck tiny there */
+#stage {
+  position: relative; background: #0b0b14; flex: none;
+  width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16));
+}
 #unity-canvas { display: block; width: 100%; height: 100%; background: #0b0b14; outline: none; }
 
 /* the loading screen is a 160x90 pixel-art canvas scaled up without smoothing */
