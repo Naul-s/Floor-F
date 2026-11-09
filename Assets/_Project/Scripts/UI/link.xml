@@ -1,0 +1,8 @@
+<linker>
+  <!-- FloorF.UI.UIInput.BlockFlowEnter sets this by reflection (Enter reveals the title / skips an establishing shot). -->
+  <assembly fullname="FloorF.Gameplay">
+    <type fullname="FloorF.Gameplay.KeyboardInput">
+      <field name="AdvanceWithEnter" />
+    </type>
+  </assembly>
+</linker>

@@ -632,6 +632,7 @@ namespace FloorF.UI
                 {
                     if (closingPage >= ClosingPages) return Step.None; // read: the summary comes
                     text = ClosingPage(closingPage);
+                    if (closingPage == 0) hud.EnsureRulesOpen(); // the page about the box: unfold it even if the player folded it
                     Target(closingPage == 0 ? hud.RulesBox : closingPage == 1 ? hud.LuckBox : hud.DayBox);
                     return Step.Closing;
                 }

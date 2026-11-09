@@ -271,6 +271,15 @@ namespace FloorF.UI
         public static readonly Loc HintsOn = new Loc("TUTORIAL HINTS: ON", "튜토리얼 힌트: 켜짐");
         public static readonly Loc HintsOff = new Loc("TUTORIAL HINTS: OFF", "튜토리얼 힌트: 꺼짐");
         public static readonly Loc QuitToTitle = new Loc("QUIT TO TITLE", "타이틀로");
+        public static readonly Loc ScenicButton = new Loc("SCENIC VIEW  [V]", "풍경 보기  [V]");
+
+        // ---- scenic view / establishing shot / rule box
+        /// <summary>Title attract screen: the blinking prompt under the logo.</summary>
+        public static readonly Loc PressAnyKey = new Loc("PRESS ANY KEY OR CLICK", "아무 키나 누르거나 클릭하세요");
+        /// <summary>Scenic view: the tiny hint that fades out after 2 s.</summary>
+        public static readonly Loc ScenicHint = new Loc("V / click: back", "V / 클릭: 돌아가기");
+        /// <summary>Rule box: the collapse handle in its title row (H toggles too).</summary>
+        public static readonly Loc RulesHide = new Loc("HIDE [H]", "숨기기 [H]");
 
         // ---- Day 0 (tutorial day) HUD / flow
         public static readonly Loc DayOnly = new Loc("DAY {0}", "{0}일차");

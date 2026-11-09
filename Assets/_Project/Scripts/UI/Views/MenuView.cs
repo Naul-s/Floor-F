@@ -39,14 +39,23 @@ namespace FloorF.UI
         readonly Image backdrop;
         readonly TextMeshProUGUI taglineText, credits, pauseTitle, volumeCaption, volumeValue;
         readonly TextMeshProUGUI creditsTitle, musicHead, music, soundHead, sound, artHead, art, aiLine, jamLine;
-        readonly UIBuild.ButtonParts start, titleEndings, titleLanguage, titleCredits, back, resume, pauseLanguage, hints, quit, pauseButton;
+        readonly UIBuild.ButtonParts start, titleEndings, titleLanguage, titleCredits, back, resume, scenic, pauseLanguage, hints, quit, pauseButton;
         readonly Slider volume;
         readonly EndingsCardView endingsCard;
         bool titleShown, pauseShown, creditsOpen, endingsOpen;
 
-        public MenuView(UIContext ctx, RectTransform canvas)
+        readonly System.Func<bool> suppressPause;
+        readonly System.Action<Vector2> burst;
+
+        /// <param name="onScenic">pause menu SCENIC VIEW (true = entered)</param>
+        /// <param name="suppressPause">true while the pause card must stay hidden (the scenic view uses the pause)</param>
+        /// <param name="burst">the golden pixel burst at a canvas point (the attract prompt popping)</param>
+        public MenuView(UIContext ctx, RectTransform canvas, System.Func<bool> onScenic = null, System.Func<bool> suppressPause = null,
+            System.Action<Vector2> burst = null)
         {
             this.ctx = ctx;
+            this.suppressPause = suppressPause;
+            this.burst = burst;
 
             // ---------------------------------------------------------- title
             titleRoot = UIBuild.Stretch(UIBuild.Rect("Title", canvas));
@@ -103,7 +112,7 @@ namespace FloorF.UI
             // ---------------------------------------------------------- endings collection (title -> ENDINGS)
             endingsCard = new EndingsCardView(ctx, titleRoot, () => { ctx.Sound(UiSoundKind.Click); SetEndings(false); });
 
-            var strip = UIBuild.Box("CreditStrip", titleRoot, new Color(0f, 0f, 0f, 0.7f)).rectTransform;
+            var strip = creditStrip = UIBuild.Box("CreditStrip", titleRoot, new Color(0f, 0f, 0f, 0.7f)).rectTransform;
             strip.anchorMin = new Vector2(0f, 0f);
             strip.anchorMax = new Vector2(1f, 0f);
             strip.pivot = new Vector2(0.5f, 0f);
@@ -112,6 +121,27 @@ namespace FloorF.UI
             credits = UIBuild.Text("Credits", strip, "", 12f, UIStyle.InkDim, TextAlignmentOptions.Center);
             UIBuild.Stretch(credits.rectTransform);
             credits.textWrappingMode = TextWrappingModes.NoWrap;
+            stripGroup = strip.gameObject.AddComponent<CanvasGroup>();
+            stripGroup.blocksRaycasts = false;
+
+            // ---------------------------------------------------------- attract prompt ("press any key", near the bottom)
+            prompt = UIBuild.Framed("PressAnyKey", titleRoot, new Color(0.035f, 0.03f, 0.06f, 0.82f), UIStyle.CardEdge, 1f).rectTransform;
+            UIBuild.Place(prompt, new Vector2(0.5f, 0f), new Vector2(0f, PromptY), new Vector2(360f, PromptH));
+            prompt.pivot = new Vector2(0.5f, 0.5f);
+            promptGroup = prompt.gameObject.AddComponent<CanvasGroup>();
+            promptGroup.blocksRaycasts = false;
+            promptText = UIBuild.Text("Text", prompt, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
+            UIBuild.Stretch(promptText.rectTransform);
+            promptText.textWrappingMode = TextWrappingModes.NoWrap;
+            prompt.gameObject.SetActive(false);
+            revealButtons = new[] { start, titleEndings, titleCredits, titleLanguage };
+            revealGroups = new CanvasGroup[revealButtons.Length];
+            revealY = new float[revealButtons.Length];
+            for (int i = 0; i < revealButtons.Length; i++)
+            {
+                revealGroups[i] = revealButtons[i].Rect.gameObject.AddComponent<CanvasGroup>();
+                revealY[i] = revealButtons[i].Rect.anchoredPosition.y;
+            }
 
             // ---------------------------------------------------------- pause
             pauseRoot = UIBuild.Box("PauseDim", canvas, UIStyle.Dim, raycast: true).rectTransform;
@@ -128,6 +158,7 @@ namespace FloorF.UI
             UIBuild.Place(pauseLogo.Root, new Vector2(0.5f, 1f), new Vector2(0f, PauseLogoGap), pauseLogo.Size);
             pauseLogo.Root.pivot = new Vector2(0.5f, 0f);
             resume = Wide(card, UIStyle.Action, OnResume);
+            scenic = Wide(card, UIStyle.Btn, () => ctx.Sound(onScenic != null && onScenic()));
             var vrow = Row(card, 44f);
             vrow.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = false;
             volumeCaption = UIBuild.Text("VolumeCaption", vrow, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
@@ -297,6 +328,10 @@ namespace FloorF.UI
             if (endingsOpen) endingsCard.Refresh();
             UIBuild.Set(pauseTitle, ctx.S(UIStrings.Paused));
             UIBuild.Set(resume.Label, ctx.S(UIStrings.Resume));
+            UIBuild.Set(scenic.Label, ctx.S(UIStrings.ScenicButton));
+            UIBuild.Set(promptText, ctx.S(UIStrings.PressAnyKey));
+            float pw = promptText.GetPreferredValues(promptText.text, float.PositiveInfinity, float.PositiveInfinity).x;
+            prompt.sizeDelta = new Vector2(Mathf.Ceil(pw) + 40f, PromptH);
             UIBuild.Set(volumeCaption, ctx.S(UIStrings.Volume));
             UIBuild.Set(pauseLanguage.Label, ctx.S(UIStrings.Language));
             bool on = ctx.Settings == null || ctx.Settings.ShowTutorialHints;
@@ -314,14 +349,16 @@ namespace FloorF.UI
             var menu = ctx.Menu;
             var phase = ctx.Phase;
             bool title = menu != null && ctx.HasGame && phase == DayPhase.Title;
-            bool paused = menu != null && !title && menu.IsPaused;
+            bool paused = menu != null && !title && menu.IsPaused && !(suppressPause != null && suppressPause());
             if (title != titleShown)
             {
                 titleShown = title;
                 titleRoot.gameObject.SetActive(title);
                 if (!title) { SetCredits(false); SetEndings(false); }
                 if (title) RefreshLanguage();
+                SetAttract(title && UIFeatures.AttractScreen); // boot and every return to the title start at "press any key"
             }
+            if (title) TickAttract(UIClock.UnscaledDt);
             // gentle idle float, glint and LED flicker; the drop shadow and the tagline stay where they are
             if (title && !creditsOpen && !endingsOpen) titleLogo.Tick(Time.unscaledTime);
             if (endingsOpen) endingsCard.Tick(Time.unscaledTime);
@@ -338,6 +375,132 @@ namespace FloorF.UI
             bool button = menu != null && phase == DayPhase.Running && !paused;
             if (pauseButton.Rect.gameObject.activeSelf != button) pauseButton.Rect.gameObject.SetActive(button);
         }
+
+        // ------------------------------------------------------------------ title attract ("press any key") + reveal
+
+        /// <summary>Prompt plate centre above the screen bottom (clear of the credit strip), its height; blink 0.75 Hz.</summary>
+        public const float PromptY = 92f, PromptH = 40f, BlinkHz = 0.75f;
+        /// <summary>Reveal: prompt pop, backdrop fade, then the buttons one by one (delay + i * stagger, each RevealButton s).</summary>
+        public const float PromptPop = 0.16f, BackdropFade = 0.45f, ButtonDelay = 0.12f, ButtonStagger = 0.08f, RevealButton = 0.3f, RevealSlide = 24f;
+        public const float RevealTime = ButtonDelay + 3f * ButtonStagger + RevealButton;
+
+        readonly RectTransform prompt, creditStrip;
+        readonly CanvasGroup promptGroup, stripGroup;
+        readonly TextMeshProUGUI promptText;
+        readonly UIBuild.ButtonParts[] revealButtons;
+        readonly CanvasGroup[] revealGroups;
+        readonly float[] revealY;
+        bool attract;
+        float attractAge, revealAge = -1f;
+
+        /// <summary>Title shows only logo + tagline + the blinking prompt (no dim: the whole night city is visible).</summary>
+        public bool Attract => attract && titleShown;
+        public bool Revealing => revealAge >= 0f;
+
+        void SetAttract(bool on)
+        {
+            attract = on;
+            attractAge = 0f;
+            revealAge = -1f;
+            prompt.gameObject.SetActive(on);
+            prompt.localScale = Vector3.one;
+            promptGroup.alpha = 1f;
+            buttonStack.gameObject.SetActive(!on);
+            creditStrip.gameObject.SetActive(!on);
+            stripGroup.alpha = 1f;
+            SetBackdropAlpha(on ? 0f : 1f);
+            for (int i = 0; i < revealButtons.Length; i++) SetButtonReveal(i, 1f);
+        }
+
+        void SetBackdropAlpha(float k)
+        {
+            var c = Backdrop;
+            c.a *= k;
+            backdrop.color = c;
+        }
+
+        /// <summary>Any key / click on the attract screen: the prompt pops into a gold burst, the menu comes in. True = used.</summary>
+        public bool HandleAttractPress(UIPress press)
+        {
+            if (!Attract || creditsOpen || endingsOpen || !press.Any) return false;
+            Reveal();
+            return true;
+        }
+
+        public void Reveal()
+        {
+            if (!attract) return;
+            attract = false;
+            revealAge = 0f;
+            ctx.Sound(UiSoundKind.Reveal);
+            if (burst != null) burst(UIBuild.CanvasRect(ctx.CanvasRect, prompt).center);
+            buttonStack.gameObject.SetActive(true);
+            creditStrip.gameObject.SetActive(true);
+            stripGroup.alpha = 0f;
+            for (int i = 0; i < revealButtons.Length; i++) SetButtonReveal(i, 0f);
+        }
+
+        void TickAttract(float dt)
+        {
+            if (attract)
+            {
+                // a smooth breath (no hard on/off): alpha 0.35..1 at 0.75 Hz - far under 3 flashes/s
+                attractAge += dt;
+                promptGroup.alpha = PromptAlpha(attractAge);
+                return;
+            }
+            if (revealAge < 0f) return;
+            revealAge += dt;
+            float t = revealAge;
+            // prompt: pops (1 -> 1.35) and vanishes into the burst
+            if (prompt.gameObject.activeSelf)
+            {
+                float k = Mathf.Clamp01(t / PromptPop);
+                float sc = 1f + 0.35f * k;
+                prompt.localScale = new Vector3(sc, sc, 1f);
+                promptGroup.alpha = 1f - k;
+                if (k >= 1f) prompt.gameObject.SetActive(false);
+            }
+            SetBackdropAlpha(Mathf.Clamp01(t / BackdropFade));
+            for (int i = 0; i < revealButtons.Length; i++)
+                SetButtonReveal(i, Mathf.Clamp01((t - ButtonDelay - i * ButtonStagger) / RevealButton));
+            stripGroup.alpha = Mathf.Clamp01((t - RevealTime + 0.2f) / 0.2f);
+            if (t >= RevealTime)
+            {
+                revealAge = -1f;
+                for (int i = 0; i < revealButtons.Length; i++) SetButtonReveal(i, 1f);
+                SetBackdropAlpha(1f);
+                stripGroup.alpha = 1f;
+                prompt.gameObject.SetActive(false);
+            }
+        }
+
+        /// <summary>Prompt breath: alpha 0.35..1, one smooth cycle per 1/<see cref="BlinkHz"/> s.</summary>
+        public static float PromptAlpha(float t) => 0.35f + 0.65f * (0.5f + 0.5f * Mathf.Cos(t * BlinkHz * 2f * Mathf.PI));
+
+        /// <summary>0 = hidden below its place and small, 1 = settled (ease-out-back: a small overshoot).</summary>
+        void SetButtonReveal(int i, float k)
+        {
+            var b = revealButtons[i];
+            const float s = 1.70158f;
+            float e = k <= 0f ? 0f : k >= 1f ? 1f : 1f + (s + 1f) * Mathf.Pow(k - 1f, 3f) + s * Mathf.Pow(k - 1f, 2f);
+            float scale = Mathf.LerpUnclamped(0.6f, 1f, e);
+            b.Rect.localScale = new Vector3(scale, scale, 1f);
+            b.Rect.anchoredPosition = new Vector2(0f, revealY[i] - Mathf.Round(RevealSlide * (1f - Mathf.Clamp01(e))));
+            revealGroups[i].alpha = Mathf.Clamp01(k * 2.5f);
+            revealGroups[i].interactable = k > 0f;
+        }
+
+        public bool PromptVisible => prompt.gameObject.activeInHierarchy;
+        public string PromptText => promptText.text;
+        public float PromptAlphaNow => promptGroup.alpha;
+        public Rect PromptRect(RectTransform canvas) => PromptVisible ? UIBuild.CanvasRect(canvas, prompt) : default;
+        public bool ButtonsVisible => buttonStack.gameObject.activeInHierarchy;
+        public float BackdropAlpha => backdrop.color.a;
+        public bool CreditStripVisible => creditStrip.gameObject.activeInHierarchy;
+        public bool PauseScenicVisible => PauseVisible && scenic.Rect.gameObject.activeInHierarchy;
+        public void ClickPauseScenic() => scenic.Button.onClick.Invoke();
+        public string PauseScenicText => scenic.Label.text;
 
         /// <summary>Pause card + title above everything else (the HUD language toggle stays below the title).</summary>
         public void BringToFront()

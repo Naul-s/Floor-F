@@ -31,6 +31,13 @@ namespace FloorF.UI
         WishView wish;
         DayBannerView banner;
         CharmsView charms;
+        ScenicView scenic;
+        ClickFxView clickFx;
+        /// <summary>Above the HUD canvas: click effect, scenic hint, establishing caption. No GraphicRaycaster (never blocks).</summary>
+        Canvas fxCanvas;
+        RectTransform fxRect;
+        /// <summary>On the HUD canvas: fades it out for the scenic view / establishing shot.</summary>
+        CanvasGroup hudGroup;
         bool built;
 
         void OnEnable()
@@ -55,7 +62,7 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<GuestSpawned>(e => { if (built) { tutorial.OnGuestSpawned(e); curse.OnGuestSpawned(e); } }));
             subs.Add(bus.Subscribe<GuestDelivered>(e => { if (built) tutorial.OnGuestDelivered(e); }));
             subs.Add(bus.Subscribe<GuestLeft>(e => { if (built) tutorial.OnGuestLeft(e); }));
-            subs.Add(bus.Subscribe<PauseChanged>(e => { if (built) menu.Tick(); }));
+            subs.Add(bus.Subscribe<PauseChanged>(e => { if (built) { scenic.OnPauseChanged(e); menu.Tick(); } }));
             subs.Add(bus.Subscribe<LuckStreakChanged>(e => { if (built && !OnTitle) { hud.OnLuckStreakChanged(e); tutorial.OnLuckStreakChanged(e); } }));
             subs.Add(bus.Subscribe<TutorialHoldChanged>(e => { if (built) tutorial.OnTutorialHoldChanged(e); }));
             subs.Add(bus.Subscribe<WishStarAppeared>(e => { if (built && !OnTitle) wish.OnAppeared(e); }));
@@ -122,6 +129,8 @@ namespace FloorF.UI
             panel = new ElevatorPanelView(ctx, rt);
             hud = new HudView(ctx, rt, ToggleLanguage);
             charms = new CharmsView(ctx, rt, hud);
+            clickFx = new ClickFxView(fxRect);
+            scenic = new ScenicView(ctx, rt, fxRect); // eye button next to the day box; hint / caption on the FX canvas
             wish.Fx.SetAsLastSibling(); // hint, explain card, float-ups above the HUD boxes
             banner = new DayBannerView(ctx, rt);
             shop = new ShopView(ctx, rt, panel);
@@ -129,13 +138,15 @@ namespace FloorF.UI
             flow = new FlowScreensView(ctx, rt);
             hud.BringLanguageToFront(); // above the modal flow cards, under the coach-mark overlay
             tutorial = new TutorialView(ctx, rt, panel, bubbles, hud);
-            menu = new MenuView(ctx, rt);
+            menu = new MenuView(ctx, rt, () => scenic.TryEnterScenic(), () => scenic.SuppressPauseMenu, p => clickFx.Spawn(p, big: true));
             menu.BringToFront();
+            clickFx.Clear();
             built = true;
             laidOutFor = ctx.CanvasRect.rect.size;
             relayoutFrame = Time.frameCount + 1; // once more after the first rendered frame
             if (RecordBootLayout) BootFontSizes = FontSizeSnapshot();
             SetLayerRecursively(canvas.transform, PresentationContract.UiLayer);
+            SetLayerRecursively(fxCanvas.transform, PresentationContract.UiLayer);
             Debug.Log("[UI] built: canvas " + canvas.renderMode + " on " + (canvas.worldCamera != null ? canvas.worldCamera.name : "<none>"));
         }
 
@@ -153,7 +164,22 @@ namespace FloorF.UI
             scaler.referenceResolution = new Vector2(UIStyle.RefWidth, UIStyle.RefHeight);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
             go.AddComponent<GraphicRaycaster>();
+            hudGroup = go.AddComponent<CanvasGroup>();
             ctx.CanvasRect = (RectTransform)go.transform;
+
+            // FX canvas: same scaler, drawn after the HUD canvas, no raycaster at all
+            var fx = new GameObject("[UI] FX Canvas", typeof(RectTransform));
+            fx.layer = PresentationContract.UiLayer;
+            fx.transform.SetParent(transform, false);
+            fxCanvas = fx.AddComponent<Canvas>();
+            fxCanvas.sortingOrder = UIStyle.SortingOrder + 1;
+            fxCanvas.pixelPerfect = false;
+            var fxScaler = fx.AddComponent<CanvasScaler>();
+            fxScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            fxScaler.referenceResolution = new Vector2(UIStyle.RefWidth, UIStyle.RefHeight);
+            fxScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
+            fxRect = (RectTransform)fx.transform;
+            AttachCamera();
         }
 
         /// <summary>Screen Space - Camera on the Rendering UI camera; Overlay only as a fallback while it is missing.</summary>
@@ -161,16 +187,20 @@ namespace FloorF.UI
         {
             var camGo = GameObject.Find(PresentationContract.UiCameraName);
             var cam = camGo != null ? camGo.GetComponent<Camera>() : null;
-            if (cam != null)
+            foreach (var c in new[] { canvas, fxCanvas })
             {
-                canvas.renderMode = RenderMode.ScreenSpaceCamera;
-                canvas.worldCamera = cam;
-                canvas.planeDistance = UIStyle.PlaneDistance;
-            }
-            else if (canvas.renderMode != RenderMode.ScreenSpaceOverlay)
-            {
-                Debug.LogWarning("[UI] '" + PresentationContract.UiCameraName + "' not found - Overlay fallback until it appears");
-                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                if (c == null) continue;
+                if (cam != null)
+                {
+                    c.renderMode = RenderMode.ScreenSpaceCamera;
+                    c.worldCamera = cam;
+                    c.planeDistance = UIStyle.PlaneDistance;
+                }
+                else if (c.renderMode != RenderMode.ScreenSpaceOverlay)
+                {
+                    if (c == canvas) Debug.LogWarning("[UI] '" + PresentationContract.UiCameraName + "' not found - Overlay fallback until it appears");
+                    c.renderMode = RenderMode.ScreenSpaceOverlay;
+                }
             }
         }
 
@@ -245,6 +275,61 @@ namespace FloorF.UI
             flow.Tick();
             tutorial.Tick(dt, Time.unscaledTime);
             menu.Tick();
+            HandlePresses(UIInput.Poll());
+            clickFx.Tick(UIClock.UnscaledDt);
+            FadeHud(UIClock.UnscaledDt);
+            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || scenic.HoldsEnter);
+        }
+
+        void LateUpdate()
+        {
+            if (!built) return;
+            if (scenic.LateTick()) menu.Tick(); // back to the pause card it came from: shown this frame
+        }
+
+        /// <summary>
+        /// This frame's presses, in priority order: the title attract screen (any key / click reveals; its own burst, no
+        /// click effect), the scenic view / establishing shot (skip, exit, V), H = rule box; every other pointer press
+        /// gets the click effect (+ Tap unless it lands on something clickable: buttons play their own sound).
+        /// </summary>
+        void HandlePresses(UIPress press)
+        {
+            bool attractUsed = menu.HandleAttractPress(press);
+            bool used = attractUsed;
+            if (scenic.Tick(UIClock.UnscaledDt, used ? default : press)) used = true;
+            if (!used && press.H && ctx.Phase == DayPhase.Running && !OnTitle && !ctx.Paused) hud.ToggleRules();
+            if (press.Pointer && !attractUsed) OnPointerPress(press.Screen);
+        }
+
+        void OnPointerPress(Vector2 screen)
+        {
+            var cam = fxCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : fxCanvas.worldCamera;
+            if (RectTransformUtility.ScreenPointToLocalPointInRectangle(fxRect, screen, cam, out var local))
+                clickFx.Spawn(local - fxRect.rect.min);
+            if (!OverClickable(screen)) ctx.Sound(UiSoundKind.Tap);
+        }
+
+        /// <summary>The topmost UI hit at a screen point handles clicks itself (an interactable button, slider, wish star...).</summary>
+        bool OverClickable(Vector2 screen)
+        {
+            var es = EventSystem.current;
+            if (es == null) return false;
+            raycastHits.Clear();
+            es.RaycastAll(new PointerEventData(es) { position = screen }, raycastHits);
+            if (raycastHits.Count == 0) return false;
+            var go = raycastHits[0].gameObject;
+            var handler = ExecuteEvents.GetEventHandler<IPointerClickHandler>(go) ?? ExecuteEvents.GetEventHandler<IPointerDownHandler>(go);
+            if (handler == null) return false;
+            var sel = handler.GetComponent<Selectable>();
+            return sel == null || sel.IsInteractable();
+        }
+
+        void FadeHud(float dt)
+        {
+            bool hide = scenic.HidesUi;
+            float target = hide ? 0f : 1f;
+            hudGroup.alpha = Mathf.MoveTowards(hudGroup.alpha, target, dt / (hide ? 0.15f : 0.25f));
+            if (hudGroup.blocksRaycasts == hide) { hudGroup.blocksRaycasts = !hide; hudGroup.interactable = !hide; }
         }
 
         void OnGameStarted(GameStarted e)
@@ -611,6 +696,63 @@ namespace FloorF.UI
         internal float SkipTutorialFontSize => flow.SkipFontSize;
         internal float HudClockFontSize => hud.ClockFontSize;
         internal bool HudDeltaVisible => hud.DeltaVisible;
+
+        // attract screen / scenic view / establishing shot / rule box / click effect
+        /// <summary>Test hook: a press the next UI frame sees as if it came from the Input System.</summary>
+        internal void InjectPress(bool anyKey = false, bool pointer = false, Vector2 canvasPoint = default, bool v = false, bool h = false, bool enter = false)
+        {
+            var p = new UIPress { AnyKey = anyKey || v || h || enter, V = v, H = h, Enter = enter, Pointer = pointer };
+            if (pointer) p.Screen = CanvasToScreen(canvasPoint);
+            UIInput.Inject(p);
+        }
+        Vector2 CanvasToScreen(Vector2 p)
+        {
+            var rt = ctx.CanvasRect;
+            var world = rt.TransformPoint(p + rt.rect.min);
+            return RectTransformUtility.WorldToScreenPoint(canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera, world);
+        }
+        internal bool TitleAttract => menu.Attract;
+        internal bool TitleRevealing => menu.Revealing;
+        internal bool TitleButtonsVisible => menu.ButtonsVisible;
+        internal bool TitlePromptVisible => menu.PromptVisible;
+        internal string TitlePromptText => menu.PromptText;
+        internal float TitlePromptAlpha => menu.PromptAlphaNow;
+        internal Rect TitlePromptRect => menu.PromptRect(ctx.CanvasRect);
+        internal float TitleBackdropAlpha => menu.BackdropAlpha;
+        internal bool TitleCreditStripVisible => menu.CreditStripVisible;
+        internal bool? FlowEnterEnabled => UIInput.FlowEnterEnabled;
+        internal ScenicView.Mode ScenicMode => scenic.Current;
+        internal bool HudHidden => scenic.HidesUi;
+        internal float HudAlpha => hudGroup.alpha;
+        internal bool HudBlocksRaycasts => hudGroup.blocksRaycasts;
+        internal bool ScenicButtonVisible => scenic.ButtonVisible;
+        internal Rect ScenicButtonRect => UIBuild.CanvasRect(ctx.CanvasRect, scenic.ButtonRect);
+        internal void ClickScenicButton() => scenic.ClickButton();
+        internal bool ScenicHintVisible => scenic.HintVisible;
+        internal string ScenicHintText => scenic.HintText;
+        internal Rect ScenicHintRect => UIBuild.CanvasRect(fxRect, scenic.Hint);
+        internal bool PauseScenicVisible => menu.PauseScenicVisible;
+        internal string PauseScenicText => menu.PauseScenicText;
+        internal void ClickPauseScenic() => menu.ClickPauseScenic();
+        internal bool CaptionVisible => scenic.CaptionVisible;
+        internal string CaptionText => scenic.CaptionText;
+        internal float CaptionAlpha => scenic.CaptionAlpha;
+        internal Rect CaptionRect => UIBuild.CanvasRect(fxRect, scenic.Caption);
+        internal void SetEstablishingAge(float t) => scenic.SetEstablishingAge(t);
+        internal bool RulesOpen => hud.RulesOpen;
+        internal bool RulesBoxShown => hud.RulesBoxVisible;
+        internal bool RulesTabShown => hud.RulesTabVisible;
+        internal Rect RulesTabRect => UIBuild.CanvasRect(ctx.CanvasRect, hud.RulesTab);
+        internal void ClickRulesTab() => hud.ClickRulesTab();
+        internal void ClickRulesHide() => hud.ClickRulesHide();
+        internal string RulesHideText => hud.RulesHideText;
+        internal float RightColumnBottom => hud.RightColumnBottom;
+        internal int ClickFxCount => clickFx.ActiveCount;
+        internal bool ClickFxLastBig => clickFx.LastIsBig;
+        internal Vector2 ClickFxLastPosition => clickFx.LastPosition;
+        internal bool ClickFxOnGrid => clickFx.LastOnGrid;
+        internal bool ClickFxRaycastable => clickFx.AnyRaycastTarget || fxCanvas.GetComponent<GraphicRaycaster>() != null;
+        internal bool FxCanvasAbove => fxCanvas.sortingOrder > canvas.sortingOrder && fxCanvas.renderMode == canvas.renderMode && fxCanvas.worldCamera == canvas.worldCamera;
 
         // title / pause / ending
         internal bool TitleVisible => menu.TitleVisible;
