@@ -28,6 +28,10 @@ namespace FloorF.Audio
     /// Rainy days (<see cref="WeatherRules.RainAudible"/>): a looping rain bed on its own voice fading with the day, plus
     /// distant thunder on another own voice on a seeded schedule (<see cref="ThunderSchedule"/>, never two at once);
     /// both are ducked with the music on pause / coach-mark hold and no new rumble is scheduled while paused.
+    /// UI feedback (UiSound) opens the gesture lock, plays while paused and is not title-scaled; taps go through a
+    /// <see cref="TapGuard"/>. Scenic view (ScenicViewChanged): the player's scenic mode pauses the game but keeps the
+    /// music/rain unducked and plays SFX <see cref="AudioLibrary.scenicSfxDb"/> lower; the day's establishing shot
+    /// leaves the levels alone and whooshes softly as it zooms back in.
     /// The AudioListener is on the scene's Main Camera.
     /// </summary>
     sealed class AudioRoot : MonoBehaviour
@@ -62,6 +66,8 @@ namespace FloorF.Audio
         /// <summary>Per voice: 1, or the remaining gain while a cut voice fades out (sfxCut).</summary>
         float[] sfxFade;
         bool[] sfxCut;
+        /// <summary>Per voice: holds a UI feedback sound (keeps ringing when the game pauses).</summary>
+        bool[] sfxUi;
         int nextVoice;
         /// <summary>Index (in sfx) of the door voice that played last, -1 before the first door cue.</summary>
         int doorVoice = -1;
@@ -81,6 +87,10 @@ namespace FloorF.Audio
         int pendingStreak;
         DayPhase phase = DayPhase.None;
         EndingKind ending = EndingKind.None;
+        /// <summary>ScenicViewChanged: the player's scenic mode (game paused, music kept) / the day's establishing shot.</summary>
+        bool scenic;
+        bool establishing;
+        readonly TapGuard tapGuard = new TapGuard();
 
         readonly TravelHum hum = new TravelHum();
         AudioSource humSource;
@@ -135,7 +145,24 @@ namespace FloorF.Audio
             played.Clear(); SuppressedCount = 0; throttle.Clear(); pendingStreak = 0;
             DoorCutCount = 0; lastDingTime = float.NegativeInfinity; HumStarts = 0;
             ThunderStrikes = 0; ThunderSkipped = 0;
+            tapGuard.Clear(); TapsDropped = 0;
         }
+
+        /// <summary>The player's scenic mode is on (music not pause-ducked, SFX lowered).</summary>
+        internal bool Scenic => scenic;
+        /// <summary>The day's establishing shot is on (levels untouched; its end whooshes).</summary>
+        internal bool Establishing => establishing;
+        /// <summary>UiSound(Tap)s dropped by the spam guard (since the last ClearRecords).</summary>
+        internal int TapsDropped { get; private set; }
+        /// <summary>The voice holds a UI feedback sound (pause does not stop it).</summary>
+        internal bool IsUiVoice(AudioSource s)
+        {
+            int i = System.Array.IndexOf(sfx, s);
+            return i >= 0 && sfxUi[i];
+        }
+        /// <summary>Current SFX level multiplier (title demo / scenic) for a game (ui = false) or UI sound.</summary>
+        internal float SfxScale(bool ui)
+            => AudioRules.SfxScale(phase == DayPhase.Title, ui, scenic, lib.titleSfxScale, lib.scenicSfxDb);
 
         /// <summary>The travel hum's own looping voice (never one of <see cref="SfxSources"/>).</summary>
         internal AudioSource HumSource => humSource;
@@ -194,6 +221,7 @@ namespace FloorF.Audio
             sfxBaseVolume = new float[voices];
             sfxFade = new float[voices];
             sfxCut = new bool[voices];
+            sfxUi = new bool[voices];
             for (int i = 0; i < voices; i++)
             {
                 sfxFade[i] = 1f;
@@ -257,7 +285,8 @@ namespace FloorF.Audio
             subs.Add(bus.Subscribe<CharmBought>(_ => Play(AudioCue.CharmBought)));
             subs.Add(bus.Subscribe<CharmTriggered>(_ => Play(AudioCue.CharmShield)));
             subs.Add(bus.Subscribe<StickersExpired>(e => Play(AudioEventMap.For(e))));
-            subs.Add(bus.Subscribe<UiSound>(e => Play(e.Kind == UiSoundKind.Error ? AudioCue.Error : e.Kind == UiSoundKind.Confirm ? AudioCue.DayStart : AudioCue.UiClick)));
+            subs.Add(bus.Subscribe<UiSound>(OnUiSound));
+            subs.Add(bus.Subscribe<ScenicViewChanged>(OnScenic));
         }
 
         void OnDisable() => subs.Clear();
@@ -331,6 +360,7 @@ namespace FloorF.Audio
             phase = e.Current;
             hum.Arrive(); // a new phase starts with the car parked (day start / end, title <-> game): fade the hum out
             if (phase != DayPhase.Running) held = false; // leaving Running always releases the coach-mark hold
+            if (phase == DayPhase.Title) scenic = establishing = false; // back to the title: no scenic view survives
             if (phase == DayPhase.Ending && GameServices.TryGet<IDayQuery>(out var day)) ending = day.Ending;
             else if (phase != DayPhase.Ending) ending = EndingKind.None;
             SetMusic(AudioRules.MusicFor(phase, ending));
@@ -349,9 +379,39 @@ namespace FloorF.Audio
             paused = e.Paused;
             ApplyHumFreeze();
             if (!paused) return;
-            for (int i = 0; i < sfx.Length; i++) { sfx[i].Stop(); sfxCut[i] = false; sfxFade[i] = 1f; }
+            // game sounds stop; a UI sound (the pause button's own click + tink) rings out
+            for (int i = 0; i < sfx.Length; i++)
+            {
+                if (sfxUi[i]) continue;
+                sfx[i].Stop(); sfxCut[i] = false; sfxFade[i] = 1f;
+            }
             doorEndsAt = float.NegativeInfinity;
             dip.Clear();
+        }
+
+        /// <summary>
+        /// UI feedback: always the player's doing (opens the WebGL lock), audible while paused (pause menu, scenic mode).
+        /// Taps go through the <see cref="TapGuard"/>; a button click tells the guard so a tap in the same gesture is dropped.
+        /// </summary>
+        void OnUiSound(UiSound e)
+        {
+            Unlock();
+            var cue = AudioEventMap.For(e.Kind);
+            float now = Time.unscaledTime, gain = 1f;
+            if (cue == AudioCue.UiClick) tapGuard.NoteClick(now);
+            else if (cue == AudioCue.Tap)
+            {
+                gain = tapGuard.TryTap(now, TapSettings.From(lib, lib.Find(AudioCue.Tap)));
+                if (gain <= 0f) { TapsDropped++; return; }
+            }
+            Play(cue, gain, 0f, ui: true);
+        }
+
+        void OnScenic(ScenicViewChanged e)
+        {
+            if (e.Establishing) establishing = e.On;
+            else scenic = e.On;
+            Play(AudioEventMap.For(e)); // establishing shot zooming back in: soft whoosh (after the flag cleared: full level)
         }
 
         void SetMaster(float v)
@@ -378,10 +438,11 @@ namespace FloorF.Audio
         /// <param name="exactPitch">
         /// &gt; 0: play at def.pitch x this, WITHOUT the random jitter (pitch ladders: streak, clock ticks). 0 = jittered.
         /// </param>
-        internal void Play(AudioCue cue, float scale = 1f, float exactPitch = 0f)
+        /// <param name="ui">UI feedback (UiSound): plays while paused, no title demo scale, its voice survives a pause.</param>
+        internal void Play(AudioCue cue, float scale = 1f, float exactPitch = 0f, bool ui = false)
         {
             if (cue == AudioCue.None) return;
-            if (!unlock.IsUnlocked || paused) { SuppressedCount++; return; }
+            if (!unlock.IsUnlocked || (paused && !ui)) { SuppressedCount++; return; }
             var def = lib.Find(cue);
             if (def == null || def.clips == null || def.clips.Length == 0) return;
             float now = Time.unscaledTime;
@@ -389,20 +450,20 @@ namespace FloorF.Audio
             var clip = def.clips[rng.Next(def.clips.Length)];
             if (clip == null) return;
             float pitch = exactPitch > 0f ? def.pitch * exactPitch : AudioRules.PickPitch(def.pitch, def.pitchJitter, rng);
-            float vol = def.volume * scale * (phase == DayPhase.Title ? lib.titleSfxScale : 1f);
+            float vol = def.volume * scale * SfxScale(ui);
             if (cue == AudioCue.Ding) lastDingTime = now;
             if (AudioRules.IsDoorCue(cue))
             {
                 vol *= AudioRules.DoorGainAfterDing(now - lastDingTime, lib.dingGuardSeconds, lib.doorUnderDingDb);
                 PlayDoor(clip, vol, pitch, now);
             }
-            else PlayVoice(clip, vol, pitch);
-            if (def.layer != null) PlayVoice(def.layer, vol * def.layerVolume, pitch);
+            else PlayVoice(clip, vol, pitch, ui);
+            if (def.layer != null) PlayVoice(def.layer, vol * def.layerVolume, pitch, ui);
             if (played.Count >= MaxRecords) played.RemoveAt(0);
             played.Add(new CueRecord(cue, clip, pitch, vol * master, now));
         }
 
-        void PlayVoice(AudioClip clip, float volume, float pitch)
+        void PlayVoice(AudioClip clip, float volume, float pitch, bool ui)
         {
             int pick = -1;
             for (int k = 0; k < SfxVoices; k++)
@@ -413,6 +474,7 @@ namespace FloorF.Audio
             if (pick < 0) pick = nextVoice;
             nextVoice = (pick + 1) % SfxVoices;
             StartVoice(pick, clip, volume, pitch);
+            sfxUi[pick] = ui;
         }
 
         /// <summary>
@@ -442,6 +504,7 @@ namespace FloorF.Audio
             sfxBaseVolume[i] = volume;
             sfxFade[i] = 1f;
             sfxCut[i] = false;
+            sfxUi[i] = false;
             s.volume = volume * master;
             s.Play();
         }
@@ -628,7 +691,8 @@ namespace FloorF.Audio
 
         void UpdateMusic(float now, float dt)
         {
-            duck = Mathf.MoveTowards(duck, AudioRules.DuckTarget(paused, held, lib.pauseDuckDb, lib.holdDuckDb), dt * 4f);
+            duck = Mathf.MoveTowards(duck,
+                AudioRules.DuckTarget(paused, held, scenic, lib.pauseDuckDb, lib.holdDuckDb, lib.scenicMusicDb), dt * 4f);
             basePitch = Mathf.MoveTowards(basePitch, spec.Pitch, dt * 0.5f);
             float pitch = basePitch * dip.Evaluate(now, lib.dipPitch, lib.dipDownSeconds, lib.dipUpSeconds);
             float fadeStep = dt / Mathf.Max(0.01f, lib.crossfadeSeconds);

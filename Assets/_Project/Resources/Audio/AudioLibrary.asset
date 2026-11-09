@@ -118,12 +118,39 @@ MonoBehaviour:
   - cue: 12
     clips:
     - {fileID: 8300000, guid: 3b57f694fdf93cf47b603993fe6940e4, type: 3}
-    layer: {fileID: 0}
-    layerVolume: 0.4
+    layer: {fileID: 8300000, guid: 7b259a759dbdc4d4c9bfc770e5111ae5, type: 3}
+    layerVolume: 0.2
     volume: 0.5
     pitch: 1
     pitchJitter: 0.07
     minInterval: 0.05
+  - cue: 24
+    clips:
+    - {fileID: 8300000, guid: 7b259a759dbdc4d4c9bfc770e5111ae5, type: 3}
+    layer: {fileID: 0}
+    layerVolume: 0.4
+    volume: 0.12
+    pitch: 1
+    pitchJitter: 0.06
+    minInterval: 0.07
+  - cue: 25
+    clips:
+    - {fileID: 8300000, guid: 46a6a64baf062a2439e1e4109a7666b0, type: 3}
+    layer: {fileID: 0}
+    layerVolume: 0.4
+    volume: 0.3
+    pitch: 1
+    pitchJitter: 0.05
+    minInterval: 0.6
+  - cue: 26
+    clips:
+    - {fileID: 8300000, guid: c4731e8963e3ff44a96020cfcc8c14c5, type: 3}
+    layer: {fileID: 0}
+    layerVolume: 0.4
+    volume: 0.14
+    pitch: 1
+    pitchJitter: 0.05
+    minInterval: 1
   - cue: 13
     clips:
     - {fileID: 8300000, guid: e9baaf25b915d4b4c900297578cf8827, type: 3}
@@ -253,6 +280,12 @@ MonoBehaviour:
   doorCutFadeSeconds: 0.03
   dingGuardSeconds: 0.6
   doorUnderDingDb: -6
+  scenicSfxDb: -4
+  scenicMusicDb: 0
+  tapRepeatWindow: 0.35
+  tapRepeatStep: 0.8
+  tapRepeatFloor: 0.45
+  tapAfterClickSeconds: 0.08
   travelHum: {fileID: 8300000, guid: a8d174088dd26404dac852aa7edee64d, type: 3}
   travelHumVolume: 0.15
   travelFadeInSeconds: 0.15
