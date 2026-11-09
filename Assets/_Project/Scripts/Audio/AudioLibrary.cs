@@ -60,6 +60,16 @@ namespace FloorF.Audio
         /// (<see cref="ThunderSchedule"/>), never two at once. Not tied to an event.
         /// </summary>
         Thunder = 23,
+        /// <summary>
+        /// UiSound(Tap): a pointer click anywhere that is not a button (the golden click effect) - a tiny lucky-gold
+        /// "tink" (procedural). Frequent: <see cref="TapGuard"/> drops spam, fades rapid repeats and skips a tap right
+        /// after a button click (the click already carries the tink as its layer).
+        /// </summary>
+        Tap = 24,
+        /// <summary>UiSound(Reveal): title "press any key" -> the menu appears: rising shimmer + soft bell (procedural).</summary>
+        Reveal = 25,
+        /// <summary>ScenicViewChanged(On = false, Establishing = true): soft whoosh as the day's establishing shot zooms back in.</summary>
+        ScenicWhoosh = 26,
     }
 
     public enum MusicTrack
@@ -139,6 +149,24 @@ namespace FloorF.Audio
         /// <summary>A door cue starting within this many seconds after the arrival Ding is played <see cref="doorUnderDingDb"/> lower.</summary>
         public float dingGuardSeconds = 0.6f;
         public float doorUnderDingDb = -6f;
+
+        /// <summary>
+        /// The player's scenic mode (ScenicViewChanged, not Establishing): every SFX plays this much lower. It pauses the
+        /// game, but the music (and rain) is NOT pause-ducked then - it plays at <see cref="scenicMusicDb"/> (a "look at
+        /// the city" moment). The day's establishing shot leaves the levels alone.
+        /// </summary>
+        public float scenicSfxDb = -4f;
+        public float scenicMusicDb = 0f;
+        /// <summary>
+        /// Tap spam guard (<see cref="TapGuard"/>): a tap within <see cref="tapRepeatWindow"/> s of the previous one plays
+        /// <see cref="tapRepeatStep"/> x the previous one's gain (never below <see cref="tapRepeatFloor"/>), so a burst
+        /// of clicks gets softer, never louder; a tap within <see cref="tapAfterClickSeconds"/> after a button click is
+        /// dropped. The minimum gap between taps is the Tap row's minInterval.
+        /// </summary>
+        public float tapRepeatWindow = 0.35f;
+        public float tapRepeatStep = 0.8f;
+        public float tapRepeatFloor = 0.45f;
+        public float tapAfterClickSeconds = 0.08f;
 
         /// <summary>
         /// Elevator travel loop ("wing-wing", procedural, Audio/Generated): one dedicated looping voice that fades in when

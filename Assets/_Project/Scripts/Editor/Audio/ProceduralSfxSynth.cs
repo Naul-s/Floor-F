@@ -22,7 +22,7 @@ namespace FloorF.EditorTools
     /// tiny high pings (E7 G7 B7) in 0.6 s.
     ///
     /// Rain loop + thunder rumbles: ProceduralSfxSynth.Weather.cs. Shop cues (charm bell, shield chime, sticker peel):
-    /// ProceduralSfxSynth.Shop.cs.
+    /// ProceduralSfxSynth.Shop.cs. UI cues (gold tink, menu reveal, scenic whoosh): ProceduralSfxSynth.Ui.cs.
     ///
     /// Batch: tools/unity-batch.ps1 -Mode method -Method FloorF.EditorTools.ProceduralSfxSynth.Build
     /// then AudioLibraryBuilder.Build.
@@ -52,6 +52,7 @@ namespace FloorF.EditorTools
             Write(StarSparklePath, StarSparkle());
             BuildWeather();
             BuildShop();
+            BuildUi();
         }
 
         static void Write(string assetPath, float[] mono)

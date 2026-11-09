@@ -47,6 +47,18 @@ namespace FloorF.EditorTools
         public const float CharmBellVolume = 0.35f;
         public const float ShieldVolume = 0.5f;
         public const float PeelVolume = 0.2f;
+        // UI (procedural, ProceduralSfxSynth.Ui; files peak -3 dBFS). The button click (click_002, a 10 ms transient)
+        // plays at max100ms -32.0. Gold tink (max100ms -14.6, bright 2.3-3.5 kHz): Tap 0.12 -> -33.0, just under the
+        // click - frequent, so the quietest UI sound; under the click itself 0.5 x 0.2 = 0.1 -> -34.6, a light golden
+        // ring under the click's snap. Menu reveal (-13.1): 0.3 -> -23.6, like the wish-star shimmer (-23.2), well under
+        // the ding (-17.8); UI sounds are not title-scaled. Whoosh (-12.9, broadband noise, sounds louder than its
+        // number): 0.14 -> -30.0, a breath under the music.
+        public const float TapVolume = 0.12f;
+        public const float TapMinInterval = 0.07f;
+        public const float ClickTinkLayer = 0.2f;
+        public const float RevealVolume = 0.3f;
+        public const float WhooshVolume = 0.14f;
+        public const float ScenicSfxDb = -4f;
 
         /// <summary>
         /// WebGL re-encodes every clip to AAC and the BROWSER decodes it (decodeAudioData). AAC works in 1024-sample
@@ -92,6 +104,14 @@ namespace FloorF.EditorTools
             var a = new string[ProceduralSfxSynth.ThunderVariants];
             for (int i = 0; i < a.Length; i++) a[i] = ProceduralSfxSynth.ThunderPath(i);
             return a;
+        }
+
+        /// <summary>One batch run: synthesize the procedural clips, rebuild the table, log the levels.</summary>
+        public static void SynthBuildAndProbe()
+        {
+            ProceduralSfxSynth.Build();
+            Build();
+            AudioLevelProbe.Run();
         }
 
         [MenuItem("Floor F/Audio/Rebuild Audio Library")]
@@ -144,7 +164,15 @@ namespace FloorF.EditorTools
                 Cue(AudioCue.Impatient, new[] { UI + "tick_001.ogg" }, 0.45f, 1f, 0.08f, 0.25f),
                 Cue(AudioCue.DayStart, new[] { UI + "confirmation_002.ogg" }, 0.6f, 1f, 0.05f, 0.5f),
                 Cue(AudioCue.Error, new[] { UI + "error_001.ogg" }, 0.6f, 1f, 0.05f, 0.2f),
-                Cue(AudioCue.UiClick, new[] { UI + "click_002.ogg" }, 0.5f, 1f, 0.07f, 0.05f),
+                // button click: Kenney click + the gold tink lightly underneath, so buttons and taps feel like one family
+                Cue(AudioCue.UiClick, new[] { UI + "click_002.ogg" }, 0.5f, 1f, 0.07f, 0.05f,
+                    layer: ProceduralSfxSynth.GoldTinkPath, layerVolume: ClickTinkLayer),
+                // a click anywhere: the tink alone, quiet, small pitch spread; TapGuard drops/fades spam (AudioLibrary.tap*)
+                Cue(AudioCue.Tap, new[] { ProceduralSfxSynth.GoldTinkPath }, TapVolume, 1f, 0.06f, TapMinInterval),
+                // title menu reveal: rising shimmer + soft golden bell
+                Cue(AudioCue.Reveal, new[] { ProceduralSfxSynth.MenuRevealPath }, RevealVolume, 1f, 0.05f, 0.6f),
+                // the day's establishing shot zooming back in
+                Cue(AudioCue.ScenicWhoosh, new[] { ProceduralSfxSynth.ScenicWhooshPath }, WhooshVolume, 1f, 0.05f, 1f),
                 // streak ladder: a tonal pluck (+ a little glass) on top of the Lucky twinkle; played at an exact pitch
                 // (semitone steps), the jitter value here is not used for it
                 Cue(AudioCue.StreakUp, new[] { UI + "pluck_001.ogg" }, 0.6f, 1f, 0.05f, 0.1f,
@@ -201,6 +229,15 @@ namespace FloorF.EditorTools
             // after arrival, i.e. inside that sustain: -6 dB keeps the clunk under the ding there
             lib.dingGuardSeconds = 0.6f;
             lib.doorUnderDingDb = -6f;
+
+            // scenic view: SFX a little lower, the player's scenic mode keeps the music (no pause duck)
+            lib.scenicSfxDb = ScenicSfxDb;
+            lib.scenicMusicDb = 0f;
+            // tap spam guard: rapid taps (< 0.35 s apart) 0.8x the previous, floor 0.45 (-7 dB); none right after a click
+            lib.tapRepeatWindow = 0.35f;
+            lib.tapRepeatStep = 0.8f;
+            lib.tapRepeatFloor = 0.45f;
+            lib.tapAfterClickSeconds = 0.08f;
 
             // travel hum (ProceduralSfxSynth): an ambience under the ding / doors / music - see TravelHumVolume
             lib.travelHum = C(ProceduralSfxSynth.HumPath);

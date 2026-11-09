@@ -40,7 +40,29 @@ namespace FloorF.Audio
             new Entry(typeof(CharmBought), AudioCue.CharmBought),
             new Entry(typeof(CharmTriggered), AudioCue.CharmShield),
             new Entry(typeof(StickersExpired), AudioCue.StickersPeel),
+            new Entry(typeof(UiSound), AudioCue.UiClick),
+            new Entry(typeof(UiSound), AudioCue.DayStart),
+            new Entry(typeof(UiSound), AudioCue.Error),
+            new Entry(typeof(UiSound), AudioCue.Tap),
+            new Entry(typeof(UiSound), AudioCue.Reveal),
+            new Entry(typeof(ScenicViewChanged), AudioCue.ScenicWhoosh),
         };
+
+        /// <summary>UiSound kinds: Confirm reuses the day-start chime; Click (and anything unknown) the button click.</summary>
+        public static AudioCue For(UiSoundKind kind)
+        {
+            switch (kind)
+            {
+                case UiSoundKind.Confirm: return AudioCue.DayStart;
+                case UiSoundKind.Error: return AudioCue.Error;
+                case UiSoundKind.Tap: return AudioCue.Tap;
+                case UiSoundKind.Reveal: return AudioCue.Reveal;
+                default: return AudioCue.UiClick;
+            }
+        }
+
+        /// <summary>Only the establishing shot zooming back in whooshes; the player's scenic mode on/off is silent (the button clicks).</summary>
+        public static AudioCue For(in ScenicViewChanged e) => !e.On && e.Establishing ? AudioCue.ScenicWhoosh : AudioCue.None;
 
         /// <summary>Day-end expiry peels only when something actually expired.</summary>
         public static AudioCue For(in StickersExpired e) => e.Labels + e.Charms > 0 ? AudioCue.StickersPeel : AudioCue.None;
@@ -120,6 +142,21 @@ namespace FloorF.Audio
         public static float DuckTarget(bool paused, bool held, float pauseDb, float holdDb)
             => paused ? DbToLinear(pauseDb) : held ? DbToLinear(holdDb) : 1f;
 
+        /// <summary>
+        /// Music duck with the player's scenic mode: it pauses the game, but the music keeps playing at
+        /// <paramref name="scenicDb"/> instead of the pause duck.
+        /// </summary>
+        public static float DuckTarget(bool paused, bool held, bool scenic, float pauseDb, float holdDb, float scenicDb)
+            => scenic ? DbToLinear(scenicDb) : DuckTarget(paused, held, pauseDb, holdDb);
+
+        /// <summary>
+        /// SFX level multiplier: the title demo scale applies to game sounds only (UI feedback - clicks, taps, the menu
+        /// reveal - sounds the same on the title as in game); the player's scenic mode lowers every SFX by
+        /// <paramref name="scenicDb"/>.
+        /// </summary>
+        public static float SfxScale(bool title, bool ui, bool scenic, float titleScale, float scenicDb)
+            => (title && !ui ? titleScale : 1f) * (scenic ? DbToLinear(scenicDb) : 1f);
+
         /// <summary>0..1 gain that fades the first and last <paramref name="fade"/> seconds of a looping clip (hides the seam).</summary>
         public static float SeamGain(float time, float length, float fade)
         {
@@ -192,6 +229,52 @@ namespace FloorF.Audio
             if (now - last[i] < minInterval) return false;
             last[i] = now;
             return true;
+        }
+    }
+
+    /// <summary>Tap guard tuning (copied from <see cref="AudioLibrary"/> + the Tap row's minInterval).</summary>
+    readonly struct TapSettings
+    {
+        public readonly float MinInterval, RepeatWindow, RepeatStep, RepeatFloor, AfterClick;
+        public TapSettings(float minInterval, float repeatWindow, float repeatStep, float repeatFloor, float afterClick)
+        { MinInterval = minInterval; RepeatWindow = repeatWindow; RepeatStep = repeatStep; RepeatFloor = repeatFloor; AfterClick = afterClick; }
+
+        public static TapSettings From(AudioLibrary lib, CueDef tap)
+            => new TapSettings(tap != null ? tap.minInterval : 0.07f, lib.tapRepeatWindow, lib.tapRepeatStep, lib.tapRepeatFloor,
+                lib.tapAfterClickSeconds);
+    }
+
+    /// <summary>
+    /// Spam guard for UiSound(Tap) (clicks anywhere - the player may click a lot): returns the gain for a tap, 0 = drop.
+    /// Dropped: within MinInterval of the last tap that played, or within AfterClick after a button click (that click
+    /// already carries the tink). Rapid repeats (within RepeatWindow of the previous tap) play RepeatStep x the previous
+    /// gain, down to RepeatFloor - a burst only ever gets softer; a quiet gap restores full gain. Never above 1.
+    /// </summary>
+    sealed class TapGuard
+    {
+        float lastTap = float.NegativeInfinity;
+        float lastClick = float.NegativeInfinity;
+        float gain = 1f;
+
+        public float LastGain => gain;
+
+        public void Clear()
+        {
+            lastTap = lastClick = float.NegativeInfinity;
+            gain = 1f;
+        }
+
+        /// <summary>A button click (UiSound Click) at <paramref name="now"/>.</summary>
+        public void NoteClick(float now) => lastClick = now;
+
+        public float TryTap(float now, in TapSettings s)
+        {
+            if (now - lastClick < s.AfterClick) return 0f;
+            float since = now - lastTap;
+            if (since < s.MinInterval) return 0f;
+            gain = since < s.RepeatWindow ? Mathf.Max(Mathf.Clamp01(s.RepeatFloor), gain * Mathf.Clamp01(s.RepeatStep)) : 1f;
+            lastTap = now;
+            return gain;
         }
     }
 
