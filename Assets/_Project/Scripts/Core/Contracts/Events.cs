@@ -384,6 +384,23 @@ namespace FloorF.Core
         Confirm = 1,
         /// <summary>Rejected action (shop purchase refused, command rejected).</summary>
         Error = 2,
+        /// <summary>Any pointer click/tap anywhere (the golden click effect) - soft, frequent; never stacks loudly.</summary>
+        Tap = 3,
+        /// <summary>Title: "press any key" -> the menu appears.</summary>
+        Reveal = 4,
+    }
+
+    /// <summary>
+    /// Published by UI: the scenic view (all UI hidden, camera zoomed out over the whole city) turned on/off.
+    /// <see cref="Establishing"/> = the automatic establishing shot at a day's Intro (short, then zooms back in);
+    /// otherwise the player's scenic mode (V key / HUD button; UI pauses the game via IMenuFlow while it is on).
+    /// Rendering eases the camera between the gameplay frame and the wide (title-like) frame.
+    /// </summary>
+    public readonly struct ScenicViewChanged
+    {
+        public readonly bool On;
+        public readonly bool Establishing;
+        public ScenicViewChanged(bool on, bool establishing) { On = on; Establishing = establishing; }
     }
 
     /// <summary>Published by UI for interface feedback sounds (Audio subscribes). UI-only; Gameplay never publishes it.</summary>
