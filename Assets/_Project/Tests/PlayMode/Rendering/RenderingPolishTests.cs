@@ -207,8 +207,91 @@ namespace FloorF.Tests.PlayMode.Rendering
             finally { Object.Destroy(tex); }
         }
 
+        // ------------------------------------------------------------------ banded pixel lighting
+
+        /// <summary>Banded light alone (PixelGlow pass LightOnly) as band indices per target pixel (0 = no light).</summary>
+        static int[] LightBands(PixelGlow glow, out int width, out int height, out int[] levels)
+        {
+            width = RenderingStyle.PixelWidth;
+            height = RenderingStyle.PixelHeight;
+            var rt = RenderTexture.GetTemporary(new RenderTextureDescriptor(width, height, RenderTextureFormat.ARGB32, 0)
+            {
+                sRGB = QualitySettings.activeColorSpace == ColorSpace.Linear,
+            });
+            var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            var prev = RenderTexture.active;
+            try
+            {
+                glow.RenderLightOnly(rt);
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+                tex.Apply();
+                var px = tex.GetPixels32();
+                // band brightness = max channel (hue * level): cluster the distinct values (1 LSB of rounding)
+                var values = new System.Collections.Generic.SortedSet<int>();
+                foreach (var c in px) { int m = Mathf.Max(c.r, Mathf.Max(c.g, c.b)); if (m > 0) values.Add(m); }
+                var clusters = new System.Collections.Generic.List<int>();
+                foreach (int v in values) if (clusters.Count == 0 || v - clusters[clusters.Count - 1] > 2) clusters.Add(v);
+                levels = clusters.ToArray();
+                var bands = new int[px.Length];
+                for (int i = 0; i < px.Length; i++)
+                {
+                    int m = Mathf.Max(px[i].r, Mathf.Max(px[i].g, px[i].b));
+                    if (m == 0) continue;
+                    int k = 0;
+                    while (k + 1 < clusters.Count && m >= clusters[k + 1] - 2) k++;
+                    bands[i] = k + 1;
+                }
+                return bands;
+            }
+            finally
+            {
+                RenderTexture.active = prev;
+                RenderTexture.ReleaseTemporary(rt);
+                Object.Destroy(tex);
+            }
+        }
+
+        static Color32[] ReadTarget(RenderTexture rt)
+        {
+            var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGBA32, false);
+            var prev = RenderTexture.active;
+            try
+            {
+                RenderTexture.active = rt;
+                tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0);
+                tex.Apply();
+                return tex.GetPixels32();
+            }
+            finally
+            {
+                RenderTexture.active = prev;
+                Object.Destroy(tex);
+            }
+        }
+
+        /// <summary>2x2 checkerboards (a b / b a, a != b) and pixels whose 4 neighbours all differ from them.</summary>
+        static void Speckle(int[] bands, int w, int h, out int checkers, out int isolated, out int lit)
+        {
+            checkers = isolated = lit = 0;
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int a = bands[y * w + x];
+                    if (a != 0) lit++;
+                    if (x + 1 < w && y + 1 < h)
+                    {
+                        int b = bands[y * w + x + 1], c = bands[(y + 1) * w + x], d = bands[(y + 1) * w + x + 1];
+                        if (a == d && b == c && a != b) checkers++;
+                    }
+                    if (a != 0 && x > 0 && y > 0 && x + 1 < w && y + 1 < h &&
+                        bands[y * w + x - 1] != a && bands[y * w + x + 1] != a && bands[(y - 1) * w + x] != a && bands[(y + 1) * w + x] != a)
+                        isolated++;
+                }
+        }
+
         [UnityTest]
-        public IEnumerator Glow_OnByDefault_TogglesOff_AndStaysCheap_ThenCaptures()
+        public IEnumerator Lighting_IsFlatBands_NoDither_StableUnderPan_TogglesOff_AndCheap_ThenCaptures()
         {
             var report = new System.Collections.Generic.List<string>();
             using (var draws = Unity.Profiling.ProfilerRecorder.StartNew(Unity.Profiling.ProfilerCategory.Render, "Draw Calls Count"))
@@ -218,11 +301,13 @@ namespace FloorF.Tests.PlayMode.Rendering
                 var root = RenderingTestDriver.Rendering();
                 var glow = root.Pipeline.Glow;
                 Assert.IsNotNull(glow);
-                Assert.IsTrue(glow.Available, "glow shaders in Resources/Rendering/Shaders");
+                Assert.IsTrue(glow.Available, "light shader in Resources/Rendering/Shaders");
                 Assert.AreEqual(PixelGlow.DefaultOn, glow.Enabled, "PixelGlow.DefaultOn decides");
                 glow.Enabled = true;
-                Assert.AreSame(glow.ScreenMaterial, root.Pipeline.Screen.Material, "pixel screen composites the glow");
-                Assert.AreEqual(RenderingStyle.PixelWidth / PixelGlow.Downsample, glow.GlowTexture.width, "quarter resolution");
+                Assert.AreSame(glow.LitTexture, root.Pipeline.Screen.Texture, "pixel screen shows the lit target");
+                Assert.AreEqual(RenderingStyle.PixelWidth / PixelGlow.Downsample + 1, glow.GlowTexture.width, "quarter resolution (+1 for the grid offset)");
+                Assert.GreaterOrEqual(glow.Pools.Count, CityView.LampXs.Length + 1, "authored pools: lamps, shops, HOTEL roof");
+                Assert.Greater(glow.VisiblePools, 0, "some pools on screen");
                 Time.captureDeltaTime = 0.1f;
                 int passes = glow.Passes;
                 for (int i = 0; i < 10; i++) yield return null;
@@ -230,31 +315,182 @@ namespace FloorF.Tests.PlayMode.Rendering
 
                 yield return RenderingTestDriver.Freeze();
                 for (int i = 0; i < 3; i++) yield return null;
-                report.Add("glow on  drawCalls=" + draws.LastValue);
+                report.Add("lighting on  drawCalls=" + draws.LastValue + " pools=" + glow.Pools.Count + " visible=" + glow.VisiblePools);
                 HideOtherCanvases(true);
-                string on = FrameCapture.Capture("render_glow_on");
-                HideOtherCanvases(false);
+                string on = FrameCapture.Capture("render_day_lighting");
+                Vector3 W(float x, float y) => SkyView.ViewportToWorld(root.Rig.Current, new Vector2(x, y), 0f);
+                Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_light_bands", W(0f, 0f), W(0.42f, 0.5f), 4)));
+                Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_light_bands_hotel", W(0.3f, 0.62f), W(0.72f, 1f), 4)));
 
+                // the light is flat bands: at most BandCount levels, no checkerboard / dither speckle
+                var bands = LightBands(glow, out int w, out int h, out var levels);
+                Speckle(bands, w, h, out int checkers, out int isolated, out int lit);
+                report.Add("bands levels=[" + string.Join(",", levels) + "] lit=" + lit + " checkers=" + checkers + " isolated=" + isolated);
+                Assert.That(levels.Length, Is.InRange(2, PixelGlow.BandCount), "2..4 flat band levels");
+                Assert.Greater(lit, w * h / 100, "halos and pools visible");
+                Assert.Less(lit, w * h / 2, "subtle: most of the frame unlit");
+                Assert.LessOrEqual(checkers, 2 + lit / 2000, "no checkerboard dither");
+                Assert.LessOrEqual(isolated, 4 + lit / 1000, "no speckle");
+
+                // a halo around the HOTEL sign: stepped rings
+                var hotel = root.Pipeline.WorldCamera.WorldToViewportPoint(root.Building.HotelSign.position);
+                int hx = Mathf.RoundToInt(hotel.x * w), hy = Mathf.RoundToInt(hotel.y * h);
+                var ring = new System.Collections.Generic.HashSet<int>();
+                for (int y = hy - 30; y <= hy + 30; y++)
+                    for (int x = hx - 60; x <= hx + 60; x++)
+                        if (x >= 0 && y >= 0 && x < w && y < h) ring.Add(bands[y * w + x]);
+                Assert.GreaterOrEqual(ring.Count, 3, "HOTEL halo: unlit + at least two bands");
+
+                // stable: moving the camera by whole pixels moves the bands with the world, unchanged
+                var baseFrame = root.Rig.Current;
+                var raw = ReadTarget(root.Pipeline.Target);
+                foreach (var shift in new[] { new Vector2Int(1, 2), new Vector2Int(-3, 1), new Vector2Int(6, -5) })
+                {
+                    var moved = baseFrame.WithPosition(baseFrame.Position + new Vector3(shift.x, shift.y, 0f) / baseFrame.PixelsPerUnit, RenderingStyle.PixelHeight);
+                    root.Pipeline.ApplyFrame(moved);
+                    FrameCapture.Capture("test_light_shift");
+                    var raw2 = ReadTarget(root.Pipeline.Target);
+                    // the lit 3D interiors re-round their gradients by a step here and there: compare the light only where
+                    // the world image itself is unchanged within the light's reach (8x8 cells, dilated 4 cells = 32 px)
+                    const int cell = 8, reach = 4;
+                    int cw = w / cell, ch = h / cell, rawDiff = 0;
+                    var dirty = new bool[cw * ch];
+                    for (int y = 0; y < h; y++)
+                        for (int x = 0; x < w; x++)
+                        {
+                            int sx = x + shift.x, sy = y + shift.y;
+                            if (sx < 0 || sy < 0 || sx >= w || sy >= h) continue;
+                            Color32 p = raw2[y * w + x], q = raw[sy * w + sx];
+                            if (Mathf.Abs(p.r - q.r) + Mathf.Abs(p.g - q.g) + Mathf.Abs(p.b - q.b) <= 3) continue;
+                            rawDiff++;
+                            dirty[(y / cell) * cw + x / cell] = true;
+                        }
+                    var b2 = LightBands(glow, out _, out _, out _);
+                    int diff = 0, n = 0;
+                    var lo = new Vector2Int(int.MaxValue, int.MaxValue);
+                    var hi = new Vector2Int(int.MinValue, int.MinValue);
+                    for (int y = 40; y < h - 40; y++)
+                        for (int x = 40; x < w - 40; x++)
+                        {
+                            bool near = false;
+                            for (int cy = Mathf.Max(0, y / cell - reach); cy <= Mathf.Min(ch - 1, y / cell + reach) && !near; cy++)
+                                for (int cx = Mathf.Max(0, x / cell - reach); cx <= Mathf.Min(cw - 1, x / cell + reach); cx++)
+                                    if (dirty[cy * cw + cx]) { near = true; break; }
+                            if (near) continue;
+                            n++;
+                            if (b2[y * w + x] == bands[(y + shift.y) * w + x + shift.x]) continue;
+                            diff++;
+                            lo = Vector2Int.Min(lo, new Vector2Int(x, y));
+                            hi = Vector2Int.Max(hi, new Vector2Int(x, y));
+                        }
+                    report.Add("shift " + shift + " world changed=" + rawDiff + " px");                    report.Add("shift " + shift + " changed=" + diff + "/" + n + " in " + lo + ".." + hi);
+                    Assert.Greater(n, (w - 80) * (h - 80) / 3, "most of the frame compared");
+                    Assert.LessOrEqual(diff, n / 1000, "bands move with the world (shift " + shift + "): " + string.Join(" ; ", report));
+                }
+                root.Pipeline.ApplyFrame(baseFrame);
+
+                // off switch: raw target, no passes
                 glow.Enabled = false;
-                Assert.IsNull(root.Pipeline.Screen.Material, "default UI material when off");
+                Assert.AreSame(root.Pipeline.Target, root.Pipeline.Screen.Texture, "raw target when off");
                 for (int i = 0; i < 3; i++) yield return null;
                 passes = glow.Passes;
                 for (int i = 0; i < 3; i++) yield return null;
-                Assert.AreEqual(passes, glow.Passes, "no glow passes while off");
-                report.Add("glow off drawCalls=" + draws.LastValue);
-                HideOtherCanvases(true);
-                string off = FrameCapture.Capture("render_glow_off");
+                Assert.AreEqual(passes, glow.Passes, "no lighting passes while off");
+                report.Add("lighting off drawCalls=" + draws.LastValue);
+                string off = FrameCapture.Capture("render_lighting_off");
                 HideOtherCanvases(false);
 
                 float bOn = ImageBrightness(on), bOff = ImageBrightness(off);
                 report.Add("brightness on=" + bOn.ToString("0.0000") + " off=" + bOff.ToString("0.0000"));
-                Assert.Greater(bOn, bOff + 0.002f, "emissive pixels glow");
-                Assert.Less(bOn, bOff * 1.35f, "a glow, not a wash-out");
+                Assert.Greater(bOn, bOff + 0.002f, "emissive things light their surroundings");
+                Assert.Less(bOn, bOff * 1.3f, "lighting, not a wash-out");
                 glow.Enabled = PixelGlow.DefaultOn;
             }
             Directory.CreateDirectory(FrameCapture.OutputDir);
-            File.WriteAllText(Path.Combine(FrameCapture.OutputDir, "render_glow_stats.txt"), string.Join("\n", report) + "\n");
+            File.WriteAllText(Path.Combine(FrameCapture.OutputDir, "render_lighting_stats.txt"), string.Join("\n", report) + "\n");
             foreach (var line in report) TestContext.WriteLine(line);
+        }
+
+        // ------------------------------------------------------------------ crisp signs in both frames
+
+        /// <summary>Neon quads of the active city mesh whose corners are not on whole pixels of <paramref name="f"/>.</summary>
+        static int MisalignedNeonQuads(CityView city, CameraFrame f, out int checkedQuads)
+        {
+            var neon = new System.Collections.Generic.HashSet<int>(city.Dressing.NeonTexels);
+            var mesh = city.ActiveMesh;
+            var v = mesh.vertices;
+            var uv = mesh.uv;
+            var tr = city.Renderer.transform;
+            float ppu = f.PixelsPerUnit;
+            int bad = 0;
+            checkedQuads = 0;
+            for (int i = 0; i + 3 < v.Length; i += 4)
+            {
+                int texel = Mathf.FloorToInt(uv[i].x * PaletteAtlas.Size) + Mathf.FloorToInt(uv[i].y * PaletteAtlas.Size) * PaletteAtlas.Size;
+                if (!neon.Contains(texel)) continue;
+                checkedQuads++;
+                var min = new Vector2(float.MaxValue, float.MaxValue);
+                var max = new Vector2(float.MinValue, float.MinValue);
+                bool ok = true;
+                for (int k = 0; k < 4; k++)
+                {
+                    var s = f.ToScreenPlane(tr.TransformPoint(v[i + k])) * ppu;
+                    min = Vector2.Min(min, s);
+                    max = Vector2.Max(max, s);
+                    if (Mathf.Abs(s.x - Mathf.Round(s.x)) > 0.02f || Mathf.Abs(s.y - Mathf.Round(s.y)) > 0.02f) ok = false;
+                }
+                if (max.x - min.x < 0.98f || max.y - min.y < 0.98f) ok = false;
+                if (!ok) bad++;
+            }
+            return bad;
+        }
+
+        [UnityTest]
+        public IEnumerator NeonSigns_AreWholePixels_InTheTitleAndGameplayFrames_ThenCaptures()
+        {
+            var report = new System.Collections.Generic.List<string>();
+            yield return RenderingTestDriver.LoadTitle();
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < 6; i++) yield return null;
+            yield return RenderingTestDriver.Freeze();
+            var root = RenderingTestDriver.Rendering();
+            Assert.IsTrue(root.Rig.TitleMode);
+            var title = root.Rig.Current;
+            var game = root.Rig.BaseFrame;
+            Assert.AreNotEqual(Mathf.RoundToInt(game.PixelsPerUnit), Mathf.RoundToInt(title.PixelsPerUnit), "title zooms out");
+            Assert.AreEqual(Mathf.RoundToInt(title.PixelsPerUnit), root.City.ActivePixelsPerUnit, "city mesh built for the title zoom");
+            Assert.AreEqual(Mathf.Round(title.Position.x * title.PixelsPerUnit), title.Position.x * title.PixelsPerUnit, 1e-3f, "camera on a whole pixel");
+            int bad = MisalignedNeonQuads(root.City, title, out int n);
+            report.Add("title ppu=" + title.PixelsPerUnit + " neon quads=" + n + " misaligned=" + bad);
+            Assert.Greater(n, 100, "neon letters found");
+            Assert.AreEqual(0, bad, "every neon texel = whole target pixels in the title frame");
+
+            HideOtherCanvases(true);
+            Assert.IsTrue(File.Exists(FrameCapture.Capture("render_title_signs")));
+            HideOtherCanvases(false);
+            Vector3 W(float x, float y) => SkyView.ViewportToWorld(root.Rig.Current, new Vector2(x, y), 0f);
+            Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_title_signs_zoom", W(0f, 0.02f), W(0.5f, 0.42f), 4)));
+            Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_title_signs_zoom_right", W(0.5f, 0.02f), W(1f, 0.42f), 4)));
+            RenderingTestDriver.Unfreeze();
+
+            // gameplay frame: the first build, same texels (the rebuild allocated nothing)
+            yield return RenderingTestDriver.LoadMain();
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < 3; i++) yield return null;
+            root = RenderingTestDriver.Rendering();
+            Assert.IsFalse(root.Rig.TitleMode);
+            Assert.AreEqual(Mathf.RoundToInt(root.Rig.Current.PixelsPerUnit), root.City.ActivePixelsPerUnit, "city mesh for the gameplay zoom");
+            bad = MisalignedNeonQuads(root.City, root.Rig.Current, out n);
+            report.Add("gameplay ppu=" + root.Rig.Current.PixelsPerUnit + " neon quads=" + n + " misaligned=" + bad + " palette=" + root.Palette.Used);
+            Assert.AreEqual(0, bad, "every neon texel = whole target pixels in the gameplay frame");
+            int used = root.Palette.Used, lights = root.LivingLights.Count;
+            root.City.ApplyPixelGrid(title.Grid);
+            Assert.AreEqual(2, root.City.MeshVariants);
+            Assert.AreEqual(used, root.Palette.Used, "zoom rebuild reuses the palette texels");
+            Assert.AreEqual(lights, root.LivingLights.Count, "and the lights");
+            root.City.ApplyPixelGrid(root.Rig.Current.Grid);
+            foreach (var line in report) TestContext.WriteLine(line);
+            RenderingTestDriver.Unfreeze();
         }
 
         [UnityTest]

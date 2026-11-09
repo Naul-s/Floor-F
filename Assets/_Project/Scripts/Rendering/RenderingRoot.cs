@@ -191,6 +191,7 @@ namespace FloorF.Rendering
             city.Build(z0 - 0.15f);
             facade = new HotelFacade(world, assets, layout, building, palette, livingLights);
             facade.Build();
+            pipeline.Glow?.SetPools(LightPools());
             street = new StreetLife(world, assets, palette, RenderingStyle.CameraShear, z0, RenderingStyle.CitySeed);
             street.Build();
             street.Prewarm(StreetPrewarmSeconds, frame.Grid);
@@ -217,6 +218,20 @@ namespace FloorF.Rendering
             frame = CameraFraming.SnapToWholePixels(frame, h);
             return CameraFraming.AnchorTop(frame, BuildingView.HotelSignTop(layout, frame.PixelsPerUnit) + RenderingStyle.CameraTopHeadroom, h);
         }
+
+        /// <summary>Authored banded light pools: street lamps, shop neon on the pavement, the HOTEL sign on the roof.</summary>
+        System.Collections.Generic.List<PixelGlow.LightPool> LightPools()
+        {
+            var list = new System.Collections.Generic.List<PixelGlow.LightPool>();
+            float roof = layout.FloorCount * layout.FloorHeight;
+            var sign = building.HotelSignRoot != null ? world.InverseTransformPoint(building.HotelSignRoot.position) : new Vector3(layout.ShaftX, roof, 0f);
+            list.Add(new PixelGlow.LightPool(world.TransformPoint(new Vector3(sign.x, roof + 0.15f, sign.z)), new Vector2(4.2f, 1.3f), RenderingStyle.HotelSign * HotelRoofLight));
+            list.AddRange(city.LightPools);
+            return list;
+        }
+
+        /// <summary>Intensity of the HOTEL sign's red pool on the roof (light units, see PixelGlow.Bands).</summary>
+        const float HotelRoofLight = 0.3f;
 
         /// <summary>City windows, facade lamps, HOTEL letters (juice clock + prewarm offset so the city is mixed at boot).</summary>
         void TickExterior(float time)
@@ -299,6 +314,7 @@ namespace FloorF.Rendering
             rig.Tick(jdt);
             var grid = rig.Current.Grid;
             building.ApplyPixelGrid(grid);
+            city.ApplyPixelGrid(grid);
             street.Tick(jdt, grid);
             TickWeather(juiceTime + StreetPrewarmSeconds);
             sky.Tick(juiceTime + StreetPrewarmSeconds, IsSimHeld ? 0f : jdt, rig.Current, IsStarNightNow);

@@ -116,7 +116,8 @@ namespace FloorF.Tests.PlayMode.Rendering
         public static string CaptureTargetCrop(string name, Vector3 a, Vector3 b, int scale)
         {
             var p = Rendering().Pipeline;
-            var rt = p.Target;
+            // what the player sees: the lit target while the pixel lighting is on
+            var rt = p.Screen.Texture as RenderTexture ?? p.Target;
             var va = p.WorldCamera.WorldToViewportPoint(a);
             var vb = p.WorldCamera.WorldToViewportPoint(b);
             int x0 = Mathf.Clamp(Mathf.FloorToInt(Mathf.Min(va.x, vb.x) * rt.width), 0, rt.width - 1);

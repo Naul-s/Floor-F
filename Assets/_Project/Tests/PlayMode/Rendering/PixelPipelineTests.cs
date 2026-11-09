@@ -58,7 +58,9 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.AreEqual(RenderMode.ScreenSpaceCamera, p.ScreenCanvas.renderMode, "Overlay canvases are invisible to FrameCapture");
             Assert.AreSame(p.UiCamera, p.ScreenCanvas.worldCamera);
             Assert.AreEqual(PresentationContract.PixelScreenSortingOrder, p.ScreenCanvas.sortingOrder);
-            Assert.AreSame(p.Target, p.Screen.Texture);
+            Assert.AreSame(p.Glow.Enabled ? p.Glow.LitTexture : p.Target, p.Screen.Texture, "lit target while the lighting is on, raw target otherwise");
+            Assert.AreEqual(FilterMode.Point, ((RenderTexture)p.Screen.Texture).filterMode);
+            Assert.AreEqual(PresentationContract.PixelWidth, p.Screen.Texture.width);
             Assert.Greater(p.Screen.DisplayRect.width, 0f);
             Assert.AreEqual(640f / 360f, p.Screen.DisplayRect.width / p.Screen.DisplayRect.height, 0.01f, "aspect kept");
             Assert.IsFalse(Object.FindObjectsByType<Canvas>().Any(c => c.renderMode == RenderMode.ScreenSpaceOverlay),

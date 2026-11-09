@@ -8,7 +8,8 @@ namespace FloorF.Rendering
     /// floor shops with neon signs that fit "Lucky Number" (LOTTO 로또, a 24h store, a fortune teller with a crystal ball,
     /// a ramen bar, a "777" pawn shop, a mahjong parlour, a laundromat), rooftop features (water tower, LUCKY 7 billboard,
     /// antenna + beacon, satellite dishes, a garden with string lights), fire escapes, balconies, AC units, awnings.
-    /// Neon letters are whole pixels of the gameplay frame (1 font texel = 1 target pixel) and each sign "hums": a slow
+    /// Neon letters are whole pixels of the frame the mesh is built for (1 font texel = 1 target pixel; CityView builds
+    /// one mesh per zoom, so the zoomed-out title frame is just as crisp) and each sign "hums": a slow
     /// breathing of its texels (&gt;= 3 s period, never a strobe), one sign also loses a letter now and then like HOTEL.
     /// </summary>
     sealed class CityDressing
@@ -136,6 +137,7 @@ namespace FloorF.Rendering
 
         readonly PaletteAtlas atlas;
         readonly LivingLights lights;
+        readonly TexelLedger ledger;
         readonly System.Func<float, float, float> wx, wy;
         readonly float px;
         readonly List<Neon> neons = new List<Neon>();
@@ -144,15 +146,23 @@ namespace FloorF.Rendering
         /// <summary>Neon signs built (tests).</summary>
         public int SignCount => signs;
         public int NeonTexelCount => neons.Count;
+        /// <summary>Palette texels of every neon tube / letter (tests: they sit on whole pixels of the active frame).</summary>
+        public IEnumerable<int> NeonTexels { get { foreach (var n in neons) yield return n.Texel; } }
+        /// <summary>Shop neon spilling onto the pavement in front of each shop (banded light pools).</summary>
+        public readonly List<PixelGlow.LightPool> Spills = new List<PixelGlow.LightPool>();
 
-        public CityDressing(PaletteAtlas atlas, LivingLights lights, System.Func<float, float, float> worldX, System.Func<float, float, float> worldY, float pixelsPerUnit)
+        /// <param name="ledger">Records (first build) or replays (rebuild at another zoom) the lights / neon texels.</param>
+        public CityDressing(PaletteAtlas atlas, LivingLights lights, TexelLedger ledger, System.Func<float, float, float> worldX, System.Func<float, float, float> worldY, float pixelsPerUnit)
         {
             this.atlas = atlas;
             this.lights = lights;
+            this.ledger = ledger;
             wx = worldX;
             wy = worldY;
             px = 1f / Mathf.Max(1f, pixelsPerUnit);
         }
+
+        int Light(LivingLights.Kind kind, Color on, Color off) => ledger.Take(() => lights.Add(kind, on, off));
 
         float Snap(float v) => Mathf.Round(v / px) * px;
 
@@ -171,12 +181,12 @@ namespace FloorF.Rendering
 
         int NeonTexel(Color on, int letter, int letters, bool stutter)
         {
-            int t = atlas.Dynamic(on);
-            neons.Add(new Neon { Texel = t, On = on, Sign = signs, Letter = letter, Letters = letters, Stutter = stutter });
+            int t = ledger.Take(() => atlas.Dynamic(on));
+            if (!ledger.Replaying) neons.Add(new Neon { Texel = t, On = on, Sign = signs, Letter = letter, Letters = letters, Stutter = stutter });
             return t;
         }
 
-        /// <summary>Text in the 5x7 pixel font, one target pixel per font texel (x <paramref name="scale"/>), left-bottom at (x, y).</summary>
+        /// <summary>Text in the 5x7 pixel font, one target pixel of the frame this build is for per font texel (x <paramref name="scale"/>), left-bottom at (x, y).</summary>
         float Text(PaletteMeshBuilder b, string text, float x, float y, float z, Color on, int scale = 1, bool stutter = false)
         {
             var mask = PixelFont.Rasterize(text, 0, out var size);
@@ -241,10 +251,13 @@ namespace FloorF.Rendering
         {
             float z = blk.Z;
             bool back = blk.Z > 6f;
-            if (!back && look.Shop != Shop.None) ShopFront(b, blk, look.Shop, g, z, index);
-            if (look.FireEscape) FireEscape(b, blk, g, top, z);
-            if (look.Balconies) Balconies(b, blk, g, top, z);
-            if (look.AcUnits) AcUnits(b, blk, g, top, z, index);
+            bool shop = !back && look.Shop != Shop.None;
+            if (shop) ShopFront(b, blk, look.Shop, g, z, index);
+            // facade extras start above the shop sign (the zoomed-out title frame draws the signs larger in world units)
+            float first = Mathf.Ceil(g) + (shop ? 5f : 3f);
+            if (look.FireEscape) FireEscape(b, blk, first, top, z);
+            if (look.Balconies) Balconies(b, blk, first, top, z);
+            if (look.AcUnits) AcUnits(b, blk, first, top, z, index);
             Rooftop(b, blk, look.Roof, top, z, depth, back, index);
         }
 
@@ -267,7 +280,7 @@ namespace FloorF.Rendering
                 case Shop.Flowers: glass = new Color(0.90f, 0.82f, 0.62f); break;
                 default: glass = new Color(0.95f, 0.80f, 0.45f); break;
             }
-            int window = lights.Add(LivingLights.Kind.Lamp, glass, glass * 0.3f);
+            int window = Light(LivingLights.Kind.Lamp, glass, glass * 0.3f);
             int frame = atlas.Static(Metal);
             float wy0 = g + 0.15f, wy1 = g + 1.55f;
             // door on the right third, display window on the rest
@@ -276,6 +289,7 @@ namespace FloorF.Rendering
             Rect(b, x0, wy0, door - 0.1f, wy1, wz - 0.002f, window);
             Rect(b, door, wy0, x1, wy1 - 0.1f, wz - 0.002f, atlas.Static(glass * 0.55f));
             float iz = wz - 0.004f;
+            Color spill = NeonYellow;
             switch (shop)
             {
                 case Shop.Convenience:
@@ -287,6 +301,7 @@ namespace FloorF.Rendering
                     Rect(b, blk.X0, g + 1.7f, blk.X1, g + 1.7f + 2f * px, wz, stripe);
                     Rect(b, blk.X0, g + 2.55f, blk.X1, g + 2.55f + 2f * px, wz, atlas.Static(new Color(0.15f, 0.35f, 0.75f)));
                     SignBoard(b, "24H", cx, g + 1.82f, wz, NeonGreen);
+                    spill = NeonGreen;
                     break;
                 }
                 case Shop.Lotto:
@@ -321,12 +336,13 @@ namespace FloorF.Rendering
                     };
                     Bitmap(b, CrystalBall, Snap((x0 + door) * 0.5f - 4.5f * px), Snap(wy0 + 0.25f), iz, ball);
                     SignBoard(b, "FORTUNE", cx, g + 1.8f, wz, NeonViolet);
+                    spill = NeonViolet;
                     // vertical blade sign with a big star
-                    float bx = Snap(blk.X1 - 0.7f);
+                    float bx = Snap(blk.X1 - 0.7f), bx1 = Snap(bx + 0.5f), by0 = Snap(g + 2.6f), by1 = Snap(g + 4.6f);
                     int violet = NeonTexel(NeonViolet, 0, 1, false);
-                    Rect(b, bx, g + 2.6f, bx + 0.5f, g + 4.6f, z - 0.35f, atlas.Static(SignBack));
-                    Rect(b, bx, g + 2.6f, bx + px, g + 4.6f, z - 0.36f, violet);
-                    Rect(b, bx + 0.5f - px, g + 2.6f, bx + 0.5f, g + 4.6f, z - 0.36f, violet);
+                    Rect(b, bx, by0, bx1, by1, z - 0.35f, atlas.Static(SignBack));
+                    Rect(b, bx, by0, bx + px, by1, z - 0.36f, violet);
+                    Rect(b, bx1 - px, by0, bx1, by1, z - 0.36f, violet);
                     Bitmap(b, Star, Snap(bx + 0.25f - 2.5f * px), Snap(g + 3.3f), z - 0.37f, new Dictionary<char, int> { ['#'] = NeonTexel(NeonYellow, 0, 1, false) });
                     break;
                 }
@@ -336,6 +352,7 @@ namespace FloorF.Rendering
                     int noren = atlas.Static(new Color(0.20f, 0.10f, 0.32f));
                     for (float nx = x0; nx < door - 0.2f; nx += 0.45f) Rect(b, nx, wy1 - 0.45f, nx + 0.38f, wy1, iz, noren);
                     SignBoard(b, "RAMEN", cx, g + 1.85f, wz, NeonOrange);
+                    spill = NeonOrange;
                     var bowl = new Dictionary<char, int>
                     {
                         ['#'] = atlas.Static(new Color(0.95f, 0.92f, 0.85f)),
@@ -343,7 +360,7 @@ namespace FloorF.Rendering
                         ['s'] = atlas.Static(new Color(0.75f, 0.75f, 0.80f)),
                     };
                     Bitmap(b, Bowl, Snap(x0 + 0.15f), Snap(wy0 + 0.2f), iz, bowl);
-                    int lantern = lights.Add(LivingLights.Kind.Lamp, new Color(1.00f, 0.32f, 0.22f), new Color(0.35f, 0.10f, 0.08f));
+                    int lantern = Light(LivingLights.Kind.Lamp, new Color(1.00f, 0.32f, 0.22f), new Color(0.35f, 0.10f, 0.08f));
                     foreach (float lx in new[] { blk.X0 + 0.25f, blk.X1 - 0.55f })
                         Box(b, lx, g + 1.0f, lx + 0.3f, g + 1.45f, z - 0.4f, 0.3f, new Color(0.9f, 0.25f, 0.2f));
                     foreach (float lx in new[] { blk.X0 + 0.25f, blk.X1 - 0.55f })
@@ -355,19 +372,23 @@ namespace FloorF.Rendering
                     Awning(b, blk, g, z, new Color(0.12f, 0.30f, 0.20f), new Color(0.12f, 0.30f, 0.20f) * 1.6f);
                     float w = TextWidth("777", 2) * px + 6f * px;
                     SignBoard(b, "777", cx, g + 2.15f, wz, NeonGold, 2);
+                    spill = NeonGold;
                     Text(b, "PAWN", Snap(x0 + 0.15f), Snap(wy1 - 9f * px), iz, NeonGold);
-                    // three golden balls hanging from a bracket
+                    // three golden balls hanging from a bracket (whole pixels of this build's frame)
                     float bx = Snap(cx + w * 0.5f + 0.25f);
                     int gold = NeonTexel(NeonGold, 0, 1, false);
-                    Rect(b, bx, g + 3.4f, bx + 0.6f, g + 3.4f + px, z - 0.3f, atlas.Static(Metal));
-                    Rect(b, bx + 0.05f, g + 3.0f, bx + 0.05f + 3f * px, g + 3.0f + 3f * px, z - 0.31f, gold);
-                    Rect(b, bx + 0.4f, g + 3.0f, bx + 0.4f + 3f * px, g + 3.0f + 3f * px, z - 0.31f, gold);
-                    Rect(b, bx + 0.22f, g + 2.7f, bx + 0.22f + 3f * px, g + 2.7f + 3f * px, z - 0.31f, gold);
+                    Rect(b, bx, Snap(g + 3.4f), Snap(bx + 0.6f), Snap(g + 3.4f) + px, z - 0.3f, atlas.Static(Metal));
+                    foreach (var o in new[] { new Vector2(0.05f, 3.0f), new Vector2(0.4f, 3.0f), new Vector2(0.22f, 2.7f) })
+                    {
+                        float ox = Snap(bx + o.x), oy = Snap(g + o.y);
+                        Rect(b, ox, oy, ox + 3f * px, oy + 3f * px, z - 0.31f, gold);
+                    }
                     break;
                 }
                 case Shop.Mahjong:
                 {
                     SignBoard(b, "MAHJONG", cx, g + 1.85f, wz, NeonRed, 1, true);
+                    spill = NeonRed;
                     int tile = atlas.Static(new Color(0.92f, 0.90f, 0.80f));
                     int ink = atlas.Static(new Color(0.20f, 0.45f, 0.30f));
                     for (int i = 0; i < 4; i++)
@@ -382,6 +403,7 @@ namespace FloorF.Rendering
                 {
                     Awning(b, blk, g, z, new Color(0.15f, 0.35f, 0.62f), new Color(0.75f, 0.80f, 0.85f));
                     SignBoard(b, "LAUNDRY", cx, g + 2.15f, wz, NeonCyan);
+                    spill = NeonCyan;
                     int washer = atlas.Static(new Color(0.85f, 0.88f, 0.90f));
                     int drum = atlas.Static(new Color(0.20f, 0.30f, 0.42f));
                     for (float tx = x0 + 0.15f; tx + 0.6f < door - 0.1f; tx += 0.75f)
@@ -395,6 +417,7 @@ namespace FloorF.Rendering
                 {
                     Awning(b, blk, g, z, new Color(0.62f, 0.25f, 0.45f), new Color(0.85f, 0.80f, 0.75f));
                     SignBoard(b, "FLOWERS", cx, g + 2.15f, wz, NeonPink);
+                    spill = NeonPink;
                     int[] petals = { atlas.Static(new Color(0.95f, 0.35f, 0.45f)), atlas.Static(new Color(1.0f, 0.85f, 0.3f)), atlas.Static(new Color(0.7f, 0.45f, 0.95f)) };
                     int leaf = atlas.Static(Plant * 1.4f);
                     for (int i = 0; x0 + 0.2f + i * 0.35f < door - 0.3f; i++)
@@ -406,7 +429,13 @@ namespace FloorF.Rendering
                     break;
                 }
             }
+            // the shop's neon spills onto the pavement and the bottom of the facade (banded light pool)
+            float sz = z - 0.6f;
+            if (!ledger.Replaying) Spills.Add(new PixelGlow.LightPool(new Vector3(wx(cx, sz), wy(g + 0.5f, sz), sz), new Vector2(2.6f, 1.5f), spill * SpillIntensity));
         }
+
+        /// <summary>Shop neon spill pool intensity (light units, see PixelGlow.Bands).</summary>
+        public const float SpillIntensity = 0.24f;
 
         void Awning(PaletteMeshBuilder b, in CityView.Block blk, float g, float z, Color a, Color c)
         {
@@ -420,13 +449,13 @@ namespace FloorF.Rendering
             }
         }
 
-        void FireEscape(PaletteMeshBuilder b, in CityView.Block blk, float g, float top, float z)
+        void FireEscape(PaletteMeshBuilder b, in CityView.Block blk, float first, float top, float z)
         {
             int metal = atlas.Static(new Color(0.20f, 0.20f, 0.22f));
             int rail = atlas.Static(new Color(0.30f, 0.30f, 0.33f));
             float x0 = blk.X0 + 0.6f, x1 = Mathf.Min(blk.X1 - 0.6f, x0 + 3.2f);
             float fz = z - 0.45f;
-            for (float y = Mathf.Ceil(g) + 3f; y + 1f < top - 1f; y += 2f)
+            for (float y = first; y + 1f < top - 1f; y += 2f)
             {
                 // platform (slab + its top), railing, ladder down to the next platform
                 b.Box(new Vector3(wx(x0, fz), wy(y - 0.1f, fz), fz), new Vector3(wx(x1, fz), wy(y, fz), z), metal, rail, metal);
@@ -443,12 +472,12 @@ namespace FloorF.Rendering
             }
         }
 
-        void Balconies(PaletteMeshBuilder b, in CityView.Block blk, float g, float top, float z)
+        void Balconies(PaletteMeshBuilder b, in CityView.Block blk, float first, float top, float z)
         {
             int slab = atlas.Static(new Color(0.30f, 0.29f, 0.30f));
             int rail = atlas.Static(new Color(0.42f, 0.42f, 0.45f));
             float bz = z - 0.35f;
-            for (float y = Mathf.Ceil(g) + 3f; y + 1f <= top - 1f; y += 2f)
+            for (float y = first; y + 1f <= top - 1f; y += 2f)
             {
                 float x0 = blk.X0 + 0.7f, x1 = blk.X1 - 0.7f;
                 b.Box(new Vector3(wx(x0, bz), wy(y - 0.12f, bz), bz), new Vector3(wx(x1, bz), wy(y, bz), z), slab, atlas.Static(PaletteMeshBuilder.Top(new Color(0.30f, 0.29f, 0.30f))), slab);
@@ -457,12 +486,12 @@ namespace FloorF.Rendering
             }
         }
 
-        void AcUnits(PaletteMeshBuilder b, in CityView.Block blk, float g, float top, float z, int index)
+        void AcUnits(PaletteMeshBuilder b, in CityView.Block blk, float first, float top, float z, int index)
         {
             var body = new Color(0.50f, 0.52f, 0.55f);
             int grille = atlas.Static(new Color(0.25f, 0.26f, 0.28f));
             int k = 0;
-            for (float y = Mathf.Ceil(g) + 3f; y + 1f <= top - 1f; y += 2f)
+            for (float y = first; y + 1f <= top - 1f; y += 2f)
                 for (float x = blk.X0 + 1f; x + 1f <= blk.X1 - 1f; x += 2f, k++)
                 {
                     if (LightSchedule.Hash(RenderingStyle.CitySeed, index, k, 140) > 0.3f) continue;
@@ -500,14 +529,14 @@ namespace FloorF.Rendering
                     foreach (float lx in new[] { bx0 + 0.6f, bx1 - 0.7f })
                         Box(b, lx, top, lx + 0.1f, top + 0.8f, rz, 0.1f, dark);
                     Box(b, bx0, top + 0.8f, bx1, top + 2.8f, rz, 0.15f, new Color(0.10f, 0.09f, 0.14f));
-                    int face = lights.Add(LivingLights.Kind.Lamp, new Color(0.22f, 0.12f, 0.30f), new Color(0.10f, 0.07f, 0.13f));
+                    int face = Light(LivingLights.Kind.Lamp, new Color(0.22f, 0.12f, 0.30f), new Color(0.10f, 0.07f, 0.13f));
                     Rect(b, bx0 + 0.1f, top + 0.9f, bx1 - 0.1f, top + 2.7f, rz - 0.01f, face);
                     float cx = (bx0 + bx1) * 0.5f;
                     float tw = TextWidth("LUCKY", 1) * px;
                     Text(b, "LUCKY", Snap(cx - tw * 0.5f - 0.6f), Snap(top + 1.45f), rz - 0.02f, NeonYellow);
                     Text(b, "7", Snap(cx + tw * 0.5f - 0.35f), Snap(top + 1.1f), rz - 0.02f, NeonRed, 2);
                     // two lamps on arms lighting it from below
-                    int lamp = lights.Add(LivingLights.Kind.Lamp, new Color(1.0f, 0.95f, 0.75f), new Color(0.3f, 0.28f, 0.2f));
+                    int lamp = Light(LivingLights.Kind.Lamp, new Color(1.0f, 0.95f, 0.75f), new Color(0.3f, 0.28f, 0.2f));
                     foreach (float lx in new[] { bx0 + 1.0f, bx1 - 1.3f })
                     {
                         Rect(b, lx, top + 0.6f, lx + 0.3f, top + 0.75f, rz - 0.3f, lamp);
@@ -526,7 +555,7 @@ namespace FloorF.Rendering
                         float cw = 0.5f - i * 0.1f;
                         Rect(b, ax - cw, top + h * (0.35f + i * 0.17f), ax + cw + 2f * px, top + h * (0.35f + i * 0.17f) + px, rz, pole);
                     }
-                    int beacon = lights.Add(LivingLights.Kind.Beacon, new Color(1.0f, 0.18f, 0.15f), new Color(0.25f, 0.06f, 0.06f));
+                    int beacon = Light(LivingLights.Kind.Beacon, new Color(1.0f, 0.18f, 0.15f), new Color(0.25f, 0.06f, 0.06f));
                     Rect(b, ax - px, top + h, ax + 3f * px, top + h + 3f * px, rz - 0.01f, beacon);
                     break;
                 }
@@ -558,8 +587,8 @@ namespace FloorF.Rendering
                     int pole = atlas.Static(dark);
                     Rect(b, blk.X0 + 0.2f, top, blk.X0 + 0.2f + px, sy, rz - 0.7f, pole);
                     Rect(b, blk.X1 - 0.3f, top, blk.X1 - 0.3f + px, sy, rz - 0.7f, pole);
-                    int a = lights.Add(LivingLights.Kind.BulbA, new Color(1.0f, 0.85f, 0.45f), new Color(0.35f, 0.28f, 0.16f));
-                    int c = lights.Add(LivingLights.Kind.BulbB, new Color(1.0f, 0.55f, 0.65f), new Color(0.32f, 0.18f, 0.2f));
+                    int a = Light(LivingLights.Kind.BulbA, new Color(1.0f, 0.85f, 0.45f), new Color(0.35f, 0.28f, 0.16f));
+                    int c = Light(LivingLights.Kind.BulbB, new Color(1.0f, 0.55f, 0.65f), new Color(0.32f, 0.18f, 0.2f));
                     int k = 0;
                     for (float lx = blk.X0 + 0.4f; lx < blk.X1 - 0.4f; lx += 0.4f, k++)
                     {

@@ -11,12 +11,12 @@ namespace FloorF.Rendering
     /// the layer origin sits on the viewport's bottom-left pixel corner. Stars therefore never shimmer (whole pixels in
     /// every frame, the title pan and the shake only move the world in front of them) and a viewport coordinate - the
     /// wish-star contract - maps to exactly the same spot in the gameplay and title frames.
-    ///   Stars layer (1 palette mesh): moon with craters + dithered halo, steady / twinkling stars (twinkle = shared
+    ///   Stars layer (1 palette mesh): moon with craters + banded halo, steady / twinkling stars (twinkle = shared
     ///                                  palette texels rewritten each frame).
     ///   Band layer  (1 textured quad, star night only): baked dithered gradient sky + Milky Way + dense faint stars.
     ///   Fx layer    (1 palette mesh rebuilt while something moves): glints, meteors (behind the city, like real sky).
     ///   Wish layer  (1 palette mesh, ADDITIVE, ZTest Always - drawn over the city and the hotel): wish stars with a
-    ///                dithered glow, their sparkles and the wish burst. They are magical and the player must click them,
+    ///                banded glow, their sparkles and the wish burst. They are magical and the player must click them,
     ///                so they never hide behind a building; still placed on the same viewport mapping (event coords).
     /// Everything shares the city palette texture except the band (own baked texture).
     /// </summary>
@@ -66,8 +66,8 @@ namespace FloorF.Rendering
         static readonly Color MoonRim = new Color(0.56f, 0.57f, 0.60f);
         static readonly Color MoonCrater = new Color(0.78f, 0.76f, 0.66f);
         static readonly Color MoonCraterDark = new Color(0.62f, 0.61f, 0.57f);
-        static readonly Color HaloNear = new Color(0.15f, 0.16f, 0.25f);
-        static readonly Color HaloFar = new Color(0.10f, 0.11f, 0.19f);
+        static readonly Color HaloNear = new Color(0.14f, 0.15f, 0.24f);
+        static readonly Color HaloFar = new Color(0.095f, 0.10f, 0.175f);
 
         /// <summary>Craters: offset from the moon centre (pixels) and radius.</summary>
         static readonly Vector3[] Craters =
@@ -273,7 +273,7 @@ namespace FloorF.Rendering
             return r;
         }
 
-        /// <summary>Pixel-art moon: shaded disc (lit from the upper left) with craters, two dithered halo rings.</summary>
+        /// <summary>Pixel-art moon: shaded disc (lit from the upper left) with craters, two flat halo bands.</summary>
         void BuildMoon(PixelQuads q)
         {
             int size = HaloRadius * 2 + 1;
@@ -301,10 +301,9 @@ namespace FloorF.Rendering
                             break;
                         }
                     }
-                    // halo: 50% checker, then a 25% grid, then a sparse 12.5% grid (classic pixel-art dither falloff)
-                    else if (d <= r + 3.5f) { if (((dx + dy) & 1) == 0) texel = haloNear; }
-                    else if (d <= r + 5.5f) { if ((dx & 1) == 0 && (dy & 1) == 0) texel = haloFar; }
-                    else if (d <= HaloRadius + 0.5f) { if ((dy & 1) == 0 && ((dx + (dy & 2)) & 3) == 0) texel = haloFar; }
+                    // halo: two flat concentric bands (no dither) - the banded pixel lighting continues them outwards
+                    else if (d <= r + 3.5f) texel = haloNear;
+                    else if (d <= HaloRadius + 0.5f) texel = haloFar;
                     grid[(dy + HaloRadius) * size + dx + HaloRadius] = texel;
                 }
             // one quad per horizontal run of the same texel
@@ -668,8 +667,8 @@ namespace FloorF.Rendering
         }
 
         /// <summary>
-        /// Soft pixel-art glow around a wish star's head: dithered rings (50% checker inside, sparse grid outside) of a warm
-        /// tint ADDED to whatever is behind - over a dark wall or the sky it reads as a halo, never as a box.
+        /// Pixel-art glow around a wish star's head: two FLAT bands (no dither) of a warm tint ADDED to whatever is behind -
+        /// over a dark wall or the sky it reads as a stepped halo, never as a box or a speckle.
         /// </summary>
         void Glow(int cx, int cy, float level)
         {
@@ -679,10 +678,7 @@ namespace FloorF.Rendering
                 {
                     int d2 = dx * dx + dy * dy;
                     if (d2 < 9 || d2 > r * r) continue; // the head + its sparkle arms cover the middle
-                    float d = Mathf.Sqrt(d2);
-                    bool on = d <= 4.5f ? ((cx + dx + cy + dy) & 1) == 0 : ((cx + dx) & 1) == 0 && ((cy + dy) & 1) == 0;
-                    if (!on) continue;
-                    Px(cx + dx, cy + dy, level * Mathf.Lerp(0.62f, 0.24f, (d - 3f) / (r - 3f)), glowRamp);
+                    Px(cx + dx, cy + dy, level * (d2 <= 16 ? 0.34f : 0.16f), glowRamp);
                 }
         }
 

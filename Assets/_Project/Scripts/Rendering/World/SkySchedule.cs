@@ -31,8 +31,8 @@ namespace FloorF.Rendering
     {
         public const int Width = RenderingStyle.PixelWidth;
         public const int Height = RenderingStyle.PixelHeight;
-        public const int SteadyCount = 150;
-        public const int TwinkleCount = 52;
+        public const int SteadyCount = 100;
+        public const int TwinkleCount = 36;
         public const int GlintCount = 16;
         public const int TwinkleGroups = 8;
         /// <summary>Lowest star row: everything below is street and buildings in both camera frames.</summary>

@@ -262,7 +262,7 @@ namespace FloorF.Rendering
                 b.Flat(x - w * 0.36f, z - d * 0.85f, x + w * 0.36f, z - d * 0.5f, y, puddleTexel);
             }
             // street lamps mirrored on the wet asphalt: broken vertical streaks from the curb into the road
-            foreach (int sx in CityView.LampXs)
+            foreach (float sx in CityView.LampXs)
             {
                 float x = PixelGrid.WorldX(sx, RenderingStyle.CurbZ, RenderingStyle.CameraShear, z0) + 0.5f;
                 for (int j = 0; j < 4; j++)

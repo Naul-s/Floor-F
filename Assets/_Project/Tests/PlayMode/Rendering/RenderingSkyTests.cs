@@ -367,7 +367,8 @@ namespace FloorF.Tests.PlayMode.Rendering
                 HideOtherCanvases(false);
                 var sky = Sky;
                 Vector3 W(float x, float y) => SkyView.ViewportToWorld(RenderingTestDriver.Rendering().Rig.Current, new Vector2(x, y), SkyView.FxDepth);
-                Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_sky_moon_zoom", W(0.02f, 0.74f), W(0.14f, 0.95f), 6)));
+                var moon = SkyView.MoonViewport;
+                Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_sky_moon_zoom", W(moon.x - 0.07f, moon.y - 0.13f), W(moon.x + 0.07f, Mathf.Min(1f, moon.y + 0.075f)), 6)));
 
                 // star night: Milky Way, meteor in flight, a wish star crossing and another just wished on
                 sky.ForceStarNight = true;
