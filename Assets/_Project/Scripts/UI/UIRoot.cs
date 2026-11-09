@@ -61,6 +61,15 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<WishStarAppeared>(e => { if (built && !OnTitle) wish.OnAppeared(e); }));
             subs.Add(bus.Subscribe<WishMade>(e => { if (built && !OnTitle) wish.OnMade(e); }));
             subs.Add(bus.Subscribe<WishStarFaded>(e => { if (built) wish.OnFaded(e); }));
+            subs.Add(bus.Subscribe<EndingReached>(OnEndingReached));
+        }
+
+        /// <summary>Counts the ending in the collection (EndingReached is flow-silent on the title demo; guarded anyway).</summary>
+        void OnEndingReached(EndingReached e)
+        {
+            if (!built || OnTitle || ctx.Endings == null) return;
+            ctx.Endings.Add(e.Ending);
+            if (flow.Shown == DayPhase.Ending) flow.Refresh();
         }
 
         void OnDisable() => subs.Clear();
@@ -99,6 +108,7 @@ namespace FloorF.UI
                 Debug.LogWarning("[UI] gameplay services missing - HUD not built. Registered: " + string.Join(", ", GameServices.RegisteredNames()));
                 return;
             }
+            ctx.Endings = new EndingCollection(EndingCollection.CreateStore());
             BuildCanvas();
             EnsureEventSystem();
             var rt = ctx.CanvasRect;
@@ -209,6 +219,7 @@ namespace FloorF.UI
             charms.Clear();
             flow.LastSpecialLine = null;
             flow.ExpiredLabels = flow.ExpiredCharms = 0;
+            if (ctx.Endings != null) ctx.Endings.LastNew = EndingKind.None;
         }
 
         void OnGuestSpoke(GuestSpoke e)
@@ -295,12 +306,44 @@ namespace FloorF.UI
         internal string ShopDescriptionProblem() => shop.FirstDescriptionProblem(ctx.CanvasRect);
         // shop rework (offers grid, reroll, tomorrow strip) / charms / original-floor marks
         /// <summary>Test hook: replace the shop / building query the UI reads (fakes built on the contract). null = keep.</summary>
-        internal void OverrideServicesForTests(IShopService shopService = null, IBuildingQuery building = null)
+        internal void OverrideServicesForTests(IShopService shopService = null, IBuildingQuery building = null, IDayQuery day = null)
         {
             if (shopService != null) ctx.Shop = shopService;
             if (building != null) ctx.Building = building;
-            if (built) { panel.RefreshLabels(); shop.RefreshLanguage(); }
+            if (day != null) ctx.Day = day;
+            if (built) { panel.RefreshLabels(); shop.RefreshLanguage(); if (day != null) flow.Refresh(); }
         }
+
+        // endings collection / hidden-ending badge
+        /// <summary>Test hook: swap the endings record's store (re-read at once); the title and ending card refresh.</summary>
+        internal void UseEndingStoreForTests(IEndingStore store)
+        {
+            ctx.Endings = new EndingCollection(store);
+            if (built) { menu.RefreshLanguage(); flow.Refresh(); }
+        }
+        internal EndingCollection Endings => ctx.Endings;
+        internal bool EndingHiddenBadgeVisible => flow.HiddenBadgeVisible;
+        internal string EndingHiddenBadgeText => flow.HiddenBadgeText;
+        internal bool EndingHiddenBadgeFits => flow.HiddenBadgeFits;
+        internal Rect EndingHiddenBadgeRect => flow.HiddenBadgeRect(ctx.CanvasRect);
+        internal Rect FlowTitleRect => flow.TitleRect(ctx.CanvasRect);
+        internal bool FlowHiddenLook => flow.HiddenLook;
+        internal string EndingUnlockText => flow.UnlockText;
+        internal string EndingsButtonText => menu.EndingsButtonText;
+        internal void ClickEndings() => menu.ClickEndings();
+        internal void CloseEndingsLikeEsc() => menu.CloseEndingsLikeEsc();
+        internal bool EndingsVisible => menu.EndingsVisible;
+        internal void ClickEndingsBack() => menu.EndingsCard.ClickBack();
+        internal string EndingsCardText => menu.EndingsCard.Text;
+        internal int EndingsSlotCount => menu.EndingsCard.SlotCount;
+        internal EndingKind EndingsSlotKind(int i) => menu.EndingsCard.SlotKind(i);
+        internal bool EndingsSlotUnlocked(int i) => menu.EndingsCard.SlotUnlocked(i);
+        internal bool EndingsSlotBadgeVisible(int i) => menu.EndingsCard.SlotBadgeVisible(i);
+        internal string EndingsSlotBadgeText(int i) => menu.EndingsCard.SlotBadgeText(i);
+        internal string EndingsSlotText(int i) => menu.EndingsCard.SlotText(i);
+        internal bool EndingsFitOnScreen => menu.EndingsCard.FitsIn(ctx.CanvasRect);
+        internal Rect EndingsCardRect => menu.EndingsCard.CardRect(ctx.CanvasRect);
+        internal string EndingsSlotOverflow() => menu.EndingsCard.Overflow(ctx.CanvasRect);
         internal int ShopOfferIndex(string id) => shop.OfferIndex(id);
         internal string ShopOfferId(int i) => shop.OfferId(i);
         internal string ShopOfferHeadline(int i) => shop.OfferHeadline(i);

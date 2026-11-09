@@ -316,5 +316,30 @@ namespace FloorF.UI
                 default: title = UIStrings.EndModestTitle.Get(ko); text = UIStrings.EndModestText.Get(ko); break;
             }
         }
+
+        /// <summary>Short name of an ending for the collection card ("PROSPEROUS" / "번창").</summary>
+        public static string EndingName(EndingKind kind, bool ko) =>
+            (kind == EndingKind.Prosperous ? UIStrings.EndNameProsperous : kind == EndingKind.Haunted ? UIStrings.EndNameHaunted
+                : kind == EndingKind.FourthFloor ? UIStrings.EndNameFourth : UIStrings.EndNameModest).Get(ko);
+
+        /// <summary>One line from the ending text for an unlocked collection slot.</summary>
+        public static string EndingShortLine(EndingKind kind, bool ko) =>
+            (kind == EndingKind.Prosperous ? UIStrings.EndShortProsperous : kind == EndingKind.Haunted ? UIStrings.EndShortHaunted
+                : kind == EndingKind.FourthFloor ? UIStrings.EndShortFourth : UIStrings.EndShortModest).Get(ko);
+
+        /// <summary>
+        /// Locked-slot hint: the Luck endings state their rule (<paramref name="lastDay"/> = PlayableDayCount,
+        /// <paramref name="prosperousLuck"/> = rules.prosperousEndingLuck), the hidden one only whispers.
+        /// </summary>
+        public static string EndingHint(EndingKind kind, bool ko, int lastDay, int prosperousLuck)
+        {
+            switch (kind)
+            {
+                case EndingKind.Prosperous: return KoreanParticles.Format(UIStrings.EndHintProsperous.Get(ko), lastDay, prosperousLuck);
+                case EndingKind.Modest: return KoreanParticles.Format(UIStrings.EndHintModest.Get(ko), lastDay, prosperousLuck);
+                case EndingKind.Haunted: return UIStrings.EndHintHaunted.Get(ko);
+                default: return UIStrings.EndHintFourth.Get(ko);
+            }
+        }
     }
 }

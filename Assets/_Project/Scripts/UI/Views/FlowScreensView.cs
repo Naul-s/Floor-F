@@ -31,7 +31,12 @@ namespace FloorF.UI
             new Vector3(0f, 1f, 36f), new Vector3(1f, 1f, 36f), new Vector3(0f, 0f, 24f), new Vector3(1f, 0f, 24f),
             new Vector3(0.18f, 1f, 24f), new Vector3(0.82f, 0f, 24f),
         };
-        readonly TextMeshProUGUI title, body, extra;
+        readonly TextMeshProUGUI title, body, extra, unlockLine;
+        /// <summary>4th-floor ending: "HIDDEN ENDING" ribbon straddling the card's top edge.</summary>
+        readonly HiddenBadge hiddenBadge;
+        /// <summary>4th-floor ending card: violet edge on near-black violet, a violet-black dim (the quote's colour).</summary>
+        public static readonly Color HiddenFill = new Color(0.03f, 0.015f, 0.055f, 0.97f), HiddenDim = new Color(0.02f, 0f, 0.05f, 0.76f);
+        bool hiddenCard;
         readonly UIBuild.ButtonParts action, toTitle, skip;
         DayPhase shown = (DayPhase)(-1);
         int shownDay = -1;
@@ -69,6 +74,10 @@ namespace FloorF.UI
             body = UIBuild.Text("Body", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
             extra = UIBuild.Text("Extra", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
             extra.lineSpacing = 4f;
+            // ending card only: "Endings 3/4 unlocked" (+ NEW!) in small print above the buttons
+            unlockLine = UIBuild.Text("Unlocks", card, "", 12f, UIStyle.InkDim, TextAlignmentOptions.Center);
+            unlockLine.characterSpacing = 100f / UIFonts.Grid;
+            unlockLine.gameObject.SetActive(false);
             var row = UIBuild.Rect("Buttons", card);
             row.gameObject.AddComponent<LayoutElement>().preferredHeight = 58f;
             var h = row.gameObject.AddComponent<HorizontalLayoutGroup>();
@@ -121,6 +130,12 @@ namespace FloorF.UI
                 starGlyphs[i] = g;
             }
             starDeco.gameObject.SetActive(false);
+
+            hiddenBadge = new HiddenBadge("HiddenBadge", card, 24f, 18f, BadgeHeight);
+            hiddenBadge.Root.anchorMin = hiddenBadge.Root.anchorMax = new Vector2(0.5f, 1f);
+            hiddenBadge.Root.pivot = new Vector2(0.5f, 0.5f);
+            hiddenBadge.Root.anchoredPosition = Vector2.zero; // centred on the top edge
+            hiddenBadge.Show(false);
 
             dim.gameObject.SetActive(false);
         }
@@ -181,6 +196,7 @@ namespace FloorF.UI
         {
             TickStamp();
             TickStars();
+            if (hiddenCard && dim.gameObject.activeSelf) hiddenBadge.Tick(Time.unscaledTime);
             var phase = ctx.HasGame ? ctx.Day.Phase : DayPhase.None;
             if (SkipVisible && !(ctx.Paused) && TabPressed()) { OnSkip(); return; }
             int day = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
@@ -214,7 +230,11 @@ namespace FloorF.UI
             if (!modal) return;
             bool ko = ctx.Korean;
             bool intro = phase == DayPhase.Intro && !ctx.Day.IsTutorial;
-            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight);
+            bool hidden = phase == DayPhase.Ending && EndingRecord.IsHidden(ctx.Day.Ending);
+            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight, hidden);
+            hiddenBadge.Show(hidden);
+            if (hidden) { hiddenBadge.SetText(ctx.S(UIStrings.HiddenEnding)); hiddenBadge.Alpha = 1f; }
+            unlockLine.gameObject.SetActive(phase == DayPhase.Ending && ctx.Endings != null);
             title.color = fridayCard ? UIStyle.Unlucky : starCard ? StarTitle : UIStyle.Lucky;
             extra.alignment = TextAlignmentOptions.Left; // the Friday-only intro line centres it (FillIntro)
             toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
@@ -280,18 +300,23 @@ namespace FloorF.UI
         public static readonly Color StarTitle = UIStyle.Hex("#FFF1B0");
         const string StarInkHex = "#DCD4FF";
 
-        /// <summary>Card colours for the event day (Friday the 13th wins over star night; neither = the normal card).</summary>
-        void SetCardLook(bool friday, bool star)
+        /// <summary>Card colours for the event day (Friday the 13th wins over star night; neither = the normal card),
+        /// or the hidden 4th-floor ending.</summary>
+        void SetCardLook(bool friday, bool star, bool hidden = false)
         {
             star &= !friday;
-            if (friday == fridayCard && star == starCard) return;
+            hidden &= !friday && !star;
+            if (friday == fridayCard && star == starCard && hidden == hiddenCard) return;
             fridayCard = friday;
             starCard = star;
-            cardEdge.color = friday ? UIStyle.Unlucky : star ? HudView.StarEdge : UIStyle.CardEdge;
-            cardFill.color = friday ? FridayFill : star ? StarFill : UIStyle.Card;
-            dim.GetComponent<Image>().color = friday ? FridayDim : star ? StarDim : UIStyle.Dim;
+            hiddenCard = hidden;
+            cardEdge.color = friday ? UIStyle.Unlucky : star ? HudView.StarEdge : hidden ? HiddenBadge.Ink : UIStyle.CardEdge;
+            cardFill.color = friday ? FridayFill : star ? StarFill : hidden ? HiddenFill : UIStyle.Card;
+            dim.GetComponent<Image>().color = friday ? FridayDim : star ? StarDim : hidden ? HiddenDim : UIStyle.Dim;
             starDeco.gameObject.SetActive(star);
         }
+
+        public const float BadgeHeight = 36f;
 
         /// <summary>Star-night card: the edge stars twinkle slowly (~0.3-0.9 Hz, alpha 0.44..1 - no flashing).</summary>
         void TickStars()
@@ -371,6 +396,13 @@ namespace FloorF.UI
                 Row(ctx.S(UIStrings.EndDayReached), N(ctx.Day.DisplayDay) + " / " + N(ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount)) + "\n" +
                 Row(ctx.S(UIStrings.EndFinalLuck), "<color=" + luckHex + ">" + N(luck) + "</color> / " + N(max)) + "\n" +
                 Row(ctx.S(UIStrings.EndTips), "<color=#5BE37D>$" + N(tips) + "</color>");
+            if (ctx.Endings != null)
+            {
+                string line = ctx.F(UIStrings.EndingsUnlocked, ctx.Endings.Unlocked, EndingCollection.Total);
+                if (ctx.Endings.LastNew != EndingKind.None && ctx.Endings.LastNew == ctx.Day.Ending)
+                    line += "   <color=" + UIFormat.LuckyHex + ">" + ctx.S(UIStrings.EndingNew) + "</color>";
+                unlockLine.text = line;
+            }
             action.Label.text = ctx.S(UIStrings.PlayAgain);
         }
 
@@ -411,6 +443,14 @@ namespace FloorF.UI
 
         static string Row(string caption, string value) => caption + "<pos=62%><b>" + value + "</b>";
         static string N(int v) => v.ToString(CultureInfo.InvariantCulture);
+
+        public bool HiddenBadgeVisible => dim.gameObject.activeSelf && hiddenBadge.Visible;
+        public string HiddenBadgeText => hiddenBadge.Label.text;
+        public bool HiddenBadgeFits => hiddenBadge.TextFits;
+        public Rect HiddenBadgeRect(RectTransform canvas) => HiddenBadgeVisible ? UIBuild.CanvasRect(canvas, hiddenBadge.Root) : default;
+        public Rect TitleRect(RectTransform canvas) => UIBuild.CanvasRect(canvas, title.rectTransform);
+        public bool HiddenLook => dim.gameObject.activeSelf && hiddenCard;
+        public string UnlockText => unlockLine.gameObject.activeInHierarchy ? unlockLine.text : null;
 
         public string TitleText => title.text;
         public string BodyText => body.text;
