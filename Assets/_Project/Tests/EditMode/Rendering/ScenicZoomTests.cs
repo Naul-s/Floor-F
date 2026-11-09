@@ -162,8 +162,10 @@ namespace FloorF.Tests.EditMode.Rendering
             AssertSameFrame(g, rig.Current, "exactly the gameplay frame");
         }
 
+        static float StarNightLift(CameraFrame plain, CameraFrame star) => star.Position.y - plain.Position.y;
+
         [Test]
-        public void StarNight_WideFrame_IsSkyHeavier_AndKeepsTheCurb()
+        public void StarNight_WideFrame_IsSkyHeavier_AndKeepsTheStreet()
         {
             var g = Gameplay();
             var rig = new CameraRig(null, g, H);
@@ -172,8 +174,10 @@ namespace FloorF.Tests.EditMode.Rendering
             AssertOnGrid(star, "star-night wide frame");
             Assert.AreEqual(plain.OrthographicSize, star.OrthographicSize, 1e-6f, "same zoom (8 ppu meshes)");
             Assert.AreEqual(CameraRig.StarNightLiftPixels / star.PixelsPerUnit, CameraFraming.Top(star) - CameraFraming.Top(plain), 1e-4f);
-            float curb = RenderingStyle.GroundY + star.Shear.y * (RenderingStyle.CurbZ - star.ShearDepth);
-            Assert.Less(CameraFraming.Bottom(star), curb, "the street stays in view");
+            Assert.Greater(StarNightLift(plain, star), 0f, "sky-heavier: the frame rises");
+            Assert.LessOrEqual(CameraFraming.Bottom(star), CameraFraming.Bottom(g) + 1e-4f, "at least the gameplay frame's street");
+            float nearLane = RenderingStyle.RoadY + star.Shear.y * (RenderingStyle.NearLaneZ - star.ShearDepth);
+            Assert.Less(CameraFraming.Bottom(star), nearLane, "near-lane cars stay whole");
             Assert.Greater(CameraFraming.Top(star), CameraFraming.Top(g) + 5f, "lots more sky than the gameplay frame");
 
             rig.SetScenic(true, false, true);

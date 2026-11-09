@@ -28,10 +28,17 @@ namespace FloorF.Rendering
         /// <summary>Scenic pan: gentler and slower than the title's (the player is looking, not being attracted).</summary>
         public const float ScenicPanPixels = 22f;
         public const float ScenicPanPeriod = 36f;
-        /// <summary>Star night: the wide frame rises this many pixels (less road, more Milky Way); the curb stays in view.</summary>
-        public const int StarNightLiftPixels = 16;
-        /// <summary>Ordered pixel dissolve between two zoom rungs (PixelGlow).</summary>
-        public const float StepDissolveSeconds = 0.12f;
+        /// <summary>
+        /// Star night: the wide frame rises this many pixels - it gives the title's extra road (<see cref="TitleExtraRoad"/>)
+        /// to the Milky Way but still shows at least the gameplay frame's street (curb + whole near-lane cars). 8 ppu is
+        /// the widest zoom: wider, the street's spawn edges (StreetHalfLength) come into view.
+        /// </summary>
+        public const int StarNightLiftPixels = 4;
+        /// <summary>
+        /// Ordered pixel dissolve between two zoom rungs (PixelGlow): ~6 frames, a softened cut - long enough that the
+        /// ~10% scale jump does not pop, short enough that the double image never reads as blur.
+        /// </summary>
+        public const float StepDissolveSeconds = 0.1f;
         /// <summary>Unscaled frame time cap (a hitch never skips the whole zoom).</summary>
         public const float MaxCameraStep = 0.1f;
 
