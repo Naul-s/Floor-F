@@ -283,7 +283,8 @@ namespace FloorF.UI
 
         void LateUpdate()
         {
-            if (built) scenic.LateTick();
+            if (!built) return;
+            if (scenic.LateTick()) menu.Tick(); // back to the pause card it came from: shown this frame
         }
 
         /// <summary>

@@ -115,6 +115,8 @@ namespace FloorF.Tests.PlayMode.UI
             GameplayRoot.SettingsStoreOverride = null;
             GameplayRoot.SeedOverride = null;
             EndingCollection.StoreOverride = null;
+            UIFeatures.SetAll(false); // UIFeatureDefaultsForTests: tests see the menu / intro cards at once
+            HudView.ForgetRulesChoice();
         }
     }
 

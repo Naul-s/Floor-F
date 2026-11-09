@@ -289,6 +289,7 @@ namespace FloorF.UI
         {
             bool used = false;
             var phase = ctx.Phase;
+            unscaledDt = Mathf.Min(unscaledDt, 0.1f); // a loading hitch must not eat the shot / the hint
             int introDay = ctx.HasGame && phase == DayPhase.Intro && !OnTitle ? ctx.Day.CurrentDay.Number : int.MinValue;
             if (introDay != lastIntroDay)
             {
@@ -329,9 +330,11 @@ namespace FloorF.UI
         }
 
         /// <summary>LateUpdate: a pending scenic exit (after KeyboardInput handled the same key while still paused).</summary>
-        public void LateTick()
+        public bool LateTick()
         {
-            if (exitPending) ExitScenic();
+            if (!exitPending) return false;
+            ExitScenic();
+            return true;
         }
 
         public void BringButtonToFront() => button.Rect.SetAsLastSibling();
