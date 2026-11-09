@@ -1019,13 +1019,19 @@ namespace FloorF.Core
         void EndDay(EndingKind endingNow)
         {
             if (phase != DayPhase.Running) return;
+            CloseOutDay();
+            if (endingNow != EndingKind.None) ReachEnding(endingNow);
+            else SetPhase(DayPhase.Summary);
+        }
+
+        /// <summary>The running day stops: everyone leaves, stars fade, DayEnded, one-day purchases expire (phase unchanged).</summary>
+        void CloseOutDay()
+        {
             DropAllGuests();
             FadeAllWishStars();
             lastSummary = new DaySummary(dayDelivered, dayLeft, Score.TipsEarnedToday, luckAtStart, Score.Luck, dayLucky, dayUnlucky, Score.BestStreakToday);
             PublishFlow(new DayEnded(day, lastSummary));
             ExpirePurchases(); // one-day stickers/charms: FloorLabelChanged per floor, StickersExpired
-            if (endingNow != EndingKind.None) ReachEnding(endingNow);
-            else SetPhase(DayPhase.Summary);
         }
 
         void ReachEnding(EndingKind kind)

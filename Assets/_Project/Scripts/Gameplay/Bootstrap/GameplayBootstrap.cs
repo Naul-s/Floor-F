@@ -140,9 +140,8 @@ namespace FloorF.Gameplay
             GameServices.Register<IMenuFlow>(session);
 
             gameObject.AddComponent<KeyboardInput>().Bind(session);
-#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // every build (WebGL release too): inert until debug mode is toggled on deliberately (DebugCheats)
             gameObject.AddComponent<DebugOverlay>().Bind(session);
-#endif
             Debug.Log($"[Gameplay] installed: {data.FloorCount} floors, {data.Guests.Count} guests, {data.DayCount} days, {data.Stickers.Count} stickers (seed {seed})");
         }
 
