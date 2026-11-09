@@ -114,6 +114,28 @@ namespace FloorF.UI
             ruleStar.gameObject.SetActive(false);
             ruleLegend = UIBuild.Text("Legend", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(ruleLegend.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -102f), new Vector2(MeterW, 24f));
+            // collapse handle in the title row (H toggles too) and the "?" tab the box folds into
+            rulesHide = UIBuild.Button("RulesHide", rulesBox, "", 12f, RulesFill, ToggleRules);
+            UIBuild.Place(rulesHide.Rect, new Vector2(1f, 1f), new Vector2(-6f, -4f), new Vector2(HideW, 22f));
+            rulesHide.Label.color = UIStyle.InkDim;
+            UIBuild.Stretch(rulesHide.Label.rectTransform, 2f);
+            rulesHide.Label.textWrappingMode = TextWrappingModes.NoWrap;
+            rulesHide.Label.alignment = TextAlignmentOptions.Right;
+            var tabEdge = UIBuild.Framed("RulesTab", canvas, RulesFill, UIStyle.CardEdge, 2f, raycast: true);
+            rulesTab = tabEdge.rectTransform;
+            UIBuild.Place(rulesTab, new Vector2(1f, 1f), new Vector2(-24f, -RulesTop), new Vector2(TabW, TabH));
+            var tabButton = tabEdge.gameObject.AddComponent<Button>();
+            tabButton.targetGraphic = tabEdge;
+            var nav = tabButton.navigation;
+            nav.mode = Navigation.Mode.None;
+            tabButton.navigation = nav;
+            tabButton.onClick.AddListener(ToggleRules);
+            rulesTabButton = tabButton;
+            var q = UIBuild.Text("Q", rulesTab, "?", 24f, UIStyle.CardEdge, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Place(q.rectTransform, new Vector2(0f, 0.5f), new Vector2(4f, 0f), new Vector2(24f, TabH));
+            var key = UIBuild.Text("Key", rulesTab, "H", 12f, UIStyle.InkDim, TextAlignmentOptions.BottomRight);
+            UIBuild.Stretch(key.rectTransform, 4f);
+            rulesTab.gameObject.SetActive(false);
 
             // Friday the 13th badge (right column, under the rule box; only on that day)
             fridayEdge = UIBuild.Framed("Friday13Badge", canvas, new Color(0.05f, 0.01f, 0.01f, 0.94f), UIStyle.Unlucky, 3f);
@@ -144,6 +166,71 @@ namespace FloorF.UI
         /// <summary>Opaque like the charms box: the lit city windows behind the HUD showed through the translucent fill/edge
         /// as dark and bright squares in the rule text.</summary>
         static readonly Color RulesFill = new Color(0.05f, 0.055f, 0.08f, 1f), RulesEdgeColor = new Color(0.19f, 0.2f, 0.22f, 1f);
+
+        // ------------------------------------------------------------------ rule box collapse ("?" tab, H)
+
+        /// <summary>Collapsed tab size, the title-row HIDE handle width.</summary>
+        public const float TabW = 48f, TabH = 36f, HideW = 96f;
+        readonly UIBuild.ButtonParts rulesHide;
+        readonly RectTransform rulesTab;
+        readonly Button rulesTabButton;
+        /// <summary>The player's own choice (null until they first toggle); kept for the session, across runs.</summary>
+        static bool? rulesChoice;
+        int forceOpenUntil = -1;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => rulesChoice = null;
+
+        /// <summary>Test hook: forget the player's choice (the day default applies again).</summary>
+        internal static void ForgetRulesChoice() => rulesChoice = null;
+
+        /// <summary>Open by default on Day 0 / Day 1, collapsed from Day 2 on (<see cref="UIFeatures.RulesAutoCollapse"/>),
+        /// unless the player chose; the tutorial pointing at the box keeps it open.</summary>
+        public bool RulesOpen
+        {
+            get
+            {
+                if (Time.frameCount <= forceOpenUntil) return true;
+                if (rulesChoice.HasValue) return rulesChoice.Value;
+                return !UIFeatures.RulesAutoCollapse || !ctx.HasGame || ctx.Day.IsTutorial || ctx.Day.DisplayDay <= 1;
+            }
+        }
+
+        /// <summary>Click on HIDE / the "?" tab, or H (Running only).</summary>
+        public void ToggleRules()
+        {
+            rulesChoice = !RulesOpen;
+            forceOpenUntil = -1;
+            ctx.Sound(UiSoundKind.Click);
+            ApplyRules(ctx.Phase == DayPhase.Running);
+        }
+
+        /// <summary>The tutorial's rule-box page: open it now and while it keeps asking (no player choice stored).</summary>
+        public void EnsureRulesOpen()
+        {
+            forceOpenUntil = Time.frameCount + 1;
+            if (ctx.Phase == DayPhase.Running && !rulesBox.gameObject.activeSelf) ApplyRules(true);
+        }
+
+        void ApplyRules(bool running)
+        {
+            bool open = RulesOpen;
+            bool box = running && open, tab = running && !open;
+            if (rulesBox.gameObject.activeSelf != box) rulesBox.gameObject.SetActive(box);
+            if (rulesTab.gameObject.activeSelf != tab) rulesTab.gameObject.SetActive(tab);
+            // the event badge hangs under whichever is shown
+            float top = open ? RulesTop + rulesBox.sizeDelta.y + BadgeGap : RulesTop + TabH + BadgeGap;
+            var p = new Vector2(-24f, -top);
+            if (fridayBadge.anchoredPosition != p) fridayBadge.anchoredPosition = p;
+            if (starBadge.anchoredPosition != p) starBadge.anchoredPosition = p;
+        }
+
+        public RectTransform RulesTab => rulesTab;
+        public bool RulesTabVisible => rulesTab.gameObject.activeInHierarchy;
+        public bool RulesBoxVisible => rulesBox.gameObject.activeInHierarchy;
+        public void ClickRulesTab() => rulesTabButton.onClick.Invoke();
+        public void ClickRulesHide() => rulesHide.Button.onClick.Invoke();
+        public string RulesHideText => rulesHide.Label.text;
 
         float Friday13Multiplier => ctx.Data != null ? ctx.Data.Rules.friday13PenaltyMultiplier : 1.5f;
 
@@ -204,6 +291,7 @@ namespace FloorF.UI
             UIBuild.Set(luckCaption, ctx.S(UIStrings.Luck));
             UIBuild.Set(tipsCaption, ctx.S(UIStrings.Tips));
             UIBuild.Set(rulesTitle, ctx.S(UIStrings.RulesTitle));
+            UIBuild.Set(rulesHide.Label, ctx.S(UIStrings.RulesHide));
             UIBuild.Set(ruleOpen, ctx.S(UIStrings.RuleOpen));
             UIBuild.Set(ruleClose, ctx.S(UIStrings.RuleClose));
             UIBuild.Set(ruleDistance, ctx.S(UIStrings.RuleDistance));
@@ -374,8 +462,8 @@ namespace FloorF.UI
             Fade(luckDelta, ref luckDeltaTimer, dt);
             Fade(tipsDelta, ref tipsDeltaTimer, dt);
             bool rules = phase == DayPhase.Running;
-            if (rulesBox.gameObject.activeSelf != rules) rulesBox.gameObject.SetActive(rules);
             SetEventDay(ctx.Day.IsFriday13 && !ctx.Day.IsTutorial, ctx.Day.IsStarNight && !ctx.Day.IsTutorial, rules);
+            ApplyRules(rules);
             TickStreak(dt, rules);
         }
 
@@ -400,7 +488,7 @@ namespace FloorF.UI
             luckBox.gameObject.SetActive(visible);
             tipsBox.gameObject.SetActive(visible);
             language.Rect.gameObject.SetActive(visible);
-            if (!visible) { rulesBox.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); fridayBadge.gameObject.SetActive(false); starBadge.gameObject.SetActive(false); }
+            if (!visible) { rulesBox.gameObject.SetActive(false); rulesTab.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); fridayBadge.gameObject.SetActive(false); starBadge.gameObject.SetActive(false); }
         }
 
         /// <summary>
@@ -413,6 +501,7 @@ namespace FloorF.UI
             {
                 float y = StreakTop + StreakH;
                 if (rulesBox.gameObject.activeSelf) y = Mathf.Max(y, RulesTop + rulesBox.sizeDelta.y);
+                if (rulesTab.gameObject.activeSelf) y = Mathf.Max(y, RulesTop + TabH);
                 if (fridayBadge.gameObject.activeSelf) y = Mathf.Max(y, -fridayBadge.anchoredPosition.y + BadgeH);
                 if (starBadge.gameObject.activeSelf) y = Mathf.Max(y, -starBadge.anchoredPosition.y + StarBadgeH);
                 return y;
