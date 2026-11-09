@@ -72,6 +72,7 @@ namespace FloorF.UI
                 new Vector2(0f, StackTopY), new Vector2(StartSize.x, stackHeight));
             stack.pivot = new Vector2(0.5f, 1f); // children hang from the top edge
             start = MenuButton("Start", stack, StartSize, 0f, 36f, UIStyle.Action, UIStyle.Title, 3f, OnStart);
+            UIBuild.Heading(start.Label);
             titleEndings = MenuButton("Endings", stack, ButtonSize, -(StartSize.y + StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
                 () => { ctx.Sound(UiSoundKind.Click); SetEndings(true); });
             titleCredits = MenuButton("Credits", stack, ButtonSize, -(StartSize.y + ButtonSize.y + 2f * StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
@@ -84,7 +85,7 @@ namespace FloorF.UI
             UIBuild.Place(creditsCard, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1180f, 600f));
             UIBuild.Outline("Frame", creditsCard, UIStyle.CardEdge, 3f, 0f);
             Column(creditsCard, new RectOffset(40, 40, 22, 22), 6f);
-            creditsTitle = UIBuild.Text("Title", creditsCard, "", 48f, UIStyle.Title, TextAlignmentOptions.Center, bold: true);
+            creditsTitle = UIBuild.Heading(UIBuild.Text("Title", creditsCard, "", 48f, UIStyle.Title, TextAlignmentOptions.Center, bold: true));
             musicHead = Head(creditsCard);
             music = Body(creditsCard, UIStyle.Ink);
             soundHead = Head(creditsCard);
@@ -118,7 +119,7 @@ namespace FloorF.UI
             var card = UIBuild.Framed("PauseCard", pauseRoot, UIStyle.Card, UIStyle.CardEdge, 3f).rectTransform;
             UIBuild.Place(card, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 400f));
             Column(card, new RectOffset(36, 36, 26, 28), 14f);
-            pauseTitle = UIBuild.Text("Title", card, "", 48f, Color.white, TextAlignmentOptions.Center, bold: true);
+            pauseTitle = UIBuild.Heading(UIBuild.Text("Title", card, "", 48f, Color.white, TextAlignmentOptions.Center, bold: true));
             pauseTitle.enableVertexGradient = true; // the logo's gold-to-amber face
             pauseTitle.colorGradient = GoldGradient;
             // the title logo in miniature, sitting on top of the card (outside its layout)

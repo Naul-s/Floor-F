@@ -191,7 +191,8 @@ namespace FloorF.Tests.PlayMode.UI
                 StringAssert.Contains("\"Local Forecast - Elevator\" Kevin MacLeod (incompetech.com)\n" +
                                       "Licensed under Creative Commons: By Attribution 4.0\n" +
                                       "https://creativecommons.org/licenses/by/4.0/", text, "CC BY 4.0 wording, exact");
-                foreach (var who in new[] { "Kenney", "CC0", "Galmuri11", "SIL Open Font License 1.1", "Material Symbols", "Apache License 2.0",
+                foreach (var who in new[] { "Kenney", "CC0", "Mulmaru", "mushsooni", "Galmuri11", "Galmuri11 Bold", "quiple",
+                             "SIL Open Font License 1.1", "Material Symbols", "Apache License 2.0",
                              "Freesound", "LilMati", "PagDev", "LaurenPonder", "egomassive", "danlucaz", "BlondPanda", "Claude", "Anthropic" })
                     StringAssert.Contains(who, text, (korean ? "ko" : "en") + " credits name " + who);
             }

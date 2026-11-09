@@ -93,7 +93,7 @@ namespace FloorF.UI
             // header: title left, tips right
             var header = UIBuild.Rect("Header", card);
             header.gameObject.AddComponent<LayoutElement>().preferredHeight = HeaderH;
-            title = UIBuild.Text("Title", header, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Left, bold: true);
+            title = UIBuild.Heading(UIBuild.Text("Title", header, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Left, bold: true));
             UIBuild.Place(title.rectTransform, new Vector2(0f, 0.5f), Vector2.zero, new Vector2(InnerW * 0.62f, HeaderH));
             title.textWrappingMode = TextWrappingModes.NoWrap;
             tips = UIBuild.Text("Tips", header, "", 24f, UIStyle.Good, TextAlignmentOptions.Right, bold: true);

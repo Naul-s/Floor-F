@@ -49,7 +49,7 @@ namespace FloorF.UI
             v.childForceExpandHeight = false;
             card.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            title = UIBuild.Text("Title", card, "", 48f, UIStyle.Title, TextAlignmentOptions.Center, bold: true);
+            title = UIBuild.Heading(UIBuild.Text("Title", card, "", 48f, UIStyle.Title, TextAlignmentOptions.Center, bold: true));
             progress = UIBuild.Text("Progress", card, "", 24f, UIStyle.InkDim, TextAlignmentOptions.Center);
 
             var grid = UIBuild.Rect("Slots", card);

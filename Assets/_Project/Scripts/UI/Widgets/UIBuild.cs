@@ -75,6 +75,16 @@ namespace FloorF.UI
             return t;
         }
 
+        /// <summary>
+        /// Big title / display text (36px and up): Galmuri11 Bold (<see cref="UIFonts.Heading"/>) instead of the body font.
+        /// Only for short, big texts - it is wide and its 12px glyphs blur together.
+        /// </summary>
+        public static TextMeshProUGUI Heading(TextMeshProUGUI t)
+        {
+            if (t != null) t.font = UIFonts.Heading;
+            return t;
+        }
+
         public sealed class ButtonParts
         {
             public Button Button;

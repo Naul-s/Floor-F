@@ -45,7 +45,7 @@ namespace FloorF.UI
                 rt.sizeDelta = new Vector2(0f, 3f);
                 edges[i] = e;
             }
-            text = UIBuild.Text("Text", root, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            text = UIBuild.Heading(UIBuild.Text("Text", root, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true));
             UIBuild.Stretch(text.rectTransform);
             text.textWrappingMode = TextWrappingModes.NoWrap;
             text.enableVertexGradient = true;

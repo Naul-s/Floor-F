@@ -70,7 +70,7 @@ namespace FloorF.UI
             var fit = card.gameObject.AddComponent<ContentSizeFitter>();
             fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            title = UIBuild.Text("Title", card, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            title = UIBuild.Heading(UIBuild.Text("Title", card, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true));
             body = UIBuild.Text("Body", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
             extra = UIBuild.Text("Extra", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
             extra.lineSpacing = 4f;
@@ -112,7 +112,7 @@ namespace FloorF.UI
             var ring = UIBuild.Outline("Ring", stamp, UIStyle.Lucky, 6f, 0f);
             stampEdges = ring.GetComponentsInChildren<Image>();
             // just the letter: no "GRADE" caption (it crowded the top of the S)
-            stampLetter = UIBuild.Text("Letter", stamp, "", 96f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            stampLetter = UIBuild.Heading(UIBuild.Text("Letter", stamp, "", 96f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true));
             UIBuild.Place(stampLetter.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(120f, 110f));
             stampLetter.textWrappingMode = TextWrappingModes.NoWrap;
             stamp.gameObject.SetActive(false);
