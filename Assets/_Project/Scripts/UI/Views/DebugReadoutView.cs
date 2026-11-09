@@ -20,15 +20,15 @@ namespace FloorF.UI
         public DebugReadoutView(RectTransform fx)
         {
             var tagImg = UIBuild.Box("DebugTag", fx, new Color(0f, 0f, 0f, 0.7f));
-            tagPlate = UIBuild.Place(tagImg.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(560f, 26f));
-            tag = UIBuild.Text("Text", tagPlate, "", 16f, TagColor, TextAlignmentOptions.Center);
+            tagPlate = UIBuild.Place(tagImg.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(600f, 30f));
+            tag = UIBuild.Text("Text", tagPlate, "", 18f, TagColor, TextAlignmentOptions.Center);
             UIBuild.Stretch(tag.rectTransform, 4f);
             tag.textWrappingMode = TextWrappingModes.NoWrap;
             tag.richText = false;
 
-            var boxImg = UIBuild.Box("DebugReadout", fx, new Color(0.02f, 0.02f, 0.05f, 0.86f));
-            box = UIBuild.Place(boxImg.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(780f, 640f));
-            body = UIBuild.Text("Text", box, "", 15f, UIStyle.Ink, TextAlignmentOptions.TopLeft);
+            var boxImg = UIBuild.Box("DebugReadout", fx, new Color(0.02f, 0.02f, 0.05f, 0.97f));
+            box = UIBuild.Place(boxImg.rectTransform, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(820f, 620f));
+            body = UIBuild.Text("Text", box, "", 17f, UIStyle.Ink, TextAlignmentOptions.TopLeft);
             UIBuild.Stretch(body.rectTransform, 10f);
             body.richText = false;
             body.textWrappingMode = TextWrappingModes.NoWrap;
