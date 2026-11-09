@@ -10,6 +10,7 @@
 //                 (_Bands thresholds -> _Levels) and its hue is screen-blended in gamma space. Pixels below the first
 //                 band are returned untouched.
 //   4 LightOnly : the banded light alone (tests: band count / no checkerboard).
+//   5 Dissolve  : lit target vs a snapshot of the previous zoom rung, ordered 4x4 Bayer threshold (scenic zoom).
 // WebGL2 / GLES3 safe: plain tex2D, fixed loops with an early break.
 Shader "FloorF/PixelGlow"
 {
@@ -159,6 +160,29 @@ Shader "FloorF/PixelGlow"
             {
                 half3 l = saturate(Light(Pixel(i.uv)));
                 return half4(_Linear > 0.5 ? GammaToLinearSpace(l) : l, 1);
+            }
+            ENDCG
+        }
+
+        Pass
+        {
+            // 5: ordered pixel dissolve (scenic zoom rungs): new frame where the 4x4 Bayer threshold is below _Mix,
+            // the snapshot of the previous rung elsewhere. Whole target pixels only - no blending, no new colours.
+            Name "Dissolve"
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            sampler2D _PrevTex;
+            float _Mix;
+            float Bayer2(float2 v) { return 2.0 * abs(v.x - v.y) + v.y; }
+            half4 frag (v2f i) : SV_Target
+            {
+                float2 p = Pixel(i.uv);
+                float2 uv = (p + 0.5) * _MainTex_TexelSize.xy;
+                float2 lo = fmod(p, 2.0);
+                float2 hi = floor(fmod(p, 4.0) * 0.5);
+                float t = (4.0 * Bayer2(lo) + Bayer2(hi) + 0.5) / 16.0;
+                return t < _Mix ? half4(tex2D(_MainTex, uv).rgb, 1) : half4(tex2D(_PrevTex, uv).rgb, 1);
             }
             ENDCG
         }

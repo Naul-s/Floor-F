@@ -20,15 +20,51 @@ namespace FloorF.Rendering
         /// <summary>Title: world units of extra street below the gameplay frame's bottom edge.</summary>
         public const float TitleExtraRoad = 0.6f;
 
+        // ---- scenic view (ScenicViewChanged): integer-ppu zoom ladder to the wide frame, see ScenicZoom
+        /// <summary>Gameplay -&gt; wide (player's scenic mode), seconds on the unscaled clock.</summary>
+        public const float ScenicOutSeconds = 1.2f;
+        /// <summary>Wide -&gt; gameplay (scenic off, the establishing shot's "zoom into the hotel").</summary>
+        public const float ScenicInSeconds = 0.9f;
+        /// <summary>Scenic pan: gentler and slower than the title's (the player is looking, not being attracted).</summary>
+        public const float ScenicPanPixels = 22f;
+        public const float ScenicPanPeriod = 36f;
+        /// <summary>Star night: the wide frame rises this many pixels (less road, more Milky Way); the curb stays in view.</summary>
+        public const int StarNightLiftPixels = 16;
+        /// <summary>Ordered pixel dissolve between two zoom rungs (PixelGlow).</summary>
+        public const float StepDissolveSeconds = 0.12f;
+        /// <summary>Unscaled frame time cap (a hitch never skips the whole zoom).</summary>
+        public const float MaxCameraStep = 0.1f;
+
         readonly PixelPipeline pipeline;
         readonly int targetHeight;
-        CameraFrame baseFrame, titleFrame;
+        CameraFrame baseFrame, titleFrame, scenicFrame, scenicStarFrame;
         float shakeElapsed = float.MaxValue, shakeDuration = ShakeSeconds, shakeAmplitude = ShakePixels;
         float titleTime;
+        float zoomT, scenicTime;
+        bool wideStar, prevTitle;
+        int prevLevel;
 
         public CameraFrame BaseFrame => baseFrame;
         public CameraFrame TitleFrame => titleFrame;
+        /// <summary>Wide frame of the scenic view (title framing; star night: <see cref="StarNightLiftPixels"/> higher).</summary>
+        public CameraFrame ScenicFrame => scenicFrame;
+        public CameraFrame ScenicStarFrame => scenicStarFrame;
+        /// <summary>The wide frame the current / next scenic zoom heads for.</summary>
+        public CameraFrame WideFrame => wideStar ? scenicStarFrame : scenicFrame;
         public bool TitleMode { get; private set; }
+        /// <summary>Last ScenicViewChanged said On (the camera may still be on its way).</summary>
+        public bool ScenicOn { get; private set; }
+        public bool Establishing { get; private set; }
+        /// <summary>Zoom progress, linear in (unscaled) time: 0 = gameplay frame, 1 = wide frame.</summary>
+        public float ZoomProgress => zoomT;
+        public float ZoomEased => ScenicZoom.Ease(zoomT);
+        /// <summary>Anywhere off the gameplay frame because of the scenic view (wide, or zooming either way).</summary>
+        public bool InScenicView => zoomT > 0f || ScenicOn;
+        public bool IsZooming => ScenicOn ? zoomT < 1f : zoomT > 0f;
+        /// <summary>Whole pixels per unit of the frame applied last.</summary>
+        public int Level { get; private set; }
+        /// <summary>The last Tick moved to another zoom rung (scenic; not the title cut): PixelGlow dissolves it.</summary>
+        public bool LevelStepped { get; private set; }
         public bool IsShaking => shakeElapsed < shakeDuration;
         public float ShakeElapsed => shakeElapsed;
         /// <summary>Current offset from the active frame, in low-res pixels (x = camera right, y = camera up).</summary>
@@ -42,8 +78,50 @@ namespace FloorF.Rendering
             this.targetHeight = targetHeight;
             this.baseFrame = baseFrame;
             titleFrame = MakeTitleFrame(baseFrame, targetHeight);
+            scenicFrame = titleFrame;
+            scenicStarFrame = MakeStarNightFrame(titleFrame, targetHeight);
             Current = baseFrame;
-            pipeline.ApplyFrame(baseFrame);
+            Level = prevLevel = ScenicZoom.Ppu(baseFrame);
+            pipeline?.ApplyFrame(baseFrame);
+        }
+
+        /// <summary>Star-night wide frame: the title framing lifted <see cref="StarNightLiftPixels"/> whole pixels.</summary>
+        public static CameraFrame MakeStarNightFrame(CameraFrame wide, int targetHeight)
+        {
+            var p = wide.Position;
+            p.y += StarNightLiftPixels / wide.PixelsPerUnit;
+            return wide.WithPosition(p, targetHeight);
+        }
+
+        /// <summary>
+        /// ScenicViewChanged. Player's scenic mode (On, !Establishing): zoom out to the wide frame and pan slowly; the
+        /// establishing shot (On, Establishing) cuts straight to the wide frame. Off: zoom back into the gameplay frame.
+        /// <paramref name="starNight"/> picks the wide frame when a zoom starts from the gameplay frame. Ignored on the title.
+        /// </summary>
+        public void SetScenic(bool on, bool establishing, bool starNight)
+        {
+            if (TitleMode) return;
+            if (on)
+            {
+                if (zoomT <= 0f) { scenicTime = 0f; wideStar = starNight; }
+                ScenicOn = true;
+                Establishing = establishing;
+                if (establishing) zoomT = 1f;
+            }
+            else
+            {
+                ScenicOn = false;
+                Establishing = false;
+            }
+        }
+
+        /// <summary>Drops the scenic view at once (title, scene reset): back on the gameplay frame next Tick.</summary>
+        public void ClearScenic()
+        {
+            ScenicOn = false;
+            Establishing = false;
+            zoomT = 0f;
+            scenicTime = 0f;
         }
 
         /// <summary>
@@ -66,7 +144,7 @@ namespace FloorF.Rendering
 
         public void SetTitle(bool on)
         {
-            if (on && !TitleMode) titleTime = 0f;
+            if (on && !TitleMode) { titleTime = 0f; ClearScenic(); }
             TitleMode = on;
         }
 
@@ -83,9 +161,16 @@ namespace FloorF.Rendering
 
         public static int TitlePanOffset(float time) => Mathf.RoundToInt(Mathf.Sin(time * Mathf.PI * 2f / TitlePanPeriod) * TitlePanPixels);
 
-        /// <summary>Advance on the juice clock (dt = 0 while paused holds the current offset).</summary>
-        public void Tick(float dt)
+        /// <summary>Juice clock only (shake / title pan); the scenic zoom does not move.</summary>
+        public void Tick(float dt) => Tick(dt, 0f);
+
+        /// <summary>
+        /// Advance: shake and title pan on the juice clock <paramref name="dt"/> (0 while paused holds them), the scenic
+        /// zoom and its pan on the UNSCALED clock <paramref name="cameraDt"/> (the scenic view pauses the game).
+        /// </summary>
+        public void Tick(float dt, float cameraDt)
         {
+            cameraDt = Mathf.Clamp(cameraDt, 0f, MaxCameraStep);
             if (shakeElapsed < shakeDuration)
             {
                 shakeElapsed += dt;
@@ -100,13 +185,31 @@ namespace FloorF.Rendering
                 frame = titleFrame;
                 pan = TitlePanOffset(titleTime);
             }
+            else
+            {
+                if (ScenicOn && zoomT < 1f) zoomT = Mathf.Min(1f, zoomT + cameraDt / ScenicOutSeconds);
+                else if (!ScenicOn && zoomT > 0f) zoomT = Mathf.Max(0f, zoomT - cameraDt / ScenicInSeconds);
+                if (zoomT > 0f)
+                {
+                    scenicTime += cameraDt;
+                    float e = ScenicZoom.Ease(zoomT);
+                    var wide = WideFrame;
+                    frame = ScenicZoom.LevelFrame(baseFrame, wide, ScenicZoom.Level(baseFrame, wide, e, targetHeight), targetHeight);
+                    pan = ScenicZoom.PanOffset(scenicTime, e, ScenicPanPixels, ScenicPanPeriod);
+                }
+                else scenicTime = 0f;
+            }
+            Level = ScenicZoom.Ppu(frame);
+            LevelStepped = !TitleMode && !prevTitle && Level != prevLevel;
+            prevLevel = Level;
+            prevTitle = TitleMode;
             OffsetPixels = new Vector2Int(shake.x + pan, shake.y);
             float unit = 1f / frame.PixelsPerUnit;
             var right = frame.Rotation * Vector3.right;
             var up = frame.Rotation * Vector3.up;
             var pos = frame.Position + right * (OffsetPixels.x * unit) + up * (OffsetPixels.y * unit);
             Current = frame.WithPosition(pos, targetHeight);
-            pipeline.ApplyFrame(Current);
+            pipeline?.ApplyFrame(Current);
         }
     }
 }

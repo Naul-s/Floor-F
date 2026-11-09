@@ -29,7 +29,9 @@ namespace FloorF.Rendering
         public const int BandCount = 4;
         public const string GlowShaderPath = "Rendering/Shaders/FloorF_PixelGlow";
 
-        public const int PassPrefilter = 0, PassBlurH = 1, PassBlurV = 2, PassComposite = 3, PassLightOnly = 4;
+        public const int PassPrefilter = 0, PassBlurH = 1, PassBlurV = 2, PassComposite = 3, PassLightOnly = 4, PassDissolve = 5;
+        static readonly int PrevTexId = Shader.PropertyToID("_PrevTex");
+        static readonly int MixId = Shader.PropertyToID("_Mix");
 
         /// <summary>Source weight from the max channel (gamma): lit windows (x..y) count z, bright emitters (Strong) fully.</summary>
         public static readonly Vector4 Weak = new Vector4(0.70f, 0.78f, 0.05f, 0f);
@@ -73,6 +75,31 @@ namespace FloorF.Rendering
         readonly Vector4[] poolColors = new Vector4[MaxPools];
         RenderTexture a, b, lit;
         bool enabled;
+        // ordered dissolve between two scenic zoom rungs: snapshot of what was shown + the mixed output
+        RenderTexture prev, mixed;
+        bool snapshotPending;
+        float dissolveElapsed, dissolveSeconds;
+
+        /// <summary>An ordered pixel dissolve from the previous zoom rung is on screen (<see cref="BeginDissolve"/>).</summary>
+        public bool Dissolving { get; private set; }
+        /// <summary>0..1: share of target pixels already showing the new rung.</summary>
+        public float DissolveMix => dissolveSeconds > 0f ? Mathf.Clamp01(dissolveElapsed / dissolveSeconds) : 1f;
+        /// <summary>Dissolves started so far (tests).</summary>
+        public int DissolvesStarted { get; private set; }
+        /// <summary>Output of the dissolve (null before the first one).</summary>
+        public RenderTexture DissolveTexture => mixed;
+
+        /// <summary>
+        /// Pure, mirrors the shader's pass 5: target pixel (x, y) already shows the new rung at <paramref name="mix"/>
+        /// (4x4 Bayer order: 1/16 of the pixels per step, evenly spread, no noise).
+        /// </summary>
+        public static bool DissolveShowsNew(int x, int y, float mix) => (BayerIndex(x, y) + 0.5f) / 16f < mix;
+
+        public static int BayerIndex(int x, int y)
+        {
+            int Bayer2(int u, int v) => 2 * System.Math.Abs(u - v) + v;
+            return 4 * Bayer2(x & 1, y & 1) + Bayer2((x >> 1) & 1, (y >> 1) & 1);
+        }
 
         /// <summary>Blurred light buffer (161x91, bilinear) - before gain, pools and banding.</summary>
         public RenderTexture GlowTexture => a;
@@ -95,8 +122,52 @@ namespace FloorF.Rendering
             set
             {
                 enabled = value;
-                screen.SetTexture(Enabled ? (Texture)lit : source, source.width, source.height);
+                if (!Enabled) StopDissolve();
+                screen.SetTexture(Shown, source.width, source.height);
             }
+        }
+
+        Texture Shown => !Enabled ? source : Dissolving && mixed != null ? mixed : (Texture)lit;
+
+        /// <summary>
+        /// Scenic zoom stepped to another rung: the next render snapshots what is on screen now and the new rung
+        /// replaces it in Bayer order over <paramref name="seconds"/> (unscaled). No-op while the lighting is off
+        /// (the rung then simply snaps).
+        /// </summary>
+        public void BeginDissolve(float seconds)
+        {
+            if (!Enabled || seconds <= 0f) return;
+            if (prev == null) prev = NewTarget("FloorF Dissolve From", source.width, source.height, FilterMode.Point);
+            if (mixed == null) mixed = NewTarget("FloorF Dissolve", source.width, source.height, FilterMode.Point);
+            // snapshot BEFORE switching the screen: Record copies the texture shown so far (lit, or a dissolve in flight)
+            snapshotPending = true;
+            snapshotFrom = Shown;
+            Dissolving = true;
+            dissolveElapsed = 0f;
+            dissolveSeconds = seconds;
+            DissolvesStarted++;
+            glow.SetFloat(MixId, 0f);
+            screen.SetTexture(Shown, source.width, source.height);
+        }
+
+        Texture snapshotFrom;
+
+        /// <summary>Unscaled clock: advances the dissolve, back to the plain lit target once it is complete.</summary>
+        public void TickDissolve(float dt)
+        {
+            if (!Dissolving) return;
+            if (!Enabled) { StopDissolve(); return; }
+            dissolveElapsed += Mathf.Max(0f, dt);
+            glow.SetFloat(MixId, DissolveMix);
+            if (dissolveElapsed >= dissolveSeconds && !snapshotPending) StopDissolve();
+        }
+
+        void StopDissolve()
+        {
+            if (!Dissolving) return;
+            Dissolving = false;
+            snapshotPending = false;
+            if (screen != null && source != null) screen.SetTexture(Shown, source.width, source.height);
         }
 
         public PixelGlow(RenderTexture source, Camera worldCamera, PixelScreen screen)
@@ -203,10 +274,18 @@ namespace FloorF.Rendering
         void Record()
         {
             cmd.Clear();
+            if (snapshotPending && snapshotFrom != null && prev != null)
+            {
+                // what the player saw last frame becomes the dissolve's "from" image (before lit is overwritten)
+                cmd.Blit(snapshotFrom, prev);
+                snapshotPending = false;
+                glow.SetTexture(PrevTexId, prev);
+            }
             cmd.Blit(source, a, glow, PassPrefilter);
             cmd.Blit(a, b, glow, PassBlurH);
             cmd.Blit(b, a, glow, PassBlurV);
             cmd.Blit(source, lit, glow, PassComposite);
+            if (Dissolving && mixed != null && prev != null) cmd.Blit(lit, mixed, glow, PassDissolve);
         }
 
         /// <summary>All passes right now (e.g. after an off-frame render of the world camera).</summary>
@@ -232,6 +311,8 @@ namespace FloorF.Rendering
             Release(ref a);
             Release(ref b);
             Release(ref lit);
+            Release(ref prev);
+            Release(ref mixed);
             if (glow != null) Object.Destroy(glow);
         }
 
