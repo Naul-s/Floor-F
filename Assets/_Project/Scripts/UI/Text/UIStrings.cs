@@ -35,6 +35,9 @@ namespace FloorF.UI
         public static readonly Loc Friday13Intro = new Loc("Today every UNLUCKY moment costs {0}x the Luck - and travelling 13 floors is unlucky for EVERYONE.",
             "오늘은 불길한 판정마다 운이 {0}배로 깎여요 - 그리고 13층을 이동하면 누구에게나 불길해요.");
 
+        /// <summary>Rainy day intro line (IDayQuery.IsRainy, presentation only).</summary>
+        public static readonly Loc RainIntro = new Loc("Rain tonight - thunder rolls in the distance.", "오늘 밤은 비 - 멀리서 천둥이 울려요.");
+
         // ---- star night (IDayQuery.IsStarNight, Day 7): 7 is lucky for everyone, wish stars
         /// <summary>Star-night rule-box line.</summary>
         public static readonly Loc RuleStarNight = new Loc("Star night: 7 = lucky for ALL", "별의 밤: 7 = 모두 행운");
@@ -103,7 +106,7 @@ namespace FloorF.UI
         public static readonly Loc Judgements = new Loc("Lucky / unlucky moments", "행운 / 불길 판정");
 
         // ---- shop
-        public static readonly Loc ShopTitle = new Loc("STICKER SHOP", "스티커 상점");
+        public static readonly Loc ShopTitle = new Loc("LUCKY SHOP", "행운 상점");
         public static readonly Loc ShopHint = new Loc("Pick a sticker, then click a glowing floor button.", "스티커를 고르고, 빛나는 층 버튼을 누르세요.");
         public static readonly Loc ShopPickFloor = new Loc("Now click a glowing floor button on the panel.", "이제 패널에서 빛나는 층 버튼을 누르세요.");
         public static readonly Loc PriceStock = new Loc("${0}   {1} left", "${0}   {1}개 남음");
@@ -117,6 +120,51 @@ namespace FloorF.UI
         public static readonly Loc ResultNotApplicable = new Loc("That sticker does not fit that floor.", "그 층에는 붙일 수 없습니다.");
         public static readonly Loc ResultOutOfStock = new Loc("Sold out.", "품절입니다.");
         public static readonly Loc ResultOther = new Loc("Can't do that now.", "지금은 할 수 없습니다.");
+        /// <summary>Card kind badges (StickerDef.kind) and the one-day tag on every card.</summary>
+        public static readonly Loc KindLabel = new Loc("STICKER", "스티커");
+        public static readonly Loc KindCharm = new Loc("CHARM", "부적");
+        public static readonly Loc OneDay = new Loc("1 DAY", "하루");
+        public static readonly Loc StockLeft = new Loc("{0} left", "{0}개 남음");
+        public static readonly Loc Owned = new Loc("BOUGHT", "구입함");
+        /// <summary>The staple (4 -> F for the real 4th floor): offered every visit, survives rerolls.</summary>
+        public static readonly Loc Staple = new Loc("always here", "항상 있음");
+        /// <summary>Shop hint: labels need a floor, charms are bought with one click (the 1 DAY tags + TOMORROW strip say how long).</summary>
+        public static readonly Loc ShopHintCharms = new Loc("Sticker: pick it, then a glowing floor. Charm: one click.",
+            "스티커: 고른 뒤 빛나는 층 버튼. 부적: 한 번 클릭.");
+        /// <summary>{0} = charm name.</summary>
+        public static readonly Loc CharmBoughtResult = new Loc("{0} bought - it works all of tomorrow!", "{0} 구입 - 내일 하루 동안 효과!");
+        public static readonly Loc ResultAlreadyActive = new Loc("Already active for tomorrow.", "이미 내일 효과가 있어요.");
+        public static readonly Loc ResultWrongKind = new Loc("Charms need no floor - just click the card.", "부적은 층이 필요 없어요 - 카드를 누르세요.");
+        /// <summary>{0} = cost, {1} = rerolls left.</summary>
+        public static readonly Loc Reroll = new Loc("REROLL ${0} ({1})", "다시 뽑기 ${0} ({1})");
+        public static readonly Loc RerollNone = new Loc("NO REROLLS LEFT", "다시 뽑기 끝");
+        /// <summary>Under the greyed reroll button. {0} = missing tips.</summary>
+        public static readonly Loc RerollNeed = new Loc("need +${0}", "${0} 부족");
+        public static readonly Loc RerollDone = new Loc("New offers!", "새 상품!");
+        public static readonly Loc Tomorrow = new Loc("TOMORROW", "내일");
+        public static readonly Loc TomorrowNone = new Loc("nothing yet", "아직 없음");
+
+        // ---- charms during the day (IShopService.ActiveCharms) + CharmTriggered
+        public static readonly Loc CharmsToday = new Loc("TODAY'S CHARMS", "오늘의 부적");
+        public static readonly Loc CharmUsed = new Loc("used", "사용함");
+        /// <summary>Shield pop near the guest. {0} = charm name.</summary>
+        public static readonly Loc CharmBlocked = new Loc("{0} blocked it!", "{0:이} 막았다!");
+        /// <summary>Any other charm effect that helped. {0} = charm name.</summary>
+        public static readonly Loc CharmHelped = new Loc("{0} helped!", "{0} 효과!");
+        /// <summary>Verdict word on the luck popup for an Unlucky verdict a shield ate.</summary>
+        public static readonly Loc BlockedWord = new Loc("BLOCKED!", "막았다!");
+        public static readonly Loc NoLuckLost = new Loc("no luck lost", "운 그대로");
+        /// <summary>Charm effect lines (StickerEffects). {0} = percent / count.</summary>
+        public static readonly Loc EffectPatience = new Loc("Guests wait {0}% longer", "손님이 {0}% 더 오래 기다림");
+        public static readonly Loc EffectSpeed = new Loc("Elevator {0}% faster", "엘리베이터 {0}% 빠르게");
+        public static readonly Loc EffectShieldOne = new Loc("Blocks the first UNLUCKY moment", "첫 불길 판정 1번을 막음");
+        public static readonly Loc EffectShieldN = new Loc("Blocks the first {0} UNLUCKY moments", "첫 불길 판정 {0}번을 막음");
+        public static readonly Loc EffectTips = new Loc("Tips +{0}%", "팁 +{0}%");
+
+        // ---- day end: one-day purchases ran out (StickersExpired)
+        public static readonly Loc StickersExpired = new Loc("Stickers and charms wore off - the shop has new ones.", "스티커와 부적은 오늘로 끝 - 상점에 새 상품이 있어요.");
+        public static readonly Loc StickersExpiredLabels = new Loc("Stickers wore off: every floor shows its real number again.", "스티커는 오늘로 끝: 모든 층이 원래 번호로 돌아갔어요.");
+        public static readonly Loc CharmsExpired = new Loc("Charms wore off.", "부적은 오늘로 끝.");
 
         // ---- endings
         public static readonly Loc EndProsperousTitle = new Loc("THE LUCKIEST HOTEL IN TOWN", "동네에서 가장 운 좋은 호텔");

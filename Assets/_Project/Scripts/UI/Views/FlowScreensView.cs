@@ -247,7 +247,8 @@ namespace FloorF.UI
             body.gameObject.SetActive(!string.IsNullOrEmpty(intro));
             // Day 0 teaches step by step in the game itself; the real Day 1 gets the list as a recap (hints on)
             bool howTo = !tutorial && ctx.Settings != null && ctx.Settings.ShowTutorialHints && ctx.Day.DisplayDay == 1;
-            extra.gameObject.SetActive(howTo || fridayCard || starCard);
+            bool rain = !tutorial && ctx.Day.IsRainy;
+            extra.gameObject.SetActive(howTo || fridayCard || starCard || rain);
             extra.text = "";
             if (howTo)
                 extra.text = "<b><color=#C9A15A>" + ctx.S(UIStrings.HowToTitle) + "</color></b>\n" +
@@ -265,8 +266,16 @@ namespace FloorF.UI
                 extra.text += (howTo ? "\n\n" : "") + "<color=" + StarInkHex + ">" + ctx.F(UIStrings.StarNightIntro, bonus) + "</color>";
                 if (!howTo) extra.alignment = TextAlignmentOptions.Center;
             }
+            if (rain)
+            {
+                // presentation only (rain + distant lightning): a quiet line under whatever the day says
+                extra.text += (extra.text.Length > 0 ? "\n" : "") + "<color=" + RainHex + ">" + ctx.S(UIStrings.RainIntro) + "</color>";
+                if (!howTo) extra.alignment = TextAlignmentOptions.Center;
+            }
             action.Label.text = ctx.S(UIStrings.Start);
         }
+
+        public const string RainHex = "#8FB8E8";
 
         public static readonly Color StarTitle = UIStyle.Hex("#FFF1B0");
         const string StarInkHex = "#DCD4FF";
@@ -315,6 +324,8 @@ namespace FloorF.UI
                 Row(ctx.S(UIStrings.LuckLine), N(s.LuckAtStart) + " → " + N(s.LuckAtEnd) + "  <color=" + luckColor + ">(" + UIFormat.Signed(s.LuckDelta) + ")</color>") + "\n" +
                 Row(ctx.S(UIStrings.Judgements), "<color=" + UIFormat.LuckyHex + ">" + N(s.LuckyJudgements) + "</color> / <color=" + UIFormat.UnluckyHex + ">" + N(s.UnluckyJudgements) + "</color>") + "\n" +
                 Row(ctx.S(UIStrings.BestStreak), (s.BestStreak > 0 ? "<color=" + UIFormat.LuckyHex + ">x" : "<color=#F4EEDC>x") + N(s.BestStreak) + "</color>");
+            string expired = ExpiredNote(ExpiredLabels, ExpiredCharms, ko);
+            if (expired != null) extra.text += "\n\n<color=" + UIFormat.ShieldHex + ">" + expired + "</color>";
             if (!tutorial) FillStamp(UIFormat.DayGrade(s));
             if (tutorial)
             {
@@ -324,6 +335,22 @@ namespace FloorF.UI
             }
             action.Label.text = ctx.S(UIStrings.Continue);
         }
+
+        /// <summary>StickersExpired of the day just ended (UIRoot sets it; a new Intro clears it). 0/0 = nothing to say.</summary>
+        public int ExpiredLabels, ExpiredCharms;
+
+        public void OnStickersExpired(StickersExpired e)
+        {
+            ExpiredLabels = e.Labels;
+            ExpiredCharms = e.Charms;
+            if (Shown == DayPhase.Summary) Refresh(); // it may arrive after the card is up
+        }
+
+        public static string ExpiredNote(int labels, int charms, bool ko) =>
+            labels > 0 && charms > 0 ? UIStrings.StickersExpired.Get(ko)
+            : labels > 0 ? UIStrings.StickersExpiredLabels.Get(ko)
+            : charms > 0 ? UIStrings.CharmsExpired.Get(ko)
+            : null;
 
         void FillEnding(bool ko)
         {

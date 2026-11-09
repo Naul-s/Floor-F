@@ -184,6 +184,8 @@ namespace FloorF.UI
                 case StickerApplyResult.NotEnoughTips: return UIStrings.ResultNotEnough.Get(ko);
                 case StickerApplyResult.NotApplicable: return UIStrings.ResultNotApplicable.Get(ko);
                 case StickerApplyResult.OutOfStock: return UIStrings.ResultOutOfStock.Get(ko);
+                case StickerApplyResult.WrongKind: return UIStrings.ResultWrongKind.Get(ko);
+                case StickerApplyResult.AlreadyActive: return UIStrings.ResultAlreadyActive.Get(ko);
                 default: return UIStrings.ResultOther.Get(ko);
             }
         }
@@ -194,6 +196,73 @@ namespace FloorF.UI
             if (s == null) return "?";
             string from = s.MatchesAnyLabel ? (ko ? "아무" : "any") : s.from.Trim();
             return from + " → " + (s.to ?? "").Trim();
+        }
+
+        /// <summary>
+        /// One glyph per charm effect (KS X 1001 symbols - Galmuri11 has them): shield ◈, patience ♥, speed ≫, tips $,
+        /// anything else ◆. Shown in front of the charm's name on cards, the Tomorrow strip and the HUD row.
+        /// </summary>
+        public static string CharmGlyph(string effect)
+        {
+            switch ((effect ?? "").Trim().ToLowerInvariant())
+            {
+                case StickerEffects.Shield: return "◈";
+                case StickerEffects.Patience: return "♥";
+                case StickerEffects.Speed: return "≫";
+                case StickerEffects.Tips: return "$";
+                default: return "◆";
+            }
+        }
+
+        /// <summary>Charm colour (hex) per effect: shield cyan, patience pink, speed green, tips gold, else violet.</summary>
+        public static string CharmHex(string effect)
+        {
+            switch ((effect ?? "").Trim().ToLowerInvariant())
+            {
+                case StickerEffects.Shield: return ShieldHex;
+                case StickerEffects.Patience: return "#FF8FB8";
+                case StickerEffects.Speed: return "#5BE37D";
+                case StickerEffects.Tips: return "#FFC83D";
+                default: return "#B79CFF";
+            }
+        }
+
+        public const string ShieldHex = "#7FDBFF";
+
+        /// <summary>How many Unlucky verdicts a shield charm eats (amount rounded, at least 1).</summary>
+        public static int ShieldCount(float amount) => System.Math.Max(1, (int)System.Math.Round(amount));
+
+        /// <summary>The charm's effect in a few words ("Tips +30%", "Blocks the first UNLUCKY moment"), "" for labels / unknown effects.</summary>
+        public static string CharmEffect(StickerDef s, bool ko)
+        {
+            if (s == null || !s.IsCharm) return "";
+            string pct = N((int)System.Math.Round(s.amount * 100f));
+            switch ((s.effect ?? "").Trim().ToLowerInvariant())
+            {
+                case StickerEffects.Patience: return string.Format(UIStrings.EffectPatience.Get(ko), pct);
+                case StickerEffects.Speed: return string.Format(UIStrings.EffectSpeed.Get(ko), pct);
+                case StickerEffects.Tips: return string.Format(UIStrings.EffectTips.Get(ko), pct);
+                case StickerEffects.Shield:
+                    int n = ShieldCount(s.amount);
+                    return n == 1 ? UIStrings.EffectShieldOne.Get(ko) : string.Format(UIStrings.EffectShieldN.Get(ko), N(n));
+                default: return "";
+            }
+        }
+
+        /// <summary>Reroll button label: "REROLL $20 (3)" or "NO REROLLS LEFT".</summary>
+        public static string RerollLabel(int cost, int left, bool ko) =>
+            left <= 0 ? UIStrings.RerollNone.Get(ko) : string.Format(UIStrings.Reroll.Get(ko), N(cost), N(left));
+
+        /// <summary>Shop result line for a charm purchase (TryBuy).</summary>
+        public static string CharmResult(StickerApplyResult r, string charmName, bool ko)
+        {
+            switch (r)
+            {
+                case StickerApplyResult.Applied: return KoreanParticles.Format(UIStrings.CharmBoughtResult.Get(ko), charmName);
+                case StickerApplyResult.AlreadyActive: return UIStrings.ResultAlreadyActive.Get(ko);
+                case StickerApplyResult.WrongKind: return UIStrings.ResultWrongKind.Get(ko);
+                default: return ApplyResult(r, "", "", ko);
+            }
         }
 
         /// <summary>

@@ -30,6 +30,7 @@ namespace FloorF.UI
         CurseView curse;
         WishView wish;
         DayBannerView banner;
+        CharmsView charms;
         bool built;
 
         void OnEnable()
@@ -40,7 +41,10 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<LuckChanged>(e => { if (built && !OnTitle) hud.OnLuckChanged(e); }));
             subs.Add(bus.Subscribe<TipsChanged>(e => { if (built && !OnTitle) hud.OnTipsChanged(e); }));
             subs.Add(bus.Subscribe<FloorLabelChanged>(e => { if (built) panel.RefreshLabel(e.Floor); }));
-            subs.Add(bus.Subscribe<LuckJudged>(e => { if (built && !OnTitle) { popups.OnLuckJudged(e); tutorial.OnLuckJudged(e); curse.OnLuckJudged(e); } }));
+            subs.Add(bus.Subscribe<CharmTriggered>(OnCharmTriggered));
+            subs.Add(bus.Subscribe<LuckJudged>(OnLuckJudged));
+            subs.Add(bus.Subscribe<ShopRerolled>(e => { if (built) shop.OnRerolled(); }));
+            subs.Add(bus.Subscribe<StickersExpired>(e => { if (built) flow.OnStickersExpired(e); }));
             subs.Add(bus.Subscribe<GuestSpoke>(OnGuestSpoke));
             subs.Add(bus.Subscribe<SettingsChanged>(e => RefreshLanguage()));
             subs.Add(bus.Subscribe<DayPhaseChanged>(OnPhaseChanged));
@@ -61,6 +65,30 @@ namespace FloorF.UI
 
         void OnDisable() => subs.Clear();
 
+        /// <summary>Guests whose NEXT Unlucky verdict a shield charm just ate (CharmTriggered comes right before it).</summary>
+        readonly System.Collections.Generic.Dictionary<GuestId, StickerId> shielded = new System.Collections.Generic.Dictionary<GuestId, StickerId>();
+
+        void OnCharmTriggered(CharmTriggered e)
+        {
+            if (!built || OnTitle) return;
+            charms.OnTriggered(e);
+            if (charms.IsShield(e.Charm)) shielded[e.Guest] = e.Charm;
+        }
+
+        void OnLuckJudged(LuckJudged e)
+        {
+            if (!built || OnTitle) return;
+            string shieldLine = null;
+            if (e.Verdict == LuckVerdict.Unlucky && shielded.TryGetValue(e.Guest, out var charm))
+            {
+                shielded.Remove(e.Guest);
+                shieldLine = charms.TriggerLine(charm);
+            }
+            popups.OnLuckJudged(e, shieldLine);
+            tutorial.OnLuckJudged(e);
+            if (shieldLine == null) curse.OnLuckJudged(e); // a blocked 6 costs nothing: no 666 alarm
+        }
+
         bool OnTitle => ctx.Phase == DayPhase.Title || (ctx.Menu != null && ctx.Menu.IsOnTitle);
 
         void Start()
@@ -79,6 +107,7 @@ namespace FloorF.UI
             wish = new WishView(ctx, rt); // click targets under the panel / HUD buttons; its Fx layer is raised below
             panel = new ElevatorPanelView(ctx, rt);
             hud = new HudView(ctx, rt, ToggleLanguage);
+            charms = new CharmsView(ctx, rt, hud);
             wish.Fx.SetAsLastSibling(); // hint, explain card, float-ups above the HUD boxes
             banner = new DayBannerView(ctx, rt);
             shop = new ShopView(ctx, rt, panel);
@@ -154,6 +183,8 @@ namespace FloorF.UI
             hud.SetVisible(!onTitle);
             panel.Tick(Time.unscaledTime);
             hud.Tick(dt);
+            charms.Tick(dt);
+            shielded.Clear(); // CharmTriggered + its LuckJudged come together in one gameplay step
             bubbles.Tick();
             popups.Tick(dt);
             curse.Tick(dt);
@@ -175,7 +206,9 @@ namespace FloorF.UI
             tutorial.Reset();
             curse.Reset();
             wish.Reset();
+            charms.Clear();
             flow.LastSpecialLine = null;
+            flow.ExpiredLabels = flow.ExpiredCharms = 0;
         }
 
         void OnGuestSpoke(GuestSpoke e)
@@ -198,7 +231,12 @@ namespace FloorF.UI
             if (e.Current == DayPhase.Ending) popups.ClearPopups(); // keep the last speech bubble behind the card
             else if (e.Current != DayPhase.Running) popups.Clear();
             if (e.Current != DayPhase.Running) curse.Clear();
-            if (e.Current == DayPhase.Intro) flow.LastSpecialLine = null;
+            if (e.Current == DayPhase.Intro || e.Current == DayPhase.Title)
+            {
+                flow.LastSpecialLine = null;
+                flow.ExpiredLabels = flow.ExpiredCharms = 0;
+                charms.Clear(); // a new day: shield counts start over
+            }
             if (e.Current == DayPhase.Intro || e.Current == DayPhase.Title) hud.ResetStreak(); // a new day starts at 0 silently
             // the attract demo replays a day behind the title: every tutorial day's lesson starts from wave 1
             tutorial.OnPhaseChanged(e);
@@ -215,6 +253,7 @@ namespace FloorF.UI
             panel.RefreshLanguage();
             hud.RefreshLanguage();
             shop.RefreshLanguage();
+            charms.RefreshLanguage();
             flow.Refresh();
             menu.OnSettingsChanged();
         }
@@ -254,6 +293,45 @@ namespace FloorF.UI
         internal float ShopDescriptionFontSize(int i) => shop.DescriptionFontSize(i);
         internal float ShopDescriptionContrast(int i) => shop.DescriptionContrast(i);
         internal string ShopDescriptionProblem() => shop.FirstDescriptionProblem(ctx.CanvasRect);
+        // shop rework (offers grid, reroll, tomorrow strip) / charms / original-floor marks
+        /// <summary>Test hook: replace the shop / building query the UI reads (fakes built on the contract). null = keep.</summary>
+        internal void OverrideServicesForTests(IShopService shopService = null, IBuildingQuery building = null)
+        {
+            if (shopService != null) ctx.Shop = shopService;
+            if (building != null) ctx.Building = building;
+            if (built) { panel.RefreshLabels(); shop.RefreshLanguage(); }
+        }
+        internal int ShopOfferIndex(string id) => shop.OfferIndex(id);
+        internal string ShopOfferId(int i) => shop.OfferId(i);
+        internal string ShopOfferHeadline(int i) => shop.OfferHeadline(i);
+        internal string ShopOfferKind(int i) => shop.OfferKind(i);
+        internal string ShopOfferDayTag(int i) => shop.OfferDayTag(i);
+        internal string ShopOfferSub(int i) => shop.OfferSub(i);
+        internal bool ShopOfferInteractable(int i) => shop.OfferInteractable(i);
+        internal float ShopOfferHeadlineSize(int i) => shop.OfferHeadlineSize(i);
+        internal void FocusShopOffer(int i) => shop.FocusOffer(i);
+        internal string ShopDetailText => shop.DetailText;
+        internal string ShopTomorrowText => shop.TomorrowText;
+        internal string ShopRerollText => shop.RerollText;
+        internal string ShopRerollReason => shop.RerollReason;
+        internal bool ShopRerollInteractable => shop.RerollInteractable;
+        internal void ClickShopReroll() => shop.ClickReroll();
+        internal Rect ShopCardRect => shop.CardRect(ctx.CanvasRect);
+        internal string OriginalMarkText(int floor) => panel.OriginalMarkText(floor);
+        internal Rect OriginalMarkRect(int floor) => UIBuild.CanvasRect(ctx.CanvasRect, panel.OriginalMarkRect(floor));
+        internal Rect FloorLabelRect(int floor) => UIBuild.CanvasRect(ctx.CanvasRect, panel.LabelRect(floor));
+        internal float FloorLabelTextWidth(int floor) => panel.LabelPreferredWidth(floor);
+        internal bool CharmsVisible => charms.Visible;
+        internal string CharmsText => charms.Text;
+        internal Rect CharmsRect => UIBuild.CanvasRect(ctx.CanvasRect, charms.Box);
+        internal string CharmsOverflow() => charms.Overflow(ctx.CanvasRect);
+        internal float CharmsMaxLineScale => charms.MaxLineScale;
+        internal bool CharmFloatVisible => charms.FloatVisible;
+        internal string CharmFloatText => charms.FloatText;
+        internal Rect CharmFloatRect => charms.FloatVisible ? UIBuild.CanvasRect(ctx.CanvasRect, charms.Float) : default;
+        internal Color LastPopupColor => popups.LastPopupColor;
+        internal Rect LastPopupRect => popups.LastPopupRect;
+        internal bool CurseShownForTests => curse.Visible;
         internal int ActivePopupCount => popups.ActivePopupCount;
         // rule 3 / 666 / Friday the 13th
         internal string ChipOdometer(GuestId g) => bubbles.Odometer(g);
