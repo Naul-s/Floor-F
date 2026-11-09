@@ -204,6 +204,8 @@ namespace FloorF.Tests.PlayMode.UI
             var hint = ui.ScenicHintRect;
             Assert.AreEqual(size.x * 0.5f, hint.center.x, 1f);
             Assert.Less(hint.yMax, 80f, "tiny, at the bottom");
+            yield return new WaitForSecondsRealtime(1.25f); // Rendering's 1.2 s zoom-out runs on real unscaled time
+            Assert.IsTrue(ui.ScenicHintVisible, "hint still up for the shot");
             yield return Day0Driver.Shot("ui_scenic_hint", true);
 
             // the hint fades after ~2 s, the view stays
@@ -340,8 +342,12 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(DayPhase.Intro, day.Phase, "still the intro");
             Assert.AreEqual(2, scenicEvents.Count);
             Assert.IsTrue(!scenicEvents[1].On && scenicEvents[1].Establishing);
-            Assert.IsFalse(ui.HudHidden);
             Assert.IsFalse(ui.CaptionVisible);
+            Assert.IsTrue(ui.HudHidden, "the card waits while the camera zooms back in");
+            Assert.AreEqual(false, ui.FlowEnterEnabled, "Enter still held while the card is not there");
+            yield return Settle(() => !ui.HudHidden, 30);
+            Assert.IsFalse(ui.HudHidden, "the card arrives as the camera lands");
+            Assert.LessOrEqual(ScenicView.LandHold, 0.9f, "no later than the 0.9 s zoom");
             yield return UITestDriver.Frames(2);
             Assert.AreEqual(true, ui.FlowEnterEnabled, "Enter is the flow key again");
 
@@ -371,7 +377,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(before + 1, scenicEvents.Count);
             Assert.IsFalse(scenicEvents[scenicEvents.Count - 1].On);
             Assert.AreEqual(DayPhase.Intro, ui.VisibleFlowScreen);
-            yield return Settle(() => ui.HudAlpha > 0.99f, 20);
+            Assert.IsTrue(ui.HudHidden, "landing");
+            yield return Settle(() => ui.HudAlpha > 0.99f, 40);
             Assert.Greater(ui.HudAlpha, 0.99f);
         }
 

@@ -23,6 +23,9 @@ namespace FloorF.UI
         public enum Mode { None, Scenic, Establishing }
         public const float HintHold = 1.6f, HintFade = 0.4f;
         public const float EstablishingTime = 2.6f, BarIn = 0.35f, CaptionIn = 0.35f, CaptionFade = 0.4f, BarH = 32f;
+        /// <summary>After ScenicViewChanged(false, true) Rendering zooms back in over ~0.9 s: the UI waits this long, then
+        /// fades in (UIRoot, 0.25 s) - the intro card arrives as the camera lands. Any press shortens the wait.</summary>
+        public const float LandHold = 0.65f;
         public const float ButtonSize = 40f;
         /// <summary>Eye icon (2 canvas units per pixel).</summary>
         static readonly string[] Eye =
@@ -47,7 +50,7 @@ namespace FloorF.UI
         Mode mode;
         bool fromPause, exitPending;
         int enteredFrame = -1, enterHeldUntilFrame = -1;
-        float hintAge = -1f, estAge = -1f;
+        float hintAge = -1f, estAge = -1f, landAge = -1f;
         int lastIntroDay = int.MinValue;
 
         public ScenicView(UIContext ctx, RectTransform canvas, RectTransform fxCanvas)
@@ -146,11 +149,11 @@ namespace FloorF.UI
 
         public Mode Current => mode;
         /// <summary>The HUD canvas is hidden (scenic view or establishing shot).</summary>
-        public bool HidesUi => mode != Mode.None;
+        public bool HidesUi => mode != Mode.None || landAge >= 0f;
         /// <summary>The pause card stays hidden while the scenic view uses the pause.</summary>
         public bool SuppressPauseMenu => mode == Mode.Scenic;
         /// <summary>Enter belongs to the UI (skip) until the frame after the shot ended.</summary>
-        public bool HoldsEnter => mode == Mode.Establishing || Time.frameCount <= enterHeldUntilFrame;
+        public bool HoldsEnter => mode == Mode.Establishing || landAge >= 0f || Time.frameCount <= enterHeldUntilFrame;
 
         bool OnTitle => ctx.Phase == DayPhase.Title || (ctx.Menu != null && ctx.Menu.IsOnTitle);
 
@@ -159,7 +162,7 @@ namespace FloorF.UI
             get
             {
                 var p = ctx.Phase;
-                return mode == Mode.None && ctx.Menu != null && ctx.HasGame && !OnTitle
+                return mode == Mode.None && landAge < 0f && ctx.Menu != null && ctx.HasGame && !OnTitle
                        && (p == DayPhase.Running || p == DayPhase.Intro || p == DayPhase.Summary || p == DayPhase.Shop);
             }
         }
@@ -206,7 +209,7 @@ namespace FloorF.UI
         public void OnPauseChanged(PauseChanged e)
         {
             if (mode == Mode.Scenic && !e.Paused) { fromPause = true; ExitScenic(); }
-            else if (mode == Mode.Establishing && e.Paused) EndEstablishing(); // Esc during the shot: the pause card over the intro
+            else if (mode == Mode.Establishing && e.Paused) EndEstablishing(land: false); // Esc during the shot: the pause card over the intro
         }
 
         void StartEstablishing()
@@ -222,11 +225,13 @@ namespace FloorF.UI
             GameServices.Events.Publish(new ScenicViewChanged(true, true));
         }
 
-        public void EndEstablishing()
+        /// <param name="land">wait for the camera to zoom back in before the UI returns (not when the Intro is gone / paused)</param>
+        public void EndEstablishing(bool land = true)
         {
             if (mode != Mode.Establishing) return;
             mode = Mode.None;
             estAge = -1f;
+            landAge = land ? 0f : -1f;
             enterHeldUntilFrame = Time.frameCount + 1;
             caption.gameObject.SetActive(false);
             topBar.gameObject.SetActive(false);
@@ -294,7 +299,8 @@ namespace FloorF.UI
             if (introDay != lastIntroDay)
             {
                 lastIntroDay = introDay;
-                if (mode == Mode.Establishing) EndEstablishing();
+                if (mode == Mode.Establishing) EndEstablishing(land: false);
+                landAge = -1f;
                 if (introDay != int.MinValue && UIFeatures.EstablishingShots && mode == Mode.None && !ctx.Day.IsTutorial && !ctx.Paused)
                     StartEstablishing();
             }
@@ -302,9 +308,17 @@ namespace FloorF.UI
             if (mode == Mode.Establishing)
             {
                 estAge += unscaledDt;
-                if (phase != DayPhase.Intro || estAge >= EstablishingTime) EndEstablishing();
+                if (phase != DayPhase.Intro) EndEstablishing(land: false);
+                else if (estAge >= EstablishingTime) EndEstablishing();
                 else if (press.Any && Time.frameCount > enteredFrame) { EndEstablishing(); used = true; }
                 else AnimateEstablishing();
+            }
+            else if (landAge >= 0f)
+            {
+                landAge += unscaledDt;
+                if (landAge >= LandHold || phase != DayPhase.Intro || ctx.Paused) landAge = -1f;
+                else if (press.Any) { landAge = -1f; used = true; }
+                if (landAge < 0f) enterHeldUntilFrame = Time.frameCount + 1;
             }
             else if (mode == Mode.Scenic)
             {
@@ -352,6 +366,7 @@ namespace FloorF.UI
         public RectTransform Caption => caption;
         public float CaptionAlpha => captionGroup.alpha;
         public float EstablishingAge => estAge;
+        public bool Landing => landAge >= 0f;
         /// <summary>Test hook: jump the establishing timer (seconds) and redraw.</summary>
         public void SetEstablishingAge(float t)
         {
