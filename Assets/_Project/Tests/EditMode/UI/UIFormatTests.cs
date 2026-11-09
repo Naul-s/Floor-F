@@ -80,7 +80,7 @@ namespace FloorF.Tests.EditMode.UI
         [Test]
         public void ShortNames_Curated()
         {
-            var en = new[] { "Lobby", "Dining", "Gym", "Karaoke", "Sauna", "Rooms", "Bar", "Casino", "Roof" };
+            var en = new[] { "Lobby", "Dining", "Gym", "Sing", "Sauna", "Rooms", "Bar", "Casino", "Roof" };
             var ko = new[] { "로비", "식당", "헬스", "노래방", "사우나", "객실", "바", "카지노", "옥상" };
             var ids = new[] { "lobby", "restaurant", "gym", "karaoke", "sauna", "rooms", "bar", "casino", "rooftop" };
             for (int i = 0; i < ids.Length; i++)

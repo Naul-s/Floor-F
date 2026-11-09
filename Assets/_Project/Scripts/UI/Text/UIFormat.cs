@@ -149,7 +149,7 @@ namespace FloorF.UI
                 { "lobby", new[] { "Lobby", "로비" } },
                 { "restaurant", new[] { "Dining", "식당" } },
                 { "gym", new[] { "Gym", "헬스" } },
-                { "karaoke", new[] { "Karaoke", "노래방" } },
+                { "karaoke", new[] { "Sing", "노래방" } },   // "Karaoke" is too wide for the panel badge at 24 px in Mulmaru; the mic icon carries it
                 { "sauna", new[] { "Sauna", "사우나" } },
                 { "rooms", new[] { "Rooms", "객실" } },
                 { "bar", new[] { "Bar", "바" } },

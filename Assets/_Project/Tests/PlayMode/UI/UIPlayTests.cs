@@ -459,7 +459,7 @@ namespace FloorF.Tests.PlayMode.UI
             {
                 // 24px unless neither the name nor its curated short name fits beside the icon (then 12, never cut)
                 Assert.IsNull(ui.FloorButtonLayoutProblem(f), "panel badge " + f);
-                if (ui.BadgeText(f) != "Karaoke") Assert.GreaterOrEqual(ui.BadgeFontSize(f), 24f, "panel badge " + f + " at 24px");
+                Assert.GreaterOrEqual(ui.BadgeFontSize(f), 24f, "panel badge " + f + " at 24px");
                 Assert.GreaterOrEqual(ui.BadgeText(f).Length, 3, "badge " + f + " readable: " + ui.BadgeText(f));
             }
             Assert.IsNull(ui.FirstOffGridOrForeignText(), "still on the 12px grid");
