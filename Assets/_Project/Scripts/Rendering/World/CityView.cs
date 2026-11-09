@@ -64,13 +64,13 @@ namespace FloorF.Rendering
         static readonly Color Dash = new Color(0.36f, 0.33f, 0.22f);
         static readonly Color Curb = new Color(0.25f, 0.25f, 0.26f);
         static readonly Color Pavement = new Color(0.19f, 0.185f, 0.19f);
-        static readonly Color LampPool = new Color(0.29f, 0.26f, 0.21f);
         static readonly Color Backlot = new Color(0.11f, 0.11f, 0.12f);
         static readonly Color PoleColor = new Color(0.16f, 0.17f, 0.19f);
         static readonly Color LampOn = new Color(1.00f, 0.88f, 0.60f);
         static readonly Color LampOff = new Color(0.32f, 0.28f, 0.22f);
 
-        static readonly Color[] WindowWarm = { new Color(0.82f, 0.65f, 0.36f), new Color(0.88f, 0.74f, 0.44f), new Color(0.70f, 0.78f, 0.92f) * 0.8f, new Color(0.42f, 0.55f, 0.95f) * 0.7f };
+        // lit windows stay under the lighting's strong range (PixelGlow.Strong, gamma 0.8): a calm facade, no halo per window
+        static readonly Color[] WindowWarm = { new Color(0.78f, 0.62f, 0.34f), new Color(0.79f, 0.67f, 0.40f), new Color(0.70f, 0.78f, 0.92f) * 0.8f, new Color(0.42f, 0.55f, 0.95f) * 0.7f };
 
         readonly PaletteAtlas atlas;
         readonly LivingLights lights;
@@ -84,9 +84,20 @@ namespace FloorF.Rendering
         public int WindowCount { get; private set; }
         /// <summary>Shops, signs, rooftops, fire escapes... (null before Build).</summary>
         public CityDressing Dressing { get; private set; }
+        /// <summary>Authored light pools: street lamps on the sidewalk, shop neon on the pavement (after Build).</summary>
+        public readonly List<PixelGlow.LightPool> LightPools = new List<PixelGlow.LightPool>();
         readonly float pixelsPerUnit;
+        readonly TexelLedger ledger = new TexelLedger();
+        readonly Dictionary<int, Mesh> meshes = new Dictionary<int, Mesh>();
+        MeshFilter filter;
+        float hotelFrontZ;
 
-        /// <param name="pixelsPerUnit">Gameplay frame's pixels per unit: neon letters are whole pixels of it.</param>
+        /// <summary>Pixels per unit the active city mesh was built for (one mesh per frame zoom, built on first use).</summary>
+        public int ActivePixelsPerUnit { get; private set; }
+        public int MeshVariants => meshes.Count;
+        public Mesh ActiveMesh => filter != null ? filter.sharedMesh : null;
+
+        /// <param name="pixelsPerUnit">Gameplay frame's pixels per unit (first build); other zooms rebuild on <see cref="ApplyPixelGrid"/>.</param>
         public CityView(Transform parent, PaletteAtlas atlas, LivingLights lights, Vector2 shear, float shearDepth, float pixelsPerUnit = 11f)
         {
             this.atlas = atlas;
@@ -96,6 +107,27 @@ namespace FloorF.Rendering
             z0 = shearDepth;
             Root = new GameObject("City").transform;
             Root.SetParent(parent, false);
+        }
+
+        static int Key(float ppu) => Mathf.Max(1, Mathf.RoundToInt(ppu));
+
+        /// <summary>
+        /// The active frame's pixel grid (gameplay or zoomed-out title): the city mesh built for that many pixels per unit
+        /// (1-px details and every neon font texel are whole pixels of THIS frame). Same palette texels and lights - the
+        /// rebuild replays the first build's allocations - so switching is a mesh swap, no new lights.
+        /// </summary>
+        public void ApplyPixelGrid(PixelGrid g)
+        {
+            if (filter == null) return;
+            int key = Key(g.PixelsPerUnit);
+            if (key == ActivePixelsPerUnit) return;
+            if (!meshes.TryGetValue(key, out var mesh))
+            {
+                mesh = BuildMesh(key, replay: true);
+                meshes[key] = mesh;
+            }
+            filter.sharedMesh = mesh;
+            ActivePixelsPerUnit = key;
         }
 
         /// <summary>Neon hum + sign stutters (juice clock + prewarm).</summary>
@@ -109,7 +141,24 @@ namespace FloorF.Rendering
 
         public void Build(float hotelFrontZ)
         {
+            this.hotelFrontZ = hotelFrontZ;
+            int key = Key(pixelsPerUnit);
+            var mesh = BuildMesh(key, replay: false);
+            meshes[key] = mesh;
+            Renderer = PaletteRenderer.Create(Root, "City Mesh", mesh, atlas.Material);
+            filter = Renderer.GetComponent<MeshFilter>();
+            ActivePixelsPerUnit = key;
+        }
+
+        /// <summary>
+        /// One city mesh for <paramref name="ppu"/> pixels per unit. The first build allocates the lights / neon texels
+        /// and records them; a replay build gets the same texels back in the same order (nothing allocated, counted twice).
+        /// </summary>
+        Mesh BuildMesh(int ppu, bool replay)
+        {
+            if (replay) ledger.Replay();
             var b = new PaletteMeshBuilder(atlas);
+            float px = 1f / ppu;
             float g = RenderingStyle.GroundY, road = RenderingStyle.RoadY, curb = RenderingStyle.CurbZ;
             float half = RenderingStyle.StreetHalfLength + 12f;
 
@@ -123,27 +172,31 @@ namespace FloorF.Rendering
             int dash = atlas.Static(Dash);
             for (float x = -half; x < half; x += 4f) b.Flat(x, dashZ - 0.3f, x + 1.6f, dashZ + 0.3f, road + 0.004f, dash);
 
-            // street lamps: pool of light on the pavement, pole, arm, lamp head (a living light)
+            // street lamps: pole, arm, lamp head (a living light); the pool on the sidewalk is a banded light (PixelGlow)
             int pole = atlas.Static(PoleColor);
             float lampZ = curb + 0.25f;
             foreach (int sx in LampXs)
             {
                 float x = WX(sx, lampZ);
-                b.Flat(x - 1.3f, curb + 0.02f, x + 1.3f, hotelFrontZ - 0.05f, g + 0.003f, atlas.Static(LampPool));
                 b.Box(new Vector3(x - 0.06f, g, lampZ - 0.06f), new Vector3(x + 0.06f, g + 3.4f, lampZ + 0.06f), pole, pole, pole);
                 b.Box(new Vector3(x - 0.06f, g + 3.3f, lampZ - 0.06f), new Vector3(x + 0.6f, g + 3.42f, lampZ + 0.06f), pole, pole, pole);
-                int head = lights.Add(LivingLights.Kind.Lamp, LampOn, LampOff);
+                int head = ledger.Take(() => lights.Add(LivingLights.Kind.Lamp, LampOn, LampOff));
                 b.Box(new Vector3(x + 0.3f, g + 3.12f, lampZ - 0.12f), new Vector3(x + 0.72f, g + 3.3f, lampZ + 0.12f), head, pole, head);
+                // warm pool under the head: the sidewalk, the curb and the shop fronts behind the lamp
+                if (!replay) LightPools.Add(new PixelGlow.LightPool(new Vector3(x + 0.5f, g + 0.15f, lampZ), new Vector2(2.6f, 1.25f), LampPoolLight));
             }
 
-            Dressing = new CityDressing(atlas, lights, WX, WY, pixelsPerUnit);
-            for (int i = 0; i < Blocks.Length; i++) BuildBlock(b, Blocks[i], i);
-
-            var mesh = b.Build("City");
-            Renderer = PaletteRenderer.Create(Root, "City Mesh", mesh, atlas.Material);
+            var dressing = new CityDressing(atlas, lights, ledger, WX, WY, ppu);
+            if (!replay) Dressing = dressing;
+            for (int i = 0; i < Blocks.Length; i++) BuildBlock(b, Blocks[i], i, dressing, px, replay);
+            if (!replay) LightPools.AddRange(dressing.Spills);
+            return b.Build("City " + ppu + "ppu");
         }
 
-        void BuildBlock(PaletteMeshBuilder b, in Block blk, int index)
+        /// <summary>Light of a street lamp's pool (hue x intensity, see PixelGlow.LightPool).</summary>
+        static readonly Color LampPoolLight = new Color(1.00f, 0.80f, 0.48f) * 0.45f;
+
+        void BuildBlock(PaletteMeshBuilder b, in Block blk, int index, CityDressing dressing, float px, bool replay)
         {
             var look = index < CityDressing.Looks.Length ? CityDressing.Looks[index] : default;
             float g = RenderingStyle.GroundY;
@@ -154,7 +207,7 @@ namespace FloorF.Rendering
             float x0 = WX(blk.X0, z), x1 = WX(blk.X1, z);
             float yTop = WY(top, z);
             b.Box(new Vector3(x0, g, z), new Vector3(x1, yTop, z + depth), blk.Color);
-            BuildingRects.Add(Rect.MinMaxRect(blk.X0, g + shear.y * (z - z0), blk.X1 + shear.x * depth, top + shear.y * depth));
+            if (!replay) BuildingRects.Add(Rect.MinMaxRect(blk.X0, g + shear.y * (z - z0), blk.X1 + shear.x * depth, top + shear.y * depth));
             // roof cap strip (lighter) and a few rooftop boxes
             var cap = PaletteMeshBuilder.Top(blk.Color);
             b.Front(x0, yTop - 0.2f, x1, yTop, z - 0.01f, atlas.Static(cap));
@@ -174,20 +227,47 @@ namespace FloorF.Rendering
             int firstRow = !shop ? 1 : look.Shop == CityDressing.Shop.Lotto ? 5 : 3; // shop front (+ the 로또 neon) on the ground floor
             int sill = back ? -1 : atlas.Static(PaletteMeshBuilder.Top(blk.Color));
             int mullion = atlas.Static(blk.Color * 0.8f);
-            float px = 1f / Mathf.Max(1f, pixelsPerUnit);
             for (int y = Mathf.CeilToInt(g) + firstRow; y + 1 <= top - 1; y += 2)
                 for (int x = blk.X0 + 1; x + winW <= blk.X1 - 1; x += pitch)
                 {
                     float hue = LightSchedule.Hash(RenderingStyle.CitySeed, x * 97 + y, 13, 0);
                     var on = WindowWarm[hue < 0.55f ? 0 : hue < 0.8f ? 1 : hue < 0.93f ? 2 : 3] * (back ? 0.8f : 1f);
-                    int texel = lights.Add(LivingLights.Kind.Window, on, off, onRatio);
+                    int texel = ledger.Take(() => lights.Add(LivingLights.Kind.Window, on, off, onRatio));
                     b.Front(WX(x, wz), WY(y, wz), WX(x + winW, wz), WY(y + 1, wz), wz, texel);
                     // near row: a 1-px sill under each window, a mullion splitting the wide ones
                     if (sill >= 0) b.Front(WX(x - px, wz - 0.002f), WY(y - px, wz - 0.002f), WX(x + winW + px, wz - 0.002f), WY(y, wz - 0.002f), wz - 0.002f, sill);
-                    if (winW == 2 && !back) b.Front(WX(x + 1 - px * 0.5f, wz - 0.002f), WY(y, wz - 0.002f), WX(x + 1 + px * 0.5f, wz - 0.002f), WY(y + 1, wz - 0.002f), wz - 0.002f, mullion);
-                    WindowCount++;
+                    if (winW == 2 && !back) b.Front(WX(x + 1, wz - 0.002f), WY(y, wz - 0.002f), WX(x + 1 + px, wz - 0.002f), WY(y + 1, wz - 0.002f), wz - 0.002f, mullion);
+                    if (!replay) WindowCount++;
                 }
-            Dressing.Dress(b, blk, look, g, top, depth, index);
+            dressing.Dress(b, blk, look, g, top, depth, index);
         }
+    }
+
+    /// <summary>
+    /// Records the palette texels a build allocates (lights, neon) so a rebuild of the same geometry at another zoom gets
+    /// exactly the same texels back in the same order instead of allocating new ones.
+    /// </summary>
+    sealed class TexelLedger
+    {
+        readonly List<int> ids = new List<int>();
+        int cursor = -1;
+
+        public bool Replaying => cursor >= 0;
+        public int Count => ids.Count;
+
+        public int Take(System.Func<int> allocate)
+        {
+            if (cursor < 0)
+            {
+                int t = allocate();
+                ids.Add(t);
+                return t;
+            }
+            if (cursor >= ids.Count) throw new System.InvalidOperationException("rebuild allocates more texels than the first build");
+            return ids[cursor++];
+        }
+
+        /// <summary>Next Take calls return the recorded texels from the start.</summary>
+        public void Replay() => cursor = 0;
     }
 }
