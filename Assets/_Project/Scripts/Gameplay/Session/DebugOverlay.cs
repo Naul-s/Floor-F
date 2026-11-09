@@ -7,27 +7,92 @@ using UnityEngine.InputSystem;
 namespace FloorF.Gameplay
 {
     /// <summary>
-    /// Editor/development-only text readout (IMGUI) so the rules can be played before the real HUD exists.
-    /// Hidden by default; F1 toggles it. While shown, in the Shop, B buys the first affordable offer (a charm, or a label onto the first floor it fits - prefers the real 4th), R rerolls.
-    /// Not shown in release builds; not part of the UI module.
+    /// Hand-testing aid, present in EVERY build (WebGL release included) but inert until debug mode is switched on
+    /// deliberately (Ctrl+Shift+D, or typing L-U-C-K-Y). See <see cref="DebugCheats"/> for the gate and the key map.
+    /// While debug mode is on a small "DEBUG" tag shows in the top-right corner (with the last cheat for a moment).
+    /// F1 toggles the IMGUI text readout (release builds: only in debug mode; Editor/dev builds: always) which then lists
+    /// the debug keys too. While the readout is shown, in the Shop, B buys the first affordable offer (a charm, or a label
+    /// onto the first floor it fits - prefers the real 4th), R rerolls. Not part of the UI module.
     /// </summary>
     sealed class DebugOverlay : MonoBehaviour
     {
-        GameSession session;
-        bool visible; // hidden by default (the real HUD is the UI module); F1 shows it
-        readonly StringBuilder sb = new StringBuilder(512);
-        readonly List<GuestId> buffer = new List<GuestId>();
-        GUIStyle style;
+        const float LastActionSeconds = 2.5f;
 
-        internal void Bind(GameSession s) => session = s;
+        // Key.Digit0 comes AFTER Digit9 in the Input System enum: explicit tables for days 0..7
+        static readonly Key[] DigitKeys = { Key.Digit0, Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5, Key.Digit6, Key.Digit7 };
+        static readonly Key[] NumpadKeys = { Key.Numpad0, Key.Numpad1, Key.Numpad2, Key.Numpad3, Key.Numpad4, Key.Numpad5, Key.Numpad6, Key.Numpad7 };
+
+        GameSession session;
+        DebugCheats cheats;
+        readonly StringBuilder sb = new StringBuilder(1024);
+        readonly List<GuestId> buffer = new List<GuestId>();
+        readonly List<DebugKey> pressed = new List<DebugKey>(8);
+        readonly List<char> letters = new List<char>(4);
+        GUIStyle style, tagStyle;
+        int shownActionCount;
+        float actionShownUntil;
+
+        internal DebugCheats Cheats => cheats;
+
+        internal void Bind(GameSession s)
+        {
+            session = s;
+            cheats = new DebugCheats(s, Application.isEditor || Debug.isDebugBuild);
+        }
 
         void Update()
         {
             var kb = Keyboard.current;
             if (kb == null || session == null) return;
-            if (kb.f1Key.wasPressedThisFrame) visible = !visible;
-            if (visible && kb.bKey.wasPressedThisFrame && session.IsOpen) BuyFirst();
-            if (visible && kb.rKey.wasPressedThisFrame && session.IsOpen) session.Reroll();
+            if (kb.anyKey.wasPressedThisFrame) ReadKeys(kb);
+            else { pressed.Clear(); letters.Clear(); }
+            bool wasEnabled = cheats.Enabled;
+            Feed(kb.ctrlKey.isPressed, kb.shiftKey.isPressed, kb.altKey.isPressed, pressed, letters);
+            if (cheats.Enabled != wasEnabled) Debug.Log("[Gameplay] " + cheats.LastAction);
+            if (cheats.OverlayVisible && session.IsOpen && !kb.shiftKey.isPressed && !kb.ctrlKey.isPressed)
+            {
+                if (kb.bKey.wasPressedThisFrame) BuyFirst();
+                if (kb.rKey.wasPressedThisFrame) session.Reroll();
+            }
+        }
+
+        /// <summary>One frame of (already mapped) input; PlayMode tests call this directly.</summary>
+        internal void Feed(bool ctrl, bool shift, bool alt, IReadOnlyList<DebugKey> keys, IReadOnlyList<char> typed)
+        {
+            if (cheats == null) return;
+            cheats.Handle(ctrl, shift, alt, keys, typed);
+            if (cheats.ActionCount != shownActionCount)
+            {
+                shownActionCount = cheats.ActionCount;
+                actionShownUntil = Time.unscaledTime + LastActionSeconds;
+            }
+        }
+
+        void ReadKeys(Keyboard kb)
+        {
+            pressed.Clear();
+            letters.Clear();
+            for (var k = Key.A; k <= Key.Z; k++)
+                if (kb[k].wasPressedThisFrame) letters.Add((char)('A' + (k - Key.A)));
+            for (int i = 0; i < DigitKeys.Length; i++)
+                if (kb[DigitKeys[i]].wasPressedThisFrame || kb[NumpadKeys[i]].wasPressedThisFrame) pressed.Add(DebugKey.Digit0 + i);
+            Add(kb.dKey, DebugKey.D);
+            Add(kb.f1Key, DebugKey.F1);
+            Add(kb.pKey, DebugKey.P);
+            Add(kb.mKey, DebugKey.M);
+            Add(kb.gKey, DebugKey.G);
+            Add(kb.fKey, DebugKey.F);
+            Add(kb.tKey, DebugKey.T);
+            Add(kb.nKey, DebugKey.N);
+            Add(kb.xKey, DebugKey.X);
+            Add(kb.rKey, DebugKey.R);
+            if (kb.equalsKey.wasPressedThisFrame || kb.numpadPlusKey.wasPressedThisFrame) pressed.Add(DebugKey.Plus);
+            if (kb.minusKey.wasPressedThisFrame || kb.numpadMinusKey.wasPressedThisFrame) pressed.Add(DebugKey.Minus);
+        }
+
+        void Add(UnityEngine.InputSystem.Controls.KeyControl key, DebugKey mapped)
+        {
+            if (key.wasPressedThisFrame) pressed.Add(mapped);
         }
 
         void BuyFirst()
@@ -44,7 +109,9 @@ namespace FloorF.Gameplay
 
         void OnGUI()
         {
-            if (!visible || session == null || !session.HasStarted) return;
+            if (session == null || cheats == null) return;
+            if (cheats.Enabled) DrawTag();
+            if (!cheats.OverlayVisible || !session.HasStarted) return;
             if (style == null) style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 12, richText = false };
             var e = session.Elevator;
             var b = session.Building;
@@ -86,7 +153,21 @@ namespace FloorF.Gameplay
                     break;
                 case DayPhase.Ending: sb.Append("ENDING: ").Append(session.Ending).Append("\n[Enter] play again"); break;
             }
-            GUI.Box(new Rect(8, 8, 330, 24 + 15 * (8 + b.FloorCount)), sb.ToString(), style);
+            if (cheats.Enabled) sb.Append("\n\n").Append(DebugCheats.HelpText);
+            int lines = 1;
+            for (int i = 0; i < sb.Length; i++) if (sb[i] == '\n') lines++;
+            GUI.Box(new Rect(8, 8, 380, 12 + 15 * lines), sb.ToString(), style);
+        }
+
+        /// <summary>Small unobtrusive tag in the top-right corner while debug mode is on.</summary>
+        void DrawTag()
+        {
+            if (tagStyle == null)
+                tagStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperRight, fontSize = 11, fontStyle = FontStyle.Bold, normal = { textColor = new Color(1f, 0.35f, 0.3f, 0.85f) } };
+            string text = Time.unscaledTime < actionShownUntil && !string.IsNullOrEmpty(cheats.LastAction)
+                ? "DEBUG  " + cheats.LastAction
+                : "DEBUG";
+            GUI.Label(new Rect(Screen.width - 408, 2, 400, 18), text, tagStyle);
         }
     }
 }
