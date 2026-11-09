@@ -16,7 +16,7 @@ namespace FloorF.UI
         static string N(int v) => v.ToString(CultureInfo.InvariantCulture);
 
         /// <summary>
-        /// Rich text for a guest's numbers: lucky in gold, unlucky in red + strikethrough ("3 <s>4</s>").
+        /// Rich text for a guest's numbers: lucky in gold, unlucky in red (colour alone: no strikethrough).
         /// Mystery guests (hideNumbers) show "?". A guest without numbers shows "-".
         /// </summary>
         public static string Numbers(LuckProfile luck, bool hide) => Numbers(luck, hide, false);
@@ -45,7 +45,7 @@ namespace FloorF.UI
                     continue;
                 }
                 if (sb.Length > 0) sb.Append(' ');
-                sb.Append("<color=").Append(UnluckyHex).Append("><s>").Append(N(luck.Unlucky[i])).Append("</s></color>");
+                sb.Append("<color=").Append(UnluckyHex).Append('>').Append(N(luck.Unlucky[i])).Append("</color>");
             }
             return sb.Length == 0 ? "-" : sb.ToString();
         }

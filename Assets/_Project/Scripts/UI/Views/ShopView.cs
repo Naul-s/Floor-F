@@ -381,6 +381,9 @@ namespace FloorF.UI
             tips.text = ctx.S(UIStrings.Tips) + "  $" + Tips.ToString(CultureInfo.InvariantCulture);
             signature = Signature();
             LayoutRebuilder.ForceRebuildLayoutImmediate(card);
+            // the button row is a layout group: on the first open its buttons only get their width in the rebuild above
+            // (a fresh RectTransform is 100 wide - "REROLL $20 (3)" fitted to 12px until the next refresh)
+            UIBuild.Fit(reroll.Label, 24f);
         }
 
         void RefreshCells()
@@ -567,8 +570,7 @@ namespace FloorF.UI
             int left = ctx.Shop.RerollsLeft, cost = ctx.Shop.RerollCost;
             bool none = left <= 0, broke = !none && Tips < cost;
             reroll.Label.text = UIFormat.RerollLabel(cost, left, ctx.Korean);
-            reroll.Label.rectTransform.offsetMin = new Vector2(4f, broke ? 14f : 4f); // room for the reason line
-            UIBuild.Fit(reroll.Label, 24f);
+            reroll.Label.rectTransform.offsetMin = new Vector2(4f, broke ? 14f : 4f); // room for the reason line (fitted after the layout pass)
             rerollSub.text = broke ? string.Format(ctx.S(UIStrings.RerollNeed), (cost - Tips).ToString(CultureInfo.InvariantCulture)) : "";
             rerollSub.gameObject.SetActive(broke);
             bool can = !none && !broke;

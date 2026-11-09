@@ -256,7 +256,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(TutorialView.Step.Chips, ui.TutorialStep, "explain the rider chip");
             Assert.AreEqual("Chips", ui.TutorialTarget);
             StringAssert.Contains(">3<", ui.TutorialPrompt, "her lucky number, in gold");
-            StringAssert.Contains("4</s>", ui.TutorialPrompt, "her unlucky number, red + struck");
+            StringAssert.Contains(UIFormat.UnluckyHex + ">4<", ui.TutorialPrompt, "her unlucky number, in red");
+            StringAssert.DoesNotContain("<s>", ui.TutorialPrompt, "no strikethrough");
             if (en) { StringAssert.Contains("LUCKY", ui.TutorialPrompt); StringAssert.Contains("UNLUCKY", ui.TutorialPrompt); }
             Day0Driver.AssertArrowOn(ui, ui.TutorialTargetRect, "chips");
             Day0Driver.AssertExplainCoach(ui, "chips");

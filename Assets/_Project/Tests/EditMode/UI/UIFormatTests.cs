@@ -8,12 +8,13 @@ namespace FloorF.Tests.EditMode.UI
     public class UIFormatTests
     {
         [Test]
-        public void Numbers_LuckyGold_UnluckyRedStruck()
+        public void Numbers_LuckyGold_UnluckyRed_NoStrike()
         {
             var s = UIFormat.Numbers(LuckProfile.Of(new[] { 8, 9 }, new[] { 4 }), hide: false);
             StringAssert.Contains("<color=" + UIFormat.LuckyHex + ">8</color>", s);
             StringAssert.Contains("<color=" + UIFormat.LuckyHex + ">9</color>", s);
-            StringAssert.Contains("<color=" + UIFormat.UnluckyHex + "><s>4</s></color>", s);
+            StringAssert.Contains("<color=" + UIFormat.UnluckyHex + ">4</color>", s);
+            StringAssert.DoesNotContain("<s>", s, "red alone marks unlucky: no strikethrough");
             Assert.Less(s.IndexOf(">8<"), s.IndexOf(">4<"), "lucky first");
         }
 

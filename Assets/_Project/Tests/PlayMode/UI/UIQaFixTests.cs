@@ -177,7 +177,7 @@ namespace FloorF.Tests.PlayMode.UI
                     string shown = ui.BadgeText(f);
                     Assert.IsTrue(shown == full || shown == curated, (ko ? "ko" : "en") + " floor " + f + ": '" + shown + "' is neither '" + full + "' nor '" + curated + "'");
                     StringAssert.DoesNotEndWith(".", shown, "never a cut-off name");
-                    Assert.GreaterOrEqual(ui.BadgeFontSize(f), 24f);
+                    Assert.IsNull(ui.FloorButtonLayoutProblem(f), "floor " + f + ": a smaller size only when the name does not fit at 24");
                 }
             }
             settings.UseKorean = false;

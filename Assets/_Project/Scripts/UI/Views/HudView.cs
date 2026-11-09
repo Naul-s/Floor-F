@@ -28,10 +28,10 @@ namespace FloorF.UI
         readonly Image rulesEdge, rulesFill, fridayEdge, starEdge;
         bool friday, starNight;
         /// <summary>Star night: pale starlight ink, violet edge, deep-blue box.</summary>
-        public static readonly Color StarInk = UIStyle.Hex("#DCD4FF"), StarEdge = UIStyle.Hex("#8C6CFF"), StarBoxFill = new Color(0.03f, 0.03f, 0.11f, 0.95f);
+        public static readonly Color StarInk = UIStyle.Hex("#DCD4FF"), StarEdge = UIStyle.Hex("#8C6CFF"), StarBoxFill = new Color(0.03f, 0.03f, 0.11f, 1f);
         /// <summary>Friday line ink: a lighter red that reads on the dark box (UIStyle.Unlucky is the edge).</summary>
         public static readonly Color FridayInk = UIStyle.Hex("#FF7A7A");
-        static readonly Color FridayBoxFill = new Color(0.07f, 0.015f, 0.02f, 0.97f);
+        static readonly Color FridayBoxFill = new Color(0.07f, 0.015f, 0.02f, 1f);
         readonly TextMeshProUGUI streakText;
         readonly Image streakEdge;
         int streak;
@@ -94,7 +94,7 @@ namespace FloorF.UI
             streakBox.gameObject.SetActive(false);
 
             // rule reminder (right, under the streak slot)
-            rulesEdge = UIBuild.Framed("RulesBox", canvas, UIStyle.Box, RulesEdgeColor, 2f);
+            rulesEdge = UIBuild.Framed("RulesBox", canvas, RulesFill, RulesEdgeColor, 2f);
             rulesBox = rulesEdge.rectTransform;
             rulesFill = rulesBox.GetChild(0).GetComponent<Image>();
             UIBuild.Place(rulesBox, new Vector2(1f, 1f), new Vector2(-24f, -RulesTop), new Vector2(MeterW + 32f, RulesH));
@@ -141,7 +141,9 @@ namespace FloorF.UI
             RefreshLanguage();
         }
 
-        static readonly Color RulesEdgeColor = new Color(1f, 1f, 1f, 0.15f);
+        /// <summary>Opaque like the charms box: the lit city windows behind the HUD showed through the translucent fill/edge
+        /// as dark and bright squares in the rule text.</summary>
+        static readonly Color RulesFill = new Color(0.05f, 0.055f, 0.08f, 1f), RulesEdgeColor = new Color(0.19f, 0.2f, 0.22f, 1f);
 
         float Friday13Multiplier => ctx.Data != null ? ctx.Data.Rules.friday13PenaltyMultiplier : 1.5f;
 
@@ -162,7 +164,7 @@ namespace FloorF.UI
                 ruleLegend.rectTransform.anchoredPosition = new Vector2(14f, extra ? -102f - Friday13LineH : -102f);
                 rulesBox.sizeDelta = new Vector2(MeterW + 32f, extra ? RulesH + Friday13LineH : RulesH);
                 rulesEdge.color = fri ? UIStyle.Unlucky : star ? StarEdge : RulesEdgeColor;
-                rulesFill.color = fri ? FridayBoxFill : star ? StarBoxFill : UIStyle.Box; // the edge sits behind the fill: no wash
+                rulesFill.color = fri ? FridayBoxFill : star ? StarBoxFill : RulesFill; // the edge sits behind the fill: no wash
             }
             bool badge = fri && running;
             if (fridayBadge.gameObject.activeSelf != badge) fridayBadge.gameObject.SetActive(badge);

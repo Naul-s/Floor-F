@@ -738,21 +738,19 @@ namespace FloorF.UI
             for (int i = 0; i < riders.Count && luck == null; i++)
                 if (ctx.Guests.TryGet(riders[i], out var g) && !g.HideNumbers) luck = g.Luck;
             luck = luck ?? LuckProfile.None;
-            return ctx.F(UIStrings.TutChips, Join(luck.Lucky, UIFormat.LuckyHex, false), Join(luck.Unlucky, UIFormat.UnluckyHex, true));
+            return ctx.F(UIStrings.TutChips, Join(luck.Lucky, UIFormat.LuckyHex), Join(luck.Unlucky, UIFormat.UnluckyHex));
         }
 
-        static string Join(NumberSet numbers, string hex, bool strike)
+        static string Join(NumberSet numbers, string hex)
         {
             if (numbers == null || numbers.Count == 0) return "-";
             var sb = new System.Text.StringBuilder();
             sb.Append("<color=").Append(hex).Append('>');
-            if (strike) sb.Append("<s>");
             for (int i = 0; i < numbers.Count; i++)
             {
                 if (i > 0) sb.Append(' ');
                 sb.Append(numbers[i].ToString(CultureInfo.InvariantCulture));
             }
-            if (strike) sb.Append("</s>");
             return sb.Append("</color>").ToString();
         }
 
@@ -946,7 +944,7 @@ namespace FloorF.UI
             P(ctx.F(UIStrings.TutBoardHereOne, label, 1));
             P(ctx.F(UIStrings.TutBoardHereMany, label, count));
             P(ctx.F(UIStrings.TutBoardGo, label));
-            P(ctx.F(UIStrings.TutChips, Join(NumberSet.Of(7, 8, 9), UIFormat.LuckyHex, false), Join(NumberSet.Of(4, 13), UIFormat.UnluckyHex, true)));
+            P(ctx.F(UIStrings.TutChips, Join(NumberSet.Of(7, 8, 9), UIFormat.LuckyHex), Join(NumberSet.Of(4, 13), UIFormat.UnluckyHex)));
             P(ctx.F(UIStrings.TutCloseNeutral, count));
             P(ctx.F(UIStrings.TutCloseLucky, count));
             P(ctx.F(UIStrings.TutCloseUnlucky, count));
