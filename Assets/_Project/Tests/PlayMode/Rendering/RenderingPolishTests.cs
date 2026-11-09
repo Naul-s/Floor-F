@@ -485,9 +485,20 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.AreEqual(0, bad, "every neon texel = whole target pixels in the gameplay frame");
             int used = root.Palette.Used, lights = root.LivingLights.Count;
             root.City.ApplyPixelGrid(title.Grid);
-            Assert.AreEqual(2, root.City.MeshVariants);
+            // every scenic zoom rung (11..8 ppu) is prewarmed at build: one mesh each, whole-pixel neon in each
+            var rungs = ScenicZoom.Levels(root.Rig.BaseFrame, root.Rig.WideFrame);
+            Assert.AreEqual(rungs.Length, root.City.MeshVariants, "one city mesh per zoom rung (title = widest rung)");
             Assert.AreEqual(used, root.Palette.Used, "zoom rebuild reuses the palette texels");
             Assert.AreEqual(lights, root.LivingLights.Count, "and the lights");
+            foreach (int ppu in rungs)
+            {
+                var rung = ScenicZoom.LevelFrame(root.Rig.BaseFrame, root.Rig.WideFrame, ppu, RenderingStyle.PixelHeight);
+                root.City.ApplyPixelGrid(rung.Grid);
+                bad = MisalignedNeonQuads(root.City, rung, out n);
+                report.Add("scenic rung ppu=" + ppu + " neon quads=" + n + " misaligned=" + bad);
+                Assert.AreEqual(0, bad, "every neon texel = whole target pixels on the " + ppu + " ppu rung");
+            }
+            Assert.AreEqual(rungs.Length, root.City.MeshVariants, "no extra meshes");
             root.City.ApplyPixelGrid(root.Rig.Current.Grid);
             foreach (var line in report) TestContext.WriteLine(line);
             RenderingTestDriver.Unfreeze();

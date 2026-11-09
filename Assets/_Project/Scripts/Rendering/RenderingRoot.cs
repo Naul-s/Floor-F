@@ -53,6 +53,9 @@ namespace FloorF.Rendering
         // juice clock: stops while the game is paused (PauseChanged / IMenuFlow.IsPaused)
         bool eventPaused;
         float juiceTime;
+        // exterior clock (city lights, street life, weather, sky): the juice clock, plus unscaled time while the
+        // scenic view holds the game paused - the city the player stopped to look at stays alive
+        float ambientTime;
 
         // event-driven fallbacks when IElevatorQuery is not registered
         int eventCarFloor;
@@ -68,6 +71,9 @@ namespace FloorF.Rendering
         internal EndingDirector Ending => ending;
         internal bool IsPaused => menuFlow != null ? menuFlow.IsPaused || eventPaused : eventPaused;
         internal float JuiceTime => juiceTime;
+        internal float AmbientTime => ambientTime;
+        /// <summary>Tests: fixed unscaled step for the camera clock (null = Time.unscaledDeltaTime).</summary>
+        internal float? CameraStepOverride { get; set; }
         internal bool IsBuilt => building != null;
         internal PaletteAtlas Palette => palette;
         internal RenderAssets Assets => assets;
@@ -120,7 +126,23 @@ namespace FloorF.Rendering
             subs.Add(bus.Subscribe<WishStarAppeared>(e => { if (IsBuilt) sky.WishAppeared(e.Id, e.FromX, e.FromY, e.ToX, e.ToY, e.Seconds); }));
             subs.Add(bus.Subscribe<WishMade>(e => { if (IsBuilt) sky.WishMade(e.Id); }));
             subs.Add(bus.Subscribe<WishStarFaded>(e => { if (IsBuilt) sky.WishFaded(e.Id); }));
+            subs.Add(bus.Subscribe<ScenicViewChanged>(OnScenicViewChanged));
         }
+
+        /// <summary>
+        /// UI's scenic view / establishing shot: the rig zooms (integer-ppu ladder, unscaled clock). Title mode is
+        /// refreshed first - the establishing shot can arrive in the very frame the title hands over to Day 1.
+        /// </summary>
+        void OnScenicViewChanged(ScenicViewChanged e)
+        {
+            if (rig == null) return;
+            if (dayQuery == null) GameServices.TryGet(out dayQuery);
+            if (dayQuery != null) rig.SetTitle(dayQuery.Phase == DayPhase.Title);
+            rig.SetScenic(e.On, e.Establishing, StarNightView);
+        }
+
+        /// <summary>Star night as the sky shows it (tests may force it).</summary>
+        bool StarNightView => sky != null && sky.ForceStarNight.HasValue ? sky.ForceStarNight.Value : IsStarNightNow;
 
         void OnDisable() => subs.Clear();
 
@@ -204,6 +226,23 @@ namespace FloorF.Rendering
             TickWeather(StreetPrewarmSeconds);
             sky.Tick(StreetPrewarmSeconds, 0f, rig.Current, IsStarNightNow);
             TickExterior(0f);
+            PrewarmZoomLevels(frame);
+        }
+
+        /// <summary>
+        /// Builds the city / facade meshes of every scenic zoom rung now (each whole ppu has its own mesh), so the
+        /// first zoom never hitches, then returns to the gameplay grid.
+        /// </summary>
+        void PrewarmZoomLevels(CameraFrame gameplay)
+        {
+            foreach (int ppu in ScenicZoom.Levels(gameplay, rig.WideFrame))
+            {
+                var g = new PixelGrid(ppu, gameplay.Shear, gameplay.ShearDepth);
+                city.ApplyPixelGrid(g);
+                facade.ApplyPixelGrid(g);
+            }
+            city.ApplyPixelGrid(gameplay.Grid);
+            facade.ApplyPixelGrid(gameplay.Grid);
         }
 
         /// <summary>
@@ -313,16 +352,22 @@ namespace FloorF.Rendering
             ending.Tick(jdt, juiceTime);
             lighting.Tick(juiceTime, jdt);
             rig.SetTitle(dayQuery != null && dayQuery.Phase == DayPhase.Title);
-            rig.Tick(jdt);
+            // the scenic view pauses the game: its zoom + pan run on the unscaled clock
+            float cdt = Mathf.Min(CameraStepOverride ?? Time.unscaledDeltaTime, CameraRig.MaxCameraStep);
+            rig.Tick(jdt, cdt);
+            if (rig.LevelStepped) pipeline.Glow?.BeginDissolve(CameraRig.StepDissolveSeconds);
+            pipeline.Glow?.TickDissolve(cdt);
+            float adt = jdt > 0f ? jdt : rig.InScenicView ? cdt : 0f;
+            ambientTime += adt;
             var grid = rig.Current.Grid;
             building.ApplyPixelGrid(grid);
             city.ApplyPixelGrid(grid);
             facade.ApplyPixelGrid(grid);
             assets.ApplyPatternGrid(grid.PixelsPerUnit);
-            street.Tick(jdt, grid);
-            TickWeather(juiceTime + StreetPrewarmSeconds);
-            sky.Tick(juiceTime + StreetPrewarmSeconds, IsSimHeld ? 0f : jdt, rig.Current, IsStarNightNow);
-            TickExterior(juiceTime);
+            street.Tick(adt, grid);
+            TickWeather(ambientTime + StreetPrewarmSeconds);
+            sky.Tick(ambientTime + StreetPrewarmSeconds, IsSimHeld ? 0f : jdt, rig.Current, IsStarNightNow);
+            TickExterior(ambientTime);
         }
 
         void ResetEnding()
