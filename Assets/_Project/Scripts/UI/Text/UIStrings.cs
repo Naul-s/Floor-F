@@ -247,7 +247,7 @@ namespace FloorF.UI
             "Icons: Material Symbols by Google, Apache License 2.0",
             "에셋: Kenney (www.kenney.nl) - CC0\n" +
             "폰트: 물마루 (Mulmaru) - mushsooni, SIL Open Font License 1.1\n" +
-            "갈무리11 / 갈무리11 Bold (Galmuri11 / Galmuri11 Bold) - 이민서 (quiple), SIL Open Font License 1.1\n" +
+            "Galmuri11 / Galmuri11 Bold (갈무리) - 이민서 (quiple), SIL Open Font License 1.1\n" +
             "아이콘: Google Material Symbols, Apache License 2.0");
         public static readonly Loc CreditsAi = new Loc(
             "Made with the help of Claude (Anthropic): code, text, balancing and procedural visuals.",
