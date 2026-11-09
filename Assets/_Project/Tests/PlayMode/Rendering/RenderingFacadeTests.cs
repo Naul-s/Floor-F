@@ -90,7 +90,7 @@ namespace FloorF.Tests.PlayMode.Rendering
 
         static void AssertPatternsTiled(RenderAssets assets, float ppu, string frame)
         {
-            Assert.GreaterOrEqual(assets.PatternMaterials.Count, 4, "brick, stone, dentil, roof deck");
+            Assert.GreaterOrEqual(assets.PatternMaterials.Count, 3, "brick, stone, dentil");
             foreach (var m in assets.PatternMaterials)
             {
                 var tex = m.GetTexture("_BaseMap");

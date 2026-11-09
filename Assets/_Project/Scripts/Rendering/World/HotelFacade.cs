@@ -26,7 +26,6 @@ namespace FloorF.Rendering
         static readonly Color AcGrey = new Color(0.46f, 0.47f, 0.49f);
         static readonly Color Awning = new Color(0.62f, 0.13f, 0.12f);
         static readonly Color AwningLight = new Color(0.86f, 0.80f, 0.68f);
-        static readonly Color RoofDeck = new Color(0.26f, 0.25f, 0.27f);
 
         /// <summary>Gap kept between dressing and the cut-away (pilaster inner faces sit at |x| = w/2 + this).</summary>
         public const float CutawayClearance = 0.1f;
@@ -90,7 +89,6 @@ namespace FloorF.Rendering
             var trim = assets.Lit(Trim);
             var brick = assets.PatternLit(Pilaster, WallPattern.Brick);
             var dentil = assets.PatternLit(Trim, WallPattern.Dentil);
-            var deck = assets.PatternLit(RoofDeck, WallPattern.Gravel);
             var metal = assets.Lit(Metal);
             var ac = assets.Lit(AcGrey);
             var wood = assets.Lit(Wood);
@@ -153,8 +151,8 @@ namespace FloorF.Rendering
             lit.BoxMinMax(new Vector3(cx0, H + 0.21f, front - 0.43f), new Vector3(cx1, H + 0.3f, front - 0.4f), stoneDark);
             lit.BoxMinMax(new Vector3(cx0 - 0.15f, H + 0.3f, front - 0.55f), new Vector3(cx1 + 0.15f, H + 0.46f, d * 0.5f + 0.35f), trim);
             roof = H + 0.46f;
-            // paved roof deck (a thin slab inside the parapet)
-            lit.BoxMinMax(new Vector3(cx0 + 0.1f, roof, front - 0.2f), new Vector3(cx1 - 0.1f, roof + 0.02f, d * 0.5f + 0.25f), deck);
+            // paved roof deck (a thin slab inside the parapet): stone pavers, merged with the plinth's stone (no extra draw call)
+            lit.BoxMinMax(new Vector3(cx0 + 0.1f, roof, front - 0.2f), new Vector3(cx1 - 0.1f, roof + 0.02f, d * 0.5f + 0.25f), stone);
 
             // ---- stepped parapet: low steps beside the HOTEL sign, full height outside, corner piers with finials
             float parapetZ = front - 0.45f, pzBack = front - 0.2f;

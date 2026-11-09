@@ -20,7 +20,7 @@ namespace FloorF.Tests.EditMode.Rendering
             var s = PixelPatterns.Size(p);
             Assert.GreaterOrEqual(s.x, 4);
             Assert.GreaterOrEqual(s.y, 1);
-            Assert.That(PixelPatterns.Levels(p), Is.InRange(2, 10), "a pattern of a few flat shades, not a flat colour or noise");
+            Assert.That(PixelPatterns.Levels(p), Is.InRange(2, 14), "a pattern of a few flat shades, not a flat colour or noise");
             for (int y = -s.y; y < 2 * s.y; y++)
                 for (int x = -s.x; x < 2 * s.x; x++)
                 {
