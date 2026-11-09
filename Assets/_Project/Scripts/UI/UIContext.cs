@@ -21,6 +21,8 @@ namespace FloorF.UI
         public IActorLocator Locator;
         public IGameSettings Settings;
         public IWorldLayout Layout;
+        /// <summary>Endings seen across sessions (UI-only record, PlayerPrefs). Set by UIRoot.Start.</summary>
+        public EndingCollection Endings;
         IMenuFlow menu;
 
         /// <summary>Title + pause (Gameplay). Resolved lazily: null until Gameplay registers it.</summary>

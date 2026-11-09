@@ -189,6 +189,34 @@ namespace FloorF.UI
         public static readonly Loc EndTips = new Loc("Tips", "팁");
         public static readonly Loc ToTitle = new Loc("TITLE", "타이틀");
 
+        // ---- endings collection (EndingRecord: title ENDINGS card, ending card badge + unlock line)
+        /// <summary>Badge on the 4th-floor ending (it overrides the Luck endings).</summary>
+        public static readonly Loc HiddenEnding = new Loc("HIDDEN ENDING", "히든 엔딩");
+        /// <summary>Ending card line. {0} = unlocked, {1} = total.</summary>
+        public static readonly Loc EndingsUnlocked = new Loc("Endings {0}/{1} unlocked", "엔딩 {0}/{1} 해금");
+        public static readonly Loc EndingNew = new Loc("NEW!", "새 엔딩!");
+        /// <summary>Title button. {0} = unlocked, {1} = total.</summary>
+        public static readonly Loc EndingsButton = new Loc("ENDINGS {0}/{1}", "엔딩 {0}/{1}");
+        public static readonly Loc EndingsTitle = new Loc("ENDINGS", "엔딩 모음");
+        public static readonly Loc EndingsProgress = new Loc("{0} of {1} found", "{1}개 중 {0}개 발견");
+        public const string EndingLocked = "???";
+        /// <summary>Times an ending was reached. {0} = count.</summary>
+        public static readonly Loc EndingSeen = new Loc("Seen x{0}", "{0}회 달성");
+        public static readonly Loc EndNameProsperous = new Loc("PROSPEROUS", "번창");
+        public static readonly Loc EndNameModest = new Loc("MODEST", "보통");
+        public static readonly Loc EndNameHaunted = new Loc("HAUNTED", "흉가");
+        public static readonly Loc EndNameFourth = new Loc("4TH FLOOR", "4층");
+        public static readonly Loc EndShortProsperous = new Loc("Guests book months ahead - and ask for you by name.",
+            "몇 달 치 예약이 꽉 찼고, 다들 당신을 찾는다.");
+        public static readonly Loc EndShortModest = new Loc("The hotel is fine. Just... fine.", "호텔은 괜찮다. 그냥... 괜찮다.");
+        public static readonly Loc EndShortHaunted = new Loc("Rumour says the elevator is cursed.", "엘리베이터가 저주받았다는 소문이 돈다.");
+        public static readonly Loc EndShortFourth = new Loc("You covered the 4. It was still there.", "4를 가렸지만, 4층은 여전히 거기 있었다.");
+        /// <summary>Locked-slot hints. {0} = last day number, {1} = prosperous-ending Luck.</summary>
+        public static readonly Loc EndHintProsperous = new Loc("Finish Day {0} with Luck {1} or more.", "{0}일차를 운 {1} 이상으로 마치기.");
+        public static readonly Loc EndHintModest = new Loc("Finish Day {0} with Luck under {1}.", "{0}일차를 운 {1} 미만으로 마치기.");
+        public static readonly Loc EndHintHaunted = new Loc("Let the Luck fall to 0.", "운이 0까지 떨어지면...");
+        public static readonly Loc EndHintFourth = new Loc("Some floors are only hidden, never gone…", "가려진 층은 사라지지 않는다…");
+
         // ---- title
         public const string GameName = "FLOOR F";
         /// <summary>Brass plate under the title logo.</summary>

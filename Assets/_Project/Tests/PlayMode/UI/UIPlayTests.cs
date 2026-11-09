@@ -114,6 +114,7 @@ namespace FloorF.Tests.PlayMode.UI
             GameplayRoot.SkipTutorialForTests = false;
             GameplayRoot.SettingsStoreOverride = null;
             GameplayRoot.SeedOverride = null;
+            EndingCollection.StoreOverride = null;
         }
     }
 
