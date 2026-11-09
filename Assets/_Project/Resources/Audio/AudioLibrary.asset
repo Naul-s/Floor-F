@@ -61,7 +61,7 @@ MonoBehaviour:
   - cue: 6
     clips:
     - {fileID: 8300000, guid: b9a5d1169d5e4dd7abe4f6e98ee6a8f4, type: 3}
-    - {fileID: 8300000, guid: 4421dfe09e2a4e9da84f552c844f662b, type: 3}
+    - {fileID: 8300000, guid: 441eb4c3364f2844a90a68ef2f9dc238, type: 3}
     - {fileID: 8300000, guid: c9395943ecc1461bbf825183975f9c28, type: 3}
     layer: {fileID: 0}
     layerVolume: 0.4
@@ -71,8 +71,8 @@ MonoBehaviour:
     minInterval: 0.1
   - cue: 7
     clips:
-    - {fileID: 8300000, guid: 3a4bef54b83849bd957cdd4f81c50d4e, type: 3}
-    - {fileID: 8300000, guid: 0b5a560bd44342d19a1b54f08b1fc71d, type: 3}
+    - {fileID: 8300000, guid: 9c69175d3b754fb4cb9ef51a6910f84a, type: 3}
+    - {fileID: 8300000, guid: 400cd1de23dc58347ada70753dfc3c5b, type: 3}
     layer: {fileID: 8300000, guid: a5b8b8367c1b4cf88ffac77a5c037b88, type: 3}
     layerVolume: 0.5
     volume: 0.8
@@ -81,7 +81,7 @@ MonoBehaviour:
     minInterval: 0.2
   - cue: 8
     clips:
-    - {fileID: 8300000, guid: 5021a492815b40868bd0dfdafd20e882, type: 3}
+    - {fileID: 8300000, guid: 7ffc003dacb96f9439f7c14607450ba2, type: 3}
     layer: {fileID: 0}
     layerVolume: 0.4
     volume: 0.5
@@ -90,7 +90,7 @@ MonoBehaviour:
     minInterval: 0.3
   - cue: 9
     clips:
-    - {fileID: 8300000, guid: f5d0693299fa4eb5910cbcb692367269, type: 3}
+    - {fileID: 8300000, guid: 46314cec2f4758042891f944b5ed701f, type: 3}
     layer: {fileID: 0}
     layerVolume: 0.4
     volume: 0.45
@@ -108,7 +108,7 @@ MonoBehaviour:
     minInterval: 0.5
   - cue: 11
     clips:
-    - {fileID: 8300000, guid: 0d214373e61d41d2a747329a4d87581f, type: 3}
+    - {fileID: 8300000, guid: d5725460c2df1984c81c32af16a67779, type: 3}
     layer: {fileID: 0}
     layerVolume: 0.4
     volume: 0.6
@@ -117,7 +117,7 @@ MonoBehaviour:
     minInterval: 0.2
   - cue: 12
     clips:
-    - {fileID: 8300000, guid: 5ccd1d04bb4945d584e53954b1715ece, type: 3}
+    - {fileID: 8300000, guid: 3b57f694fdf93cf47b603993fe6940e4, type: 3}
     layer: {fileID: 0}
     layerVolume: 0.4
     volume: 0.5
@@ -126,8 +126,8 @@ MonoBehaviour:
     minInterval: 0.05
   - cue: 13
     clips:
-    - {fileID: 8300000, guid: ab4dbef6025b47729d1f9d1078f04f47, type: 3}
-    layer: {fileID: 8300000, guid: 37a18ebc48db49babad6bd2061b57544, type: 3}
+    - {fileID: 8300000, guid: e9baaf25b915d4b4c900297578cf8827, type: 3}
+    layer: {fileID: 8300000, guid: 78cc371fa4077794589c9c7689396f2a, type: 3}
     layerVolume: 0.35
     volume: 0.6
     pitch: 1
@@ -144,7 +144,7 @@ MonoBehaviour:
     minInterval: 0.4
   - cue: 15
     clips:
-    - {fileID: 8300000, guid: 5cffb4a204e94165b59e7c3229ca2469, type: 3}
+    - {fileID: 8300000, guid: 805aadfad53f4b349a6afd9d0102bcb4, type: 3}
     layer: {fileID: 0}
     layerVolume: 0.4
     volume: 0.8
