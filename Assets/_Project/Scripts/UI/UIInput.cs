@@ -1,4 +1,4 @@
-using FloorF.Gameplay;
+using FloorF.Core;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -30,8 +30,6 @@ namespace FloorF.UI
         {
             injected = default;
             hasInjected = false;
-            enterField = null;
-            lookedUp = false;
             blockedByUs = false;
         }
 
@@ -90,47 +88,23 @@ namespace FloorF.UI
 
         // ------------------------------------------------------------------ Enter gate (Gameplay KeyboardInput)
 
-        static System.Reflection.FieldInfo enterField;
-        static bool lookedUp, blockedByUs;
+        static bool blockedByUs;
+
+        sealed class FlowGate : IUiFlowGate { public bool OwnsEnter => blockedByUs; }
+        static readonly FlowGate gate = new FlowGate();
 
         /// <summary>
         /// Gameplay's KeyboardInput turns Enter into "advance the flow" (Title -> new game, Intro -> start). While the
-        /// title attract screen / an establishing shot is up, Enter must only reveal / skip, so the UI switches
-        /// KeyboardInput.AdvanceWithEnter off (documented on that class: "if the UI wants to own it"). The class is
-        /// internal to Gameplay, hence reflection (preserved by Scripts/UI/link.xml). HANDOFF: a public switch.
+        /// title attract screen / an establishing shot is up, Enter must only reveal / skip: the UI says so through the
+        /// IUiFlowGate contract (registered here; GameServices.Reset on a scene load drops it, so re-register lazily).
         /// </summary>
         public static void BlockFlowEnter(bool block)
         {
-            if (block == blockedByUs) return;
-            Lookup();
-            if (enterField == null) return;
-            enterField.SetValue(null, !block);
+            if (!GameServices.TryGet<IUiFlowGate>(out var g) || !ReferenceEquals(g, gate)) GameServices.Register<IUiFlowGate>(gate);
             blockedByUs = block;
         }
 
-        static void Lookup()
-        {
-            if (!lookedUp)
-            {
-                lookedUp = true;
-                var type = typeof(PlayerCommands).Assembly.GetType("FloorF.Gameplay.KeyboardInput");
-                enterField = type?.GetField("AdvanceWithEnter", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                if (enterField == null || enterField.FieldType != typeof(bool))
-                {
-                    enterField = null;
-                    Debug.LogWarning("[UI] KeyboardInput.AdvanceWithEnter not found - Enter keeps advancing the flow on the title");
-                }
-            }
-        }
-
-        /// <summary>Test hook: KeyboardInput.AdvanceWithEnter as the UI left it (null = not reachable).</summary>
-        internal static bool? FlowEnterEnabled
-        {
-            get
-            {
-                Lookup();
-                return enterField != null ? (bool?)(bool)enterField.GetValue(null) : null;
-            }
-        }
+        /// <summary>Test hook: true when Enter advances the game flow (the UI does not own it right now).</summary>
+        internal static bool? FlowEnterEnabled => !blockedByUs;
     }
 }

@@ -43,6 +43,15 @@ namespace FloorF.Core
         bool SetPaused(bool paused);
     }
 
+    /// <summary>
+    /// Registered by UI. While <see cref="OwnsEnter"/> is true (title attract screen, a day's establishing shot) Enter
+    /// belongs to the UI (reveal / skip), so Gameplay's keyboard shortcut must NOT also advance the flow with it.
+    /// </summary>
+    public interface IUiFlowGate
+    {
+        bool OwnsEnter { get; }
+    }
+
     /// <summary>The building: floors, their CURRENT labels and destinations.</summary>
     public interface IBuildingQuery
     {
