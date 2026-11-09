@@ -118,7 +118,8 @@ namespace FloorF.UI
 
         /// <summary>
         /// Pixel-grid replacement for TMP auto-sizing: the largest multiple of 12 (&lt;= <paramref name="max"/>) at which
-        /// the text fits the rect width on one line (12 at minimum).
+        /// the text fits the rect width on one line (12 at minimum). An unknown width (0 / NaN while the canvas is not
+        /// sized yet) keeps <paramref name="max"/>: UIRoot lays everything out again once the canvas has its size.
         /// </summary>
         public static void Fit(TextMeshProUGUI t, float max)
         {
@@ -130,7 +131,7 @@ namespace FloorF.UI
             for (; s > UIFonts.Grid; s -= UIFonts.Grid)
             {
                 t.fontSize = s;
-                if (width <= 0f || t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity).x <= width) return;
+                if (!(width > 0f) || t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity).x <= width) return;
             }
             t.fontSize = UIFonts.Grid;
         }
@@ -209,7 +210,7 @@ namespace FloorF.UI
                 if (string.IsNullOrEmpty(n)) continue;
                 string s = n.Trim();
                 if (t.font != null) t.font.TryAddCharacters(s); // dynamic atlas: glyphs must exist before measuring
-                if (width <= 0f || t.GetPreferredValues(s, float.PositiveInfinity, float.PositiveInfinity).x <= width) return s;
+                if (!(width > 0f) || t.GetPreferredValues(s, float.PositiveInfinity, float.PositiveInfinity).x <= width) return s;
             }
             return null;
         }
@@ -234,7 +235,7 @@ namespace FloorF.UI
             for (int max = name.Length; max >= 3; max--)
             {
                 s = UIFormat.ShortName(name, max);
-                if (width <= 0f || t.GetPreferredValues(s, float.PositiveInfinity, float.PositiveInfinity).x <= width) break;
+                if (!(width > 0f) || t.GetPreferredValues(s, float.PositiveInfinity, float.PositiveInfinity).x <= width) break;
             }
             Set(t, s);
         }

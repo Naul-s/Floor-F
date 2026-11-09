@@ -68,31 +68,39 @@ namespace FloorF.Tests.PlayMode.UI
             }
         }
 
+        /// <summary>Every floor button shows its destination icon AND a name that fits beside it (a smaller grid size
+        /// before any cut, never the icon dropped - "Karaoke" in Mulmaru), and its floor label fits - in English and Korean.</summary>
         [UnityTest]
-        public IEnumerator PanelBadges_ShowIcons()
+        public IEnumerator PanelButtons_ShowIconAndFittingName_EnKo()
         {
+            GameplayRoot.SettingsStoreOverride = new MemorySettingsStore();
             yield return UITestDriver.LoadMain();
             var ui = UITestDriver.UI();
             var building = GameServices.Get<IBuildingQuery>();
             var data = GameServices.Get<GameData>();
-            for (int f = 0; f < ui.FloorButtonCount; f++)
+            var settings = GameServices.Get<IGameSettings>();
+            foreach (bool ko in new[] { false, true })
             {
-                Assert.IsTrue(data.TryGetDestination(building.GetDestination(new FloorIndex(f)), out var d), "floor " + f + " destination");
-                // a curated name too wide beside the icon ("Karaoke") takes the whole badge instead of being cut
-                bool wideName = ui.BadgeText(f) == UIFormat.DestinationShortName(d.Id.Value, false);
-                Assert.IsTrue(ui.BadgeShowsIcon(f) || wideName, "floor " + f + " badge shows an icon (or a whole curated name): " + ui.BadgeText(f));
-                if (ui.BadgeShowsIcon(f))
+                settings.UseKorean = ko;
+                yield return UITestDriver.Frames(2);
+                string lang = ko ? "ko" : "en";
+                for (int f = 0; f < ui.FloorButtonCount; f++)
                 {
+                    Assert.IsTrue(data.TryGetDestination(building.GetDestination(new FloorIndex(f)), out var d), "floor " + f + " destination");
+                    string what = lang + " floor " + f + " (" + d.id + ", '" + ui.BadgeText(f) + "' at " + ui.BadgeFontSize(f) + ")";
+                    Debug.Log("[PanelButtons] " + what);
+                    Assert.IsTrue(ui.BadgeShowsIcon(f), what + ": icon shown");
                     Assert.IsNotNull(ui.BadgeSprite(f));
-                    StringAssert.StartsWith(d.IconKey, ui.BadgeSprite(f).name, "floor " + f + " sprite = Icons/" + d.IconKey);
-                    Assert.AreEqual(ui.DestinationColor(f), ui.BadgeIconColor(f), "icon tinted with the destination colour");
+                    StringAssert.StartsWith(d.IconKey, ui.BadgeSprite(f).name, what + ": sprite = Icons/" + d.IconKey);
+                    Assert.AreEqual(ui.DestinationColor(f), ui.BadgeIconColor(f), what + ": icon tinted with the destination colour");
+                    Assert.GreaterOrEqual(ui.BadgeText(f).Length, 1, what + ": a name next to the icon (\"바\" is one syllable)");
+                    Assert.IsNull(ui.FloorButtonLayoutProblem(f), what);
+                    Assert.GreaterOrEqual(ui.BadgeFontSize(f), 12f);
                 }
-                Assert.GreaterOrEqual(ui.BadgeText(f).Length, 1, "short name next to the icon: " + ui.BadgeText(f));
-                Assert.GreaterOrEqual(ui.BadgeFontSize(f), 24f);
+                Assert.IsNull(ui.FirstOffGridOrForeignText(), lang + ": badge names in a UI font on the 12px grid");
             }
-            Assert.IsNull(ui.FirstOffGridOrForeignText(), "badge names still Galmuri on the 12px grid");
+            settings.UseKorean = false;
         }
-
         static IEnumerator WaitForLobbyChips(UIRoot ui)
         {
             yield return UITestDriver.ClickStart();

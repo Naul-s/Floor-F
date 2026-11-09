@@ -5,8 +5,17 @@ namespace FloorF.UI
     {
         public readonly string En;
         public readonly string Ko;
-        public Loc(string en, string ko) { En = en; Ko = ko; }
+        public Loc(string en, string ko)
+        {
+            En = en;
+            Ko = ko;
+            (all ?? (all = new System.Text.StringBuilder(8192))).Append(en).Append(ko); // font prewarm (UIStrings.Characters)
+        }
         public string Get(bool korean) => korean && !string.IsNullOrEmpty(Ko) ? Ko : En;
+
+        static System.Text.StringBuilder all;
+        /// <summary>Every Loc text built so far, both languages (no reflection: WebGL/IL2CPP safe).</summary>
+        internal static string AllText => all != null ? all.ToString() : "";
     }
 
     /// <summary>
@@ -26,7 +35,7 @@ namespace FloorF.UI
         public static readonly Loc RuleOpen = new Loc("Doors OPEN  >  riders judge the FLOOR number", "문이 열리면  >  탑승객이 층 번호로 판정");
         public static readonly Loc RuleClose = new Loc("Doors CLOSE  >  riders judge the HEAD COUNT", "문이 닫히면  >  탑승객이 인원수로 판정");
         public static readonly Loc RuleDistance = new Loc("Step OUT  >  they judge the FLOORS TRAVELLED", "내릴 때  >  탄 뒤 움직인 층수로 판정");
-        public static readonly Loc RuleLegend = new Loc("<color={0}>gold = lucky</color>    <color={1}><s>red</s> = unlucky</color>", "<color={0}>금색 = 행운</color>    <color={1}><s>빨강</s> = 불길</color>");
+        public static readonly Loc RuleLegend = new Loc("<color={0}>gold: lucky</color>    <color={1}>red: unlucky</color>", "<color={0}>금색: 행운</color>    <color={1}>빨강: 불길</color>");
         /// <summary>Friday the 13th rule-box line (IDayQuery.IsFriday13).</summary>
         public static readonly Loc RuleFriday13 = new Loc("Friday 13th: travelled 13 = unlucky for ALL", "13일의 금요일: 이동 13 = 모두 불길");
         /// <summary>Friday the 13th HUD badge. {0} = penalty multiplier ("x1.5").</summary>
@@ -87,13 +96,13 @@ namespace FloorF.UI
         public static readonly Loc HowToTitle = new Loc("HOW TO PLAY", "플레이 방법");
         public static readonly Loc HowTo = new Loc(
             "• Click the floor buttons to move, OPEN / CLOSE for the doors (or W/S + Space).\n" +
-            "• Each guest shows their numbers: <color={0}>gold = lucky</color>, <color={1}><s>red</s> = unlucky</color>.\n" +
+            "• Each guest shows their numbers: <color={0}>gold = lucky</color>, <color={1}>red = unlucky</color>.\n" +
             "• Doors OPEN on a floor: everyone inside judges that floor's NUMBER.\n" +
             "• Doors CLOSE: everyone inside judges HOW MANY are riding.\n" +
             "• Stepping OUT: a guest judges how many floors they travelled (detours count).\n" +
             "• Take guests to their destination for tips. Luck 0 = haunted hotel!",
             "• 층 버튼으로 이동, 열기/닫기로 문 조작 (또는 W/S + Space).\n" +
-            "• 손님 머리 위 숫자: <color={0}>금색 = 행운</color>, <color={1}><s>빨강</s> = 불길</color>.\n" +
+            "• 손님 머리 위 숫자: <color={0}>금색 = 행운</color>, <color={1}>빨강 = 불길</color>.\n" +
             "• 문이 열리면: 안에 있는 모두가 그 층의 번호로 판정.\n" +
             "• 문이 닫히면: 안에 있는 모두가 탑승 인원수로 판정.\n" +
             "• 내릴 때: 탄 뒤 움직인 층수로 판정 (돌아가도 다 셈).\n" +
@@ -366,5 +375,15 @@ namespace FloorF.UI
         public static readonly Loc Streak = new Loc("Lucky streak x{0} · tips {1}", "연속 행운 x{0} · 팁 {1}");
         public static readonly Loc StreakBroken = new Loc("Streak broken!", "연속 끊김!");
         public static readonly Loc BestStreak = new Loc("Best lucky streak", "최고 연속 행운");
+
+        /// <summary>Every character of every UI string (en + ko, constants included) - what UIFonts prewarms.</summary>
+        public static string Characters
+        {
+            get
+            {
+                string touch = Start.En; // a static field read runs the whole initializer: every Loc above is registered
+                return touch + Loc.AllText + GameName + CurseNumber + CreditsMusicCcBy + EndingLocked + UIFormat.DistanceGlyph;
+            }
+        }
     }
 }

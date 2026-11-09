@@ -46,6 +46,22 @@ namespace FloorF.UI
 
         public bool HasGame => Building != null && Elevator != null && Day != null;
 
+        /// <summary>What the fonts are prewarmed with: printable ASCII, every UI string (en + ko) and the destination
+        /// names (panel badges are measured at build time). Guest lines / sticker texts come later and are measured then.</summary>
+        public string PrewarmText()
+        {
+            var sb = new System.Text.StringBuilder(UIStrings.Characters);
+            for (char c = ' '; c <= '~'; c++) sb.Append(c);
+            if (Data != null)
+                foreach (var d in Data.Destinations)
+                {
+                    if (d == null) continue;
+                    sb.Append(d.name).Append(d.nameKo);
+                    sb.Append(UIFormat.DestinationShortName(d.id, false)).Append(UIFormat.DestinationShortName(d.id, true));
+                }
+            return sb.ToString();
+        }
+
         public void ResolveServices()
         {
             GameServices.TryGet(out Data);

@@ -109,6 +109,10 @@ namespace FloorF.UI
                 return;
             }
             ctx.Endings = new EndingCollection(EndingCollection.CreateStore());
+            // fonts first: every UI character in the atlases before the first text is measured (UIFonts.Prewarm)
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            int prewarmed = UIFonts.Prewarm(ctx.PrewarmText());
+            Debug.Log("[UI] fonts prewarmed: " + prewarmed + " characters in " + watch.ElapsedMilliseconds + " ms");
             BuildCanvas();
             EnsureEventSystem();
             var rt = ctx.CanvasRect;
@@ -128,6 +132,9 @@ namespace FloorF.UI
             menu = new MenuView(ctx, rt);
             menu.BringToFront();
             built = true;
+            laidOutFor = ctx.CanvasRect.rect.size;
+            relayoutFrame = Time.frameCount + 1; // once more after the first rendered frame
+            if (RecordBootLayout) BootFontSizes = FontSizeSnapshot();
             SetLayerRecursively(canvas.transform, PresentationContract.UiLayer);
             Debug.Log("[UI] built: canvas " + canvas.renderMode + " on " + (canvas.worldCamera != null ? canvas.worldCamera.name : "<none>"));
         }
@@ -183,10 +190,44 @@ namespace FloorF.UI
             for (int i = 0; i < t.childCount; i++) SetLayerRecursively(t.GetChild(i), layer);
         }
 
+        Vector2 laidOutFor;
+        int relayoutFrame = -1;
+
+        /// <summary>
+        /// Every fitted text (UIBuild.Fit / FitName and the views' own measurements) is laid out from the canvas size at
+        /// the time of the last refresh. The WebGL canvas settles its size after the first frames (and changes on window
+        /// resize / fullscreen): lay everything out again whenever the canvas size changes, and once right after the first
+        /// rendered frame - what a language toggle used to fix by accident.
+        /// </summary>
+        void RelayoutIfNeeded()
+        {
+            var size = ctx.CanvasRect.rect.size;
+            bool valid = size.x > 1f && size.y > 1f && !float.IsNaN(size.x) && !float.IsNaN(size.y) && !float.IsInfinity(size.x) && !float.IsInfinity(size.y);
+            if (!valid) return;
+            if (size != laidOutFor) { laidOutFor = size; relayoutFrame = Time.frameCount; }
+            if (relayoutFrame < 0 || Time.frameCount < relayoutFrame) return;
+            relayoutFrame = -1;
+            Relayout();
+        }
+
+        /// <summary>Re-measures and redraws every text: the language refresh plus a forced TMP rebuild of each one.</summary>
+        internal void Relayout()
+        {
+            if (!built) return;
+            RelayoutCount++;
+            Canvas.ForceUpdateCanvases(); // rect sizes up to date before anything is measured
+            RefreshLanguage();
+            foreach (var t in canvas.GetComponentsInChildren<TMPro.TMP_Text>(false)) t.havePropertiesChanged = true;
+        }
+
+        /// <summary>Test hook: how many full relayouts ran since the UI was built.</summary>
+        internal int RelayoutCount { get; private set; }
+
         void Update()
         {
             if (!built) return;
             if (canvas.renderMode != RenderMode.ScreenSpaceCamera || canvas.worldCamera == null) AttachCamera();
+            RelayoutIfNeeded();
             float dt = Time.deltaTime;
             bool onTitle = ctx.Phase == DayPhase.Title;
             panel.SetVisible(!onTitle);
@@ -445,6 +486,34 @@ namespace FloorF.UI
         }
         internal void ClickLanguage() => hud.ClickLanguage();
 
+        /// <summary>Every visible UI text as "path | font size | drawn size (mesh bounds of the LAST generated mesh) | text":
+        /// a fresh boot must draw exactly like after a language round trip (the tiny-text-until-toggled bug).</summary>
+        internal string[] TextSizeSnapshot() => TextSnapshot(true);
+
+        /// <summary>Every UI text, visible or not, as "path | font size" (no mesh yet at build time).</summary>
+        internal string[] FontSizeSnapshot() => TextSnapshot(false);
+
+        string[] TextSnapshot(bool drawn)
+        {
+            var list = new System.Collections.Generic.List<string>();
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            foreach (var t in canvas.GetComponentsInChildren<TMPro.TMP_Text>(!drawn))
+            {
+                if (drawn && !t.isActiveAndEnabled) continue;
+                var path = new System.Text.StringBuilder(t.name);
+                for (var p = t.transform.parent; p != null && p != canvas.transform; p = p.parent) path.Insert(0, p.name + "/");
+                if (!drawn) { list.Add(path + " | " + t.fontSize.ToString(inv)); continue; }
+                var b = t.textBounds.size;
+                list.Add(path + " | " + t.fontSize.ToString(inv) + " | " + Mathf.Round(b.x).ToString(inv) + "x" + Mathf.Round(b.y).ToString(inv) + " | " + t.text);
+            }
+            return list.ToArray();
+        }
+
+        /// <summary>Test hook: when set before the scene loads, the next UI build records <see cref="BootFontSizes"/>
+        /// (the very first layout, before any relayout).</summary>
+        internal static bool RecordBootLayout;
+        internal string[] BootFontSizes { get; private set; }
+
         // tutorial
         internal TutorialView.Step TutorialStep => tutorial.CurrentStep;
         internal string TutorialPrompt => tutorial.PromptText;
@@ -575,6 +644,7 @@ namespace FloorF.UI
         internal bool BadgeShowsIcon(int floor) => panel.BadgeShowsIcon(floor);
         internal Sprite BadgeSprite(int floor) => panel.BadgeSprite(floor);
         internal Color BadgeIconColor(int floor) => panel.BadgeIconColor(floor);
+        internal string FloorButtonLayoutProblem(int floor) => panel.ButtonLayoutProblem(floor);
         internal void ChipBadgeStats(out int count, out int icons, out int names, out int textOnly) => bubbles.BadgeStats(out count, out icons, out names, out textOnly);
         internal bool TutorialIconVisible => tutorial.PromptIconVisible;
         internal bool ShopResultIconVisible => shop.ResultIconVisible;

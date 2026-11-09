@@ -11,8 +11,8 @@ namespace FloorF.UI
     /// black/white name). The caller places <see cref="Rect"/>.
     /// <para>Name rule: the full name when it fits, else the curated short name (UIFormat.DestinationShortName:
     /// "Guest Rooms" -> "Rooms", "Restaurant" -> "Dining"); truncation ("Obser.") only for ids without one.
-    /// <see cref="NameMode.Truncate"/> (panel) always names the venue - a curated name too wide to sit beside the icon
-    /// ("Karaoke") takes the whole badge instead of being cut;
+    /// <see cref="NameMode.Truncate"/> (panel) always shows the icon AND names the venue - a name too wide beside the
+    /// icon at the badge size drops to the next 12px-grid size ("Karaoke" 24 -> 12) before anything is cut;
     /// <see cref="NameMode.FullOrNone"/> (chips) shows the name only when it fits WHOLE beside the icon, else the icon
     /// alone, centred - a clipped "Resta." adds noise next to an icon that already says it. The text fallback always
     /// shows a (shortened) name.</para>
@@ -33,6 +33,40 @@ namespace FloorF.UI
         public bool ShowsIcon => Icon.gameObject.activeSelf;
         public bool ShowsName => Name.gameObject.activeSelf && !string.IsNullOrEmpty(Name.text);
         public string Text => ShowsName ? Name.text : "";
+
+        string lastName, lastShort;
+
+        /// <summary>Test hook: the name is below the badge size only because neither the full nor the curated name fits
+        /// beside the icon at that size.</summary>
+        public bool ShrunkOnlyWhenNeeded()
+        {
+            float full = UIFonts.Px(fontSize);
+            if (!ShowsName || Name.fontSize >= full) return true;
+            float was = Name.fontSize;
+            Name.fontSize = full;
+            bool fits = UIBuild.FirstThatFits(Name, Name.rectTransform.rect.width, lastName, lastShort) != null;
+            Name.fontSize = was;
+            return !fits;
+        }
+
+        /// <summary>Test hook: null when the shown name fits its rect on one line and sits clear of the icon (and both
+        /// inside the badge), else what is wrong.</summary>
+        public string LayoutProblem()
+        {
+            if (!ShowsName) return null;
+            var nr = Name.rectTransform.rect;
+            float need = Name.GetPreferredValues(Name.text, float.PositiveInfinity, float.PositiveInfinity).x;
+            if (need > nr.width + 0.5f) return "name '" + Name.text + "' " + need + "px in " + nr.width + "px at " + Name.fontSize;
+            if (Name.rectTransform.offsetMin.x < 0f || Name.rectTransform.offsetMax.x > 0f) return "name outside the badge";
+            if (ShowsIcon)
+            {
+                var ir = Icon.rectTransform;
+                float iconRight = ir.anchoredPosition.x + ir.rect.width;
+                if (Name.rectTransform.offsetMin.x < iconRight - 0.5f) return "name over the icon (" + Name.rectTransform.offsetMin.x + " < " + iconRight + ")";
+                if (iconRight > Rect.rect.width + 0.5f) return "icon outside the badge";
+            }
+            return null;
+        }
 
         public DestinationBadge(Transform parent, float fontSize, NameMode mode)
         {
@@ -57,6 +91,8 @@ namespace FloorF.UI
             var color = UIStyle.Destination(ctx.DestinationIndex(id));
             string name = ctx.DestinationName(id);
             string shortName = ctx.DestinationShortName(id);
+            lastName = name;
+            lastShort = shortName;
             var sprite = UIIcons.For(ctx.Destination(id));
             var nrt = Name.rectTransform;
             if (sprite == null)
@@ -92,17 +128,16 @@ namespace FloorF.UI
             if (showName) UIBuild.Set(Name, whole);
             else if (mode == NameMode.Truncate)
             {
+                // the panel always shows icon AND name: a smaller grid size before any cut ("Karaoke": 96px at 24 in
+                // Mulmaru, 85px beside the icon -> 12px), truncation only when even 12px is too wide
                 showName = true;
-                float full = Rect.rect.width - 2f * Pad;
-                if (!string.IsNullOrEmpty(shortName) && UIBuild.FirstThatFits(Name, full, shortName) != null)
+                for (float s = UIFonts.Px(fontSize) - UIFonts.Grid; s >= UIFonts.Grid && whole == null; s -= UIFonts.Grid)
                 {
-                    // curated name too wide beside the icon: the name takes the whole badge (in the venue's colour)
-                    Icon.gameObject.SetActive(false);
-                    nrt.offsetMin = new Vector2(Pad, 0f);
-                    nrt.offsetMax = new Vector2(-Pad, 0f);
-                    UIBuild.Set(Name, shortName.Trim());
+                    Name.fontSize = s;
+                    whole = UIBuild.FirstThatFits(Name, nrt.rect.width, name, shortName);
                 }
-                else UIBuild.FitName(Name, name, fontSize, shortName);
+                if (whole != null) UIBuild.Set(Name, whole);
+                else UIBuild.FitName(Name, name, UIFonts.Grid, shortName);
             }
 
             Name.gameObject.SetActive(showName);

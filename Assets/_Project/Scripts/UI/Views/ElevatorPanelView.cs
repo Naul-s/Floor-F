@@ -287,5 +287,19 @@ namespace FloorF.UI
         public bool BadgeShowsIcon(int floor) => floor >= 0 && floor < buttons.Length && buttons[floor].Badge.ShowsIcon;
         public Sprite BadgeSprite(int floor) => floor >= 0 && floor < buttons.Length && buttons[floor].Badge.ShowsIcon ? buttons[floor].Badge.Icon.sprite : null;
         public Color BadgeIconColor(int floor) => floor >= 0 && floor < buttons.Length ? buttons[floor].Badge.Icon.color : Color.clear;
+        /// <summary>null when the floor button shows its destination icon AND a name that fits beside it, and its label fits.</summary>
+        public string ButtonLayoutProblem(int floor)
+        {
+            if (floor < 0 || floor >= buttons.Length) return "no button " + floor;
+            var b = buttons[floor];
+            if (!b.Badge.ShowsIcon) return "no icon";
+            if (!b.Badge.ShowsName) return "no name";
+            if (!b.Badge.ShrunkOnlyWhenNeeded()) return "name '" + b.Badge.Text + "' shrunk although it fits at the badge size";
+            string p = b.Badge.LayoutProblem();
+            if (p != null) return p;
+            float need = b.Label.GetPreferredValues(b.Label.text, float.PositiveInfinity, float.PositiveInfinity).x;
+            if (need > b.Label.rectTransform.rect.width + 0.5f) return "label '" + b.Label.text + "' " + need + "px in " + b.Label.rectTransform.rect.width + "px";
+            return null;
+        }
     }
 }

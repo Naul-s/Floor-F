@@ -50,8 +50,8 @@ namespace FloorF.Tests.EditMode.UI
             Assert.AreEqual(LuckVerdict.Unlucky, UIFormat.OccupancyPreview(7, riders, 1, false));
             string chip = UIFormat.Numbers(hatesSeven, false, true);
             StringAssert.Contains("<color=" + UIFormat.LuckyHex + ">7</color>", chip, "the 7 shows gold");
-            StringAssert.DoesNotContain("<s>7</s>", chip);
-            StringAssert.Contains("<s>4</s>", chip);
+            StringAssert.DoesNotContain(UIFormat.UnluckyHex + ">7<", chip);
+            StringAssert.Contains("<color=" + UIFormat.UnluckyHex + ">4</color>", chip);
             Assert.AreEqual(1, System.Text.RegularExpressions.Regex.Matches(UIFormat.Numbers(LuckProfile.Of(new[] { 7 }, new[] { 7 }), false, true), ">7<").Count, "one 7");
         }
 

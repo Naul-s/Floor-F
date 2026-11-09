@@ -60,6 +60,10 @@ namespace FloorF.UI
             starGlyph = 0;
         }
 
+        /// <summary>Test hook: forget the runtime assets, so the next UI build creates fresh ones with EMPTY atlases -
+        /// what a fresh boot (WebGL page load) sees.</summary>
+        internal static void ResetForTests() => ResetStatics();
+
         /// <summary>True when the body font could not be created (Galmuri11 or TMP's default font is used instead).</summary>
         public static bool IsFallback { get; private set; }
 
@@ -145,6 +149,36 @@ namespace FloorF.UI
                 Debug.LogWarning("[UI] " + PathOf(face) + " " + mode + " font asset failed: " + e.Message);
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Puts every character of <paramref name="text"/> into the body and heading atlases (and what they lack into
+        /// Galmuri11's) BEFORE any UI text is built or measured: glyphs rendered, metrics and font features read in one go.
+        /// Without it the first layout of every text added its glyphs one by one in the middle of GetPreferredValues
+        /// (TMP adds them lazily, font features are queued until the first render), while every later layout found the
+        /// asset complete - the two did not have to agree. Returns the number of distinct characters requested.
+        /// </summary>
+        public static int Prewarm(string text)
+        {
+            var seen = new HashSet<char>();
+            var sb = new System.Text.StringBuilder(text != null ? text.Length : 0);
+            foreach (char c in text ?? "")
+                if (!char.IsControl(c) && !char.IsSurrogate(c) && seen.Add(c)) sb.Append(c);
+            if (sb.Length == 0) return 0;
+            string chars = sb.ToString();
+            var fallback = Fallback;
+            foreach (var face in new[] { Face.Body, Face.Heading })
+            {
+                var fa = Get(face);
+                if (fa == null) continue;
+                fa.TryAddCharacters(chars, true);
+                if (fallback == null || fa == fallback) continue;
+                sb.Clear();
+                foreach (char c in chars)
+                    if (!char.IsWhiteSpace(c) && !fa.HasCharacter(c, false, false)) sb.Append(c);
+                if (sb.Length > 0) fallback.TryAddCharacters(sb.ToString(), true);
+            }
+            return chars.Length;
         }
 
         /// <summary>Nearest multiple of the 12px grid (ties up), at least 12.</summary>
