@@ -276,8 +276,8 @@ namespace FloorF.UI
             tutorial.Tick(dt, Time.unscaledTime);
             menu.Tick();
             HandlePresses(UIInput.Poll());
-            clickFx.Tick(Time.unscaledDeltaTime);
-            FadeHud(Time.unscaledDeltaTime);
+            clickFx.Tick(UIClock.UnscaledDt);
+            FadeHud(UIClock.UnscaledDt);
             UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || scenic.HoldsEnter);
         }
 
@@ -296,7 +296,7 @@ namespace FloorF.UI
         {
             bool attractUsed = menu.HandleAttractPress(press);
             bool used = attractUsed;
-            if (scenic.Tick(Time.unscaledDeltaTime, used ? default : press)) used = true;
+            if (scenic.Tick(UIClock.UnscaledDt, used ? default : press)) used = true;
             if (!used && press.H && ctx.Phase == DayPhase.Running && !OnTitle && !ctx.Paused) hud.ToggleRules();
             if (press.Pointer && !attractUsed) OnPointerPress(press.Screen);
         }

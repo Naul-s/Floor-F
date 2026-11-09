@@ -26,4 +26,11 @@ namespace FloorF.UI
             RulesAutoCollapse = on;
         }
     }
+
+    /// <summary>Frame time for UI animation that runs while paused: unscaled, but following Time.captureDeltaTime when set
+    /// (tests / frame captures step time explicitly; unscaledDeltaTime ignores it).</summary>
+    static class UIClock
+    {
+        public static float UnscaledDt => Time.captureDeltaTime > 0f ? Time.captureDeltaTime : Time.unscaledDeltaTime;
+    }
 }

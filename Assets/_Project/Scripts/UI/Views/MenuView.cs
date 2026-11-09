@@ -358,7 +358,7 @@ namespace FloorF.UI
                 if (title) RefreshLanguage();
                 SetAttract(title && UIFeatures.AttractScreen); // boot and every return to the title start at "press any key"
             }
-            if (title) TickAttract(Time.unscaledDeltaTime);
+            if (title) TickAttract(UIClock.UnscaledDt);
             // gentle idle float, glint and LED flicker; the drop shadow and the tagline stay where they are
             if (title && !creditsOpen && !endingsOpen) titleLogo.Tick(Time.unscaledTime);
             if (endingsOpen) endingsCard.Tick(Time.unscaledTime);

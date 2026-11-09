@@ -213,7 +213,8 @@ namespace FloorF.Tests.PlayMode.UI
 
             // any key returns (applied in LateUpdate)
             ui.InjectPress(anyKey: true);
-            yield return null;
+            yield return null; // Update sees it
+            yield return null; // the exit lands in LateUpdate
             Assert.AreEqual(ScenicView.Mode.None, ui.ScenicMode);
             Assert.IsFalse(menu.IsPaused, "unpaused");
             Assert.IsFalse(ui.PauseVisible);
@@ -230,6 +231,7 @@ namespace FloorF.Tests.PlayMode.UI
             yield return null;
             sounds.Clear();
             ui.InjectPress(pointer: true, canvasPoint: size * 0.5f);
+            yield return null;
             yield return null;
             Assert.AreEqual(ScenicView.Mode.None, ui.ScenicMode, "click returns");
             Assert.IsFalse(menu.IsPaused);
@@ -268,7 +270,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(menu.IsPaused);
             Assert.IsFalse(ui.PauseVisible, "pause card hidden while scenic");
             ui.InjectPress(anyKey: true);
-            yield return null;
+            yield return null; // Update sees it
+            yield return null; // the exit lands in LateUpdate
             Assert.AreEqual(ScenicView.Mode.None, ui.ScenicMode);
             Assert.IsTrue(menu.IsPaused, "back to the pause menu it came from");
             Assert.IsTrue(ui.PauseVisible);
@@ -283,7 +286,8 @@ namespace FloorF.Tests.PlayMode.UI
             yield return null;
             Assert.AreEqual(ScenicView.Mode.Scenic, ui.ScenicMode, "summary: scenic works");
             ui.InjectPress(anyKey: true);
-            yield return null;
+            yield return null; // Update sees it
+            yield return null; // the exit lands in LateUpdate
             Assert.AreEqual(ScenicView.Mode.None, ui.ScenicMode);
             UITestDriver.RunToEnding(UITestDriver.Session());
             yield return UITestDriver.Frames(2);
@@ -347,6 +351,8 @@ namespace FloorF.Tests.PlayMode.UI
             plain = System.Text.RegularExpressions.Regex.Replace(ui.CaptionText, "<[^>]+>", "");
             StringAssert.Contains("DAY 7  ·  Night of Falling Stars", plain);
             StringAssert.Contains("★", plain);
+            yield return Settle(() => ui.HudAlpha < 0.01f, 10);
+            Assert.Less(ui.HudAlpha, 0.01f, "UI faded out for the shot");
             ui.SetEstablishingAge(1.3f);
             yield return null;
             Assert.AreEqual(1f, ui.CaptionAlpha, 0.01f, "caption fully in mid-shot");
@@ -478,7 +484,7 @@ namespace FloorF.Tests.PlayMode.UI
 
             var open = ui.OpenButtonRect;
             ui.InjectPress(pointer: true, canvasPoint: open.center);
-            Time.captureDeltaTime = 0.03f;
+            Time.captureDeltaTime = 0.05f;
             yield return null;
             yield return null;
             Time.captureDeltaTime = 0f;
