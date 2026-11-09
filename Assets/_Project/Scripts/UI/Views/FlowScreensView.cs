@@ -74,9 +74,8 @@ namespace FloorF.UI
             body = UIBuild.Text("Body", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
             extra = UIBuild.Text("Extra", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
             extra.lineSpacing = 4f;
-            // ending card only: "Endings 3/4 unlocked" (+ NEW!) in small print above the buttons
-            unlockLine = UIBuild.Text("Unlocks", card, "", 12f, UIStyle.InkDim, TextAlignmentOptions.Center);
-            unlockLine.characterSpacing = 100f / UIFonts.Grid;
+            // ending card only: "Endings 3/4 unlocked" (+ NEW!) above the buttons (24px: at 12px Mulmaru the NEW! was lost)
+            unlockLine = UIBuild.Text("Unlocks", card, "", 24f, UIStyle.InkDim, TextAlignmentOptions.Center);
             unlockLine.gameObject.SetActive(false);
             var row = UIBuild.Rect("Buttons", card);
             row.gameObject.AddComponent<LayoutElement>().preferredHeight = 58f;

@@ -35,6 +35,7 @@ namespace FloorF.UI
         readonly RectTransform root;
         FloorButton[] buttons = Array.Empty<FloorButton>();
         TextMeshProUGUI ledText, ledGhost, ledArrow, occupancyValue, occupancyCaption, hint;
+        RectTransform hintPlate;
         UIBuild.ButtonParts openButton, closeButton;
         readonly LuckProfile[] riderProfiles = new LuckProfile[16];
 
@@ -110,11 +111,15 @@ namespace FloorF.UI
 
             root.sizeDelta = new Vector2(Width, -y);
 
-            hint = UIBuild.Text("Hint", root, "", 12f, UIStyle.InkDim, TextAlignmentOptions.Center);
-            hint.rectTransform.anchorMin = hint.rectTransform.anchorMax = new Vector2(0.5f, 0f);
-            hint.rectTransform.pivot = new Vector2(0.5f, 1f);
-            hint.rectTransform.anchoredPosition = new Vector2(0f, -6f);
-            hint.rectTransform.sizeDelta = new Vector2(Width + 20f, 20f);
+            // keyboard hint under the panel on its own dark plate: dim 12px ink straight on the lit city was unreadable
+            hintPlate = UIBuild.Box("HintPlate", root, new Color(0f, 0f, 0f, 0.72f)).rectTransform;
+            hintPlate.anchorMin = hintPlate.anchorMax = new Vector2(0.5f, 0f);
+            hintPlate.pivot = new Vector2(0.5f, 1f);
+            hintPlate.anchoredPosition = new Vector2(0f, -4f);
+            hintPlate.sizeDelta = new Vector2(Width, 20f);
+            hint = UIBuild.Text("Hint", hintPlate, "", 12f, new Color(UIStyle.Ink.r, UIStyle.Ink.g, UIStyle.Ink.b, 0.8f), TextAlignmentOptions.Center);
+            UIBuild.Stretch(hint.rectTransform);
+            hint.textWrappingMode = TextWrappingModes.NoWrap;
             RefreshLabels();
             RefreshLanguage();
         }
@@ -204,6 +209,9 @@ namespace FloorF.UI
             UIBuild.Set(closeButton.Label, ctx.S(UIStrings.Close));
             UIBuild.Set(occupancyCaption, ctx.S(UIStrings.InCar));
             UIBuild.Set(hint, ctx.S(UIStrings.PanelHint));
+            if (hint.font != null) hint.font.TryAddCharacters(hint.text);
+            float hw = Mathf.Ceil(hint.GetPreferredValues(hint.text, float.PositiveInfinity, float.PositiveInfinity).x) + 12f;
+            hintPlate.sizeDelta = new Vector2(Mathf.Min(Width + 20f, hw), 20f);
             RefreshLabels();
         }
 

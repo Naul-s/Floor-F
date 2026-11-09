@@ -184,8 +184,9 @@ namespace FloorF.UI
 
         static TextMeshProUGUI Head(RectTransform card)
         {
-            var t = UIBuild.Text("Head", card, "", 12f, UIStyle.CardEdge, TextAlignmentOptions.Center);
-            t.margin = new Vector4(0f, 8f, 0f, 0f);
+            // section heads at body size in the gold edge colour: at 12px they were smaller than the lines they head
+            var t = UIBuild.Text("Head", card, "", 24f, UIStyle.CardEdge, TextAlignmentOptions.Center);
+            t.margin = new Vector4(0f, 4f, 0f, 0f);
             return t;
         }
 

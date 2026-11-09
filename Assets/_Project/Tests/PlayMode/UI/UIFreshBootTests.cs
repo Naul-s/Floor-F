@@ -99,5 +99,56 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(korean, ui.Korean);
             yield return RoundTrip(ui, korean, "intro card + HUD + panel");
         }
+
+        /// <summary>Snapshot what the screen shows now, lay everything out again (UIRoot.Relayout = what a language toggle
+        /// does), and compare: the first layout of a screen must already be the final one.</summary>
+        static IEnumerator SameAfterRelayout(UIRoot ui, string screen)
+        {
+            Time.captureDeltaTime = 0.0001f;
+            yield return null;
+            yield return null;
+            var before = ui.TextSizeSnapshot();
+            ui.Relayout();
+            yield return null;
+            yield return null;
+            Assert.IsNull(Diff(before, ui.TextSizeSnapshot()), screen + ": first layout vs relayout");
+        }
+
+        /// <summary>Every screen opened for the first time (layout groups size their children only in the next layout
+        /// pass: a text fitted before that saw a 100px-wide default rect) - title, credits, endings, intro, day HUD,
+        /// pause, summary, shop, ending - in English and Korean.</summary>
+        [UnityTest, Timeout(300000)]
+        public IEnumerator EveryScreen_FirstLayoutIsFinal([Values(false, true)] bool korean)
+        {
+            FreshBoot(korean);
+            yield return UITestDriver.LoadTitle();
+            var ui = UITestDriver.UI();
+            yield return SameAfterRelayout(ui, "title");
+            ui.ClickCredits();
+            yield return SameAfterRelayout(ui, "credits");
+            ui.ClickCreditsBack();
+            ui.ClickEndings();
+            yield return SameAfterRelayout(ui, "endings");
+            ui.ClickEndingsBack();
+
+            UITestDriver.Reset();
+            FreshBoot(korean);
+            yield return UITestDriver.LoadMain();
+            ui = UITestDriver.UI();
+            yield return SameAfterRelayout(ui, "intro");
+            yield return UITestDriver.ClickStart();
+            yield return SameAfterRelayout(ui, "day");
+            ui.ClickPauseButton();
+            yield return SameAfterRelayout(ui, "pause");
+            ui.ClickResume();
+            var s = UITestDriver.Session();
+            s.Score.AddTips(160 - s.Score.Tips, earned: true);
+            s.EndDayNow();
+            yield return SameAfterRelayout(ui, "summary");
+            ui.ClickFlowButton();
+            yield return SameAfterRelayout(ui, "shop");
+            UITestDriver.RunToEnding(s);
+            yield return SameAfterRelayout(ui, "ending");
+        }
     }
 }
