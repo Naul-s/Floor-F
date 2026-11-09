@@ -258,17 +258,17 @@ namespace FloorF.Tests.PlayMode.UI
             StringAssert.Contains("Day 1", ui.FlowTitle);
         }
         [UnityTest]
-        public IEnumerator Font_IsGalmuri_ForAllTexts()
+        public IEnumerator Font_IsUiFont_ForAllTexts()
         {
             yield return UITestDriver.LoadMain();
             var ui = UITestDriver.UI();
-            Assert.IsTrue(ui.FontIsGalmuri, "runtime Galmuri11 font asset created (no fallback)");
+            Assert.IsTrue(ui.FontsCreated, "runtime Mulmaru + Galmuri11 Bold assets created, Galmuri11 fallback (no TMP default)");
             Assert.Greater(ui.TextCount, 20, "UI has texts");
-            Assert.IsNull(ui.FirstOffGridOrForeignText(), "every text: Galmuri, 12px-grid size, no auto-size");
+            Assert.IsNull(ui.FirstOffGridOrForeignText(), "every text: Mulmaru or Galmuri11 Bold, 12px-grid size, no auto-size");
             yield return UITestDriver.ClickStart();
             ui.ClickLanguage();
             yield return UITestDriver.Frames(2);
-            Assert.IsNull(ui.FirstOffGridOrForeignText(), "still Galmuri after the Korean toggle");
+            Assert.IsNull(ui.FirstOffGridOrForeignText(), "still the UI fonts after the Korean toggle");
             GameServices.Get<IGameSettings>().UseKorean = false;
         }
 

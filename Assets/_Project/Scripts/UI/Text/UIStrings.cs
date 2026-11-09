@@ -239,13 +239,15 @@ namespace FloorF.UI
             "Kenney Interface Sounds & Casino Audio (CC0)",
             "Freesound (CC0): LilMati, PagDev, LaurenPonder, egomassive, danlucaz, BlondPanda\n" +
             "Kenney Interface Sounds · Casino Audio (CC0)");
-        public static readonly Loc CreditsArtHead = new Loc("ART, FONT & ICONS", "그래픽 · 폰트 · 아이콘");
+        public static readonly Loc CreditsArtHead = new Loc("ART, FONTS & ICONS", "그래픽 · 폰트 · 아이콘");
         public static readonly Loc CreditsArt = new Loc(
             "Assets by Kenney (www.kenney.nl) - CC0\n" +
-            "Font: Galmuri11 by Lee Minseo (quiple), SIL Open Font License 1.1\n" +
+            "Fonts: Mulmaru by mushsooni, SIL Open Font License 1.1\n" +
+            "Galmuri11 / Galmuri11 Bold by Lee Minseo (quiple), SIL Open Font License 1.1\n" +
             "Icons: Material Symbols by Google, Apache License 2.0",
             "에셋: Kenney (www.kenney.nl) - CC0\n" +
-            "폰트: 갈무리11 (Galmuri11) - 이민서 (quiple), SIL Open Font License 1.1\n" +
+            "폰트: 물마루 (Mulmaru) - mushsooni, SIL Open Font License 1.1\n" +
+            "갈무리11 / 갈무리11 Bold (Galmuri11 / Galmuri11 Bold) - 이민서 (quiple), SIL Open Font License 1.1\n" +
             "아이콘: Google Material Symbols, Apache License 2.0");
         public static readonly Loc CreditsAi = new Loc(
             "Made with the help of Claude (Anthropic): code, text, balancing and procedural visuals.",

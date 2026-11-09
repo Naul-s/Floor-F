@@ -43,10 +43,10 @@ namespace FloorF.UI
             // a dark plate behind the number: it reads over the busy building
             var back = UIBuild.Box("NumberPlate", textRoot, new Color(0.02f, 0f, 0f, 0.93f));
             UIBuild.Place(back.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 4f), new Vector2(340f, 148f));
-            shadow = UIBuild.Text("Shadow", textRoot, UIStrings.CurseNumber, 120f, new Color(0f, 0f, 0f, 0.9f), TextAlignmentOptions.Center, bold: true);
+            shadow = UIBuild.Heading(UIBuild.Text("Shadow", textRoot, UIStrings.CurseNumber, 120f, new Color(0f, 0f, 0f, 0.9f), TextAlignmentOptions.Center, bold: true));
             UIBuild.Place(shadow.rectTransform, new Vector2(0.5f, 1f), new Vector2(4f, -4f), new Vector2(560f, 140f));
             shadow.textWrappingMode = TextWrappingModes.NoWrap;
-            number = UIBuild.Text("Number", textRoot, UIStrings.CurseNumber, 120f, UIStyle.Unlucky, TextAlignmentOptions.Center, bold: true);
+            number = UIBuild.Heading(UIBuild.Text("Number", textRoot, UIStrings.CurseNumber, 120f, UIStyle.Unlucky, TextAlignmentOptions.Center, bold: true));
             UIBuild.Place(number.rectTransform, new Vector2(0.5f, 1f), Vector2.zero, new Vector2(560f, 140f));
             number.textWrappingMode = TextWrappingModes.NoWrap;
             var plate = UIBuild.Box("CaptionPlate", textRoot, new Color(0f, 0f, 0f, 0.8f));

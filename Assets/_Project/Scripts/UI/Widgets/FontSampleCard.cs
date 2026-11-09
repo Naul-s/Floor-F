@@ -4,7 +4,7 @@ using UnityEngine;
 namespace FloorF.UI
 {
     /// <summary>
-    /// L2 capture aid (ui_font_compare.png): the same EN/KO lines in Galmuri11 SDF (left) and Raster+Point (right) at
+    /// L2 capture aid (ui_font_compare.png): the same EN/KO lines in the body font (Mulmaru) SDF (left) and Raster+Point (right) at
     /// 12/24/36/48 so the render mode can be chosen by eye. Only built by the capture test hook; never in normal play.
     /// </summary>
     static class FontSampleCard
@@ -15,8 +15,8 @@ namespace FloorF.UI
         {
             var root = UIBuild.Box("[UI] FontCompare", canvas, new Color(0.05f, 0.055f, 0.08f, 1f), raycast: false).rectTransform;
             UIBuild.Stretch(root);
-            var sdf = UIFonts.Create(UIFonts.Mode.Sdf);
-            var raster = UIFonts.Create(UIFonts.Mode.Raster);
+            var sdf = UIFonts.Create(UIFonts.Face.Body, UIFonts.Mode.Sdf);
+            var raster = UIFonts.Create(UIFonts.Face.Body, UIFonts.Mode.Raster);
             Column(root, sdf, "SDF (48pt sample, bilinear)", 0f);
             Column(root, raster, "RASTER_HINTED (12pt, point)", 0.5f);
             root.SetAsLastSibling();

@@ -170,7 +170,7 @@ namespace FloorF.UI
             p.Group.interactable = false;
             var bg = UIBuild.Box("Back", p.Rect, new Color(0f, 0f, 0f, 0.72f));
             UIBuild.Stretch(bg.rectTransform);
-            p.Number = UIBuild.Text("Number", p.Rect, "", 48f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            p.Number = UIBuild.Heading(UIBuild.Text("Number", p.Rect, "", 48f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true));
             UIBuild.Place(p.Number.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 2f), new Vector2(170f, 60f));
             p.Number.textWrappingMode = TextWrappingModes.NoWrap;
             p.Verdict = UIBuild.Text("Verdict", p.Rect, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);

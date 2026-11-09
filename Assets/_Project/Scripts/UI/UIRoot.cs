@@ -414,17 +414,34 @@ namespace FloorF.UI
         }
         GameObject fontCompare;
         internal int TextCount => canvas.GetComponentsInChildren<TMPro.TMP_Text>(true).Length;
-        internal bool FontIsGalmuri => !UIFonts.IsFallback && UIFonts.IsGalmuri(UIFonts.Main);
-        /// <summary>null when every UI text uses the runtime Galmuri asset at a 12px-grid size, else the first offender.</summary>
+        /// <summary>Mulmaru body + Galmuri11 Bold heading runtime assets exist, both with only the Galmuri11 fallback.</summary>
+        internal bool FontsCreated => UIFonts.AllFacesCreated;
+        /// <summary>null when every UI text uses a runtime UI font asset (body or heading) at a 12px-grid size, else the first offender.</summary>
         internal string FirstOffGridOrForeignText()
         {
             foreach (var t in canvas.GetComponentsInChildren<TMPro.TMP_Text>(true))
             {
-                if (t.font != UIFonts.Main || !UIFonts.IsGalmuri(t.font)) return t.name + " font " + (t.font != null ? t.font.name : "<null>");
+                if (!UIFonts.IsUiFont(t.font)) return t.name + " font " + (t.font != null ? t.font.name : "<null>");
                 if (Mathf.Abs(t.fontSize % UIFonts.Grid) > 0.01f) return t.name + " size " + t.fontSize;
                 if (t.enableAutoSizing) return t.name + " auto-sizes";
             }
             return null;
+        }
+        /// <summary>Font captures: visible-text characters no font (primary or fallback) has, and overflowing texts.</summary>
+        internal string FontReport()
+        {
+            var missing = new System.Text.StringBuilder();
+            var over = new System.Text.StringBuilder();
+            var seen = new System.Collections.Generic.HashSet<char>();
+            foreach (var t in canvas.GetComponentsInChildren<TMPro.TMP_Text>(false))
+            {
+                if (!t.isActiveAndEnabled || t.font == null) continue;
+                foreach (char c in System.Text.RegularExpressions.Regex.Replace(t.text ?? "", "<[^>]*>", "")) // source text: TMP draws a missing glyph as □
+                    if (!char.IsWhiteSpace(c) && !char.IsControl(c) && !char.IsSurrogate(c) && UIFonts.Resolve(t.font, c) == null && seen.Add(c))
+                        missing.Append(c).Append(" U+").Append(((int)c).ToString("X4")).Append(" (").Append(t.name).Append("); ");
+                if (t.isTextOverflowing) over.Append(t.name).Append("; ");
+            }
+            return "missing: " + (missing.Length > 0 ? missing.ToString() : "none") + " | overflowing: " + (over.Length > 0 ? over.ToString() : "none");
         }
         internal void ClickLanguage() => hud.ClickLanguage();
 

@@ -247,7 +247,7 @@
         { "trigger": "board", "text": "Two of us: 'hao shi cheng shuang' - good things come in pairs. Six or eight aboard would be even better!", "textKo": "두 명이에요. 호사성쌍(好事成雙), 좋은 일은 짝으로 와요. 여섯이나 여덟 명이면 더 좋고요!" },
         { "trigger": "lucky_floor", "text": "Eight for fortune, six for smooth sailing - even numbers for a wedding!", "textKo": "8은 재물, 6은 순조로움! 결혼식엔 짝수죠!" },
         { "trigger": "unlucky_floor", "text": "Four?! 'Si' sounds like death - not on a wedding day!", "textKo": "4?! 쓰(四)는 죽을 사(死)예요. 결혼식 날에 안 돼요!" },
-        { "trigger": "lucky_occupancy", "text": "Six or eight of us - an even crowd, double happiness!", "textKo": "여섯이나 여덟! 짝수 인원이면 쌍희(囍)죠!" },
+        { "trigger": "lucky_occupancy", "text": "Six or eight of us - an even crowd, double happiness!", "textKo": "여섯이나 여덟! 짝수 인원이면 쌍희(喜喜)죠!" },
         { "trigger": "unlucky_occupancy", "text": "Four guests? 'Si'... bad luck for the bride!", "textKo": "넷이요? 쓰(四)... 신부한테 불길해요!" },
         { "trigger": "lucky_distance", "text": "Eight floors - fortune, and an even number too!", "textKo": "여덟 층! 재물에, 짝수까지!" },
         { "trigger": "unlucky_distance", "text": "Four floors? 'Si'! The banquet is cursed!", "textKo": "네 층? 쓰(四)! 피로연이 망했어요!" },

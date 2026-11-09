@@ -101,7 +101,7 @@ namespace FloorF.Tests.PlayMode.UI
         public IEnumerator CharmGlyphs_AreInTheFont()
         {
             yield return UITestDriver.LoadMain();
-            Assert.IsTrue(UITestDriver.UI().FontIsGalmuri);
+            Assert.IsTrue(UITestDriver.UI().FontsCreated);
             foreach (var e in new[] { StickerEffects.Shield, StickerEffects.Patience, StickerEffects.Speed, StickerEffects.Tips, "unknown" })
                 Assert.IsNull(UIFonts.MissingGlyph(UIFormat.CharmGlyph(e)), "glyph for " + e);
             Assert.IsNull(UIFonts.MissingGlyph("→·"));
