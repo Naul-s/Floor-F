@@ -57,8 +57,9 @@ namespace FloorF.Rendering
             new Block(34, 45, 25f, 11f, Far, 0),
         };
 
-        /// <summary>Street lamps along the curb (screen-plane x).</summary>
-        public static readonly int[] LampXs = { -45, -33, -19, 17, 30, 42 };
+        /// <summary>Street lamps along the curb (screen-plane x): in the gaps between the shop signs, so no pole or lamp
+        /// head ever crosses a sign's letters (title frame sign widths included).</summary>
+        public static readonly float[] LampXs = { -41f, -32.5f, -23.5f, -15.5f, 19.5f, 27f, 36f, 44f };
 
         static readonly Color Asphalt = new Color(0.085f, 0.085f, 0.095f);
         static readonly Color Dash = new Color(0.36f, 0.33f, 0.22f);
@@ -175,7 +176,7 @@ namespace FloorF.Rendering
             // street lamps: pole, arm, lamp head (a living light); the pool on the sidewalk is a banded light (PixelGlow)
             int pole = atlas.Static(PoleColor);
             float lampZ = curb + 0.25f;
-            foreach (int sx in LampXs)
+            foreach (float sx in LampXs)
             {
                 float x = WX(sx, lampZ);
                 b.Box(new Vector3(x - 0.06f, g, lampZ - 0.06f), new Vector3(x + 0.06f, g + 3.4f, lampZ + 0.06f), pole, pole, pole);

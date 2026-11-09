@@ -251,10 +251,13 @@ namespace FloorF.Rendering
         {
             float z = blk.Z;
             bool back = blk.Z > 6f;
-            if (!back && look.Shop != Shop.None) ShopFront(b, blk, look.Shop, g, z, index);
-            if (look.FireEscape) FireEscape(b, blk, g, top, z);
-            if (look.Balconies) Balconies(b, blk, g, top, z);
-            if (look.AcUnits) AcUnits(b, blk, g, top, z, index);
+            bool shop = !back && look.Shop != Shop.None;
+            if (shop) ShopFront(b, blk, look.Shop, g, z, index);
+            // facade extras start above the shop sign (the zoomed-out title frame draws the signs larger in world units)
+            float first = Mathf.Ceil(g) + (shop ? 5f : 3f);
+            if (look.FireEscape) FireEscape(b, blk, first, top, z);
+            if (look.Balconies) Balconies(b, blk, first, top, z);
+            if (look.AcUnits) AcUnits(b, blk, first, top, z, index);
             Rooftop(b, blk, look.Roof, top, z, depth, back, index);
         }
 
@@ -446,13 +449,13 @@ namespace FloorF.Rendering
             }
         }
 
-        void FireEscape(PaletteMeshBuilder b, in CityView.Block blk, float g, float top, float z)
+        void FireEscape(PaletteMeshBuilder b, in CityView.Block blk, float first, float top, float z)
         {
             int metal = atlas.Static(new Color(0.20f, 0.20f, 0.22f));
             int rail = atlas.Static(new Color(0.30f, 0.30f, 0.33f));
             float x0 = blk.X0 + 0.6f, x1 = Mathf.Min(blk.X1 - 0.6f, x0 + 3.2f);
             float fz = z - 0.45f;
-            for (float y = Mathf.Ceil(g) + 3f; y + 1f < top - 1f; y += 2f)
+            for (float y = first; y + 1f < top - 1f; y += 2f)
             {
                 // platform (slab + its top), railing, ladder down to the next platform
                 b.Box(new Vector3(wx(x0, fz), wy(y - 0.1f, fz), fz), new Vector3(wx(x1, fz), wy(y, fz), z), metal, rail, metal);
@@ -469,12 +472,12 @@ namespace FloorF.Rendering
             }
         }
 
-        void Balconies(PaletteMeshBuilder b, in CityView.Block blk, float g, float top, float z)
+        void Balconies(PaletteMeshBuilder b, in CityView.Block blk, float first, float top, float z)
         {
             int slab = atlas.Static(new Color(0.30f, 0.29f, 0.30f));
             int rail = atlas.Static(new Color(0.42f, 0.42f, 0.45f));
             float bz = z - 0.35f;
-            for (float y = Mathf.Ceil(g) + 3f; y + 1f <= top - 1f; y += 2f)
+            for (float y = first; y + 1f <= top - 1f; y += 2f)
             {
                 float x0 = blk.X0 + 0.7f, x1 = blk.X1 - 0.7f;
                 b.Box(new Vector3(wx(x0, bz), wy(y - 0.12f, bz), bz), new Vector3(wx(x1, bz), wy(y, bz), z), slab, atlas.Static(PaletteMeshBuilder.Top(new Color(0.30f, 0.29f, 0.30f))), slab);
@@ -483,12 +486,12 @@ namespace FloorF.Rendering
             }
         }
 
-        void AcUnits(PaletteMeshBuilder b, in CityView.Block blk, float g, float top, float z, int index)
+        void AcUnits(PaletteMeshBuilder b, in CityView.Block blk, float first, float top, float z, int index)
         {
             var body = new Color(0.50f, 0.52f, 0.55f);
             int grille = atlas.Static(new Color(0.25f, 0.26f, 0.28f));
             int k = 0;
-            for (float y = Mathf.Ceil(g) + 3f; y + 1f <= top - 1f; y += 2f)
+            for (float y = first; y + 1f <= top - 1f; y += 2f)
                 for (float x = blk.X0 + 1f; x + 1f <= blk.X1 - 1f; x += 2f, k++)
                 {
                     if (LightSchedule.Hash(RenderingStyle.CitySeed, index, k, 140) > 0.3f) continue;
