@@ -20,7 +20,7 @@ namespace FloorF.Rendering
         static readonly Color Stone = new Color(0.34f, 0.31f, 0.30f);
         static readonly Color StoneDark = new Color(0.22f, 0.20f, 0.20f);
         static readonly Color Trim = new Color(0.56f, 0.48f, 0.38f);
-        static readonly Color Pilaster = new Color(0.40f, 0.24f, 0.20f);
+        static readonly Color Pilaster = new Color(0.60f, 0.28f, 0.21f);
         static readonly Color Metal = new Color(0.22f, 0.22f, 0.25f);
         static readonly Color Wood = new Color(0.36f, 0.25f, 0.17f);
         static readonly Color AcGrey = new Color(0.46f, 0.47f, 0.49f);
@@ -469,7 +469,7 @@ namespace FloorF.Rendering
             // ---- vertical HOTEL blade sign on the left pilaster (1 font texel = 1 px), two iron brackets
             int bladeBack = atlas.Static(new Color(0.07f, 0.05f, 0.07f));
             int bladeRim = atlas.Static(new Color(0.55f, 0.14f, 0.16f));
-            int bladeInk = atlas.Static(new Color(1.00f, 0.36f, 0.36f));
+            int bladeInk = atlas.Static(new Color(0.90f, 0.31f, 0.31f));
             int iron = atlas.Static(new Color(0.18f, 0.18f, 0.21f));
             float bz = pz - 0.2f;
             var anchor = p.At(new Vector3(pilL0, 4.5f * layout.FloorHeight, bz));

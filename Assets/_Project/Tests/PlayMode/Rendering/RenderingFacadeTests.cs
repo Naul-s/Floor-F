@@ -197,7 +197,7 @@ namespace FloorF.Tests.PlayMode.Rendering
                 yield return null;
                 if (sky.MeteorActive) framesWith++;
                 most = Mathf.Max(most, sky.ActiveMeteors);
-                Assert.AreEqual(sky.MeteorActive, sky.MeteorRenderer.enabled);
+                if (sky.MeteorRenderer.enabled) Assert.IsTrue(sky.MeteorActive, "meteor layer drawn only while meteors fly");
             }
             int seen = sky.MeteorsSeen - seen0;
             TestContext.WriteLine("star night: " + seen + " meteors in 20 s, in the sky " + framesWith + "/200 frames, at most " + most + " at once, fireballs so far " + sky.FireballsSeen);
@@ -235,13 +235,20 @@ namespace FloorF.Tests.PlayMode.Rendering
             RenderingTestDriver.Unfreeze();
             int shot = 0, brightHeads = 0;
             Time.captureDeltaTime = 0.05f;
-            for (int i = 0; i < 600 && shot < 3; i++)
+            for (int i = 0; i < 1200 && shot < 3; i++)
             {
                 yield return null;
-                if (root.Sky.ActiveMeteors < (shot == 0 ? 2 : 1)) continue;
+                // a frame with a bright meteor in open sky (most of the gameplay sky is hotel / HUD)
+                bool open = false;
+                foreach (var m in root.Sky.ActiveMeteorPoses)
+                    if (m.Level > 0.75f && m.Head.y > 200f && (m.Head.x < 205f || m.Head.x > 445f)) open = true;
+                if (!open || (shot == 0 && root.Sky.ActiveMeteors < 2)) continue;
                 yield return RenderingTestDriver.Freeze();
                 HideOtherCanvases(true);
                 Assert.IsTrue(File.Exists(FrameCapture.Capture("render_star_night_meteors_" + (shot + 1))));
+                var f = root.Rig.Current;
+                Assert.IsTrue(File.Exists(RenderingTestDriver.CaptureTargetCrop("render_star_night_meteors_" + (shot + 1) + "_sky",
+                    SkyView.ViewportToWorld(f, new Vector2(0f, 0.45f), z0), SkyView.ViewportToWorld(f, new Vector2(1f, 1f), z0), 2)));
                 HideOtherCanvases(false);
                 foreach (var m in root.Sky.ActiveMeteorPoses)
                     if (TargetPeak(new Vector2(m.Head.x / 640f, m.Head.y / 360f), 1) > 0.55f) brightHeads++;

@@ -193,7 +193,7 @@ namespace FloorF.Tests.EditMode.Rendering
                     Assert.Greater(m.Dir.y, -0.75f, "shallow streaks");
                     Assert.Less(m.Dir.x, 0f, "one radiant: every meteor falls down-left");
                     Assert.That(m.Level, Is.InRange(0f, 1f));
-                    Assert.LessOrEqual(m.Tail, 36);
+                    Assert.LessOrEqual(m.Tail, 40);
                     best = Mathf.Max(best, m.Level);
                 }
                 Assert.AreEqual(n > 0, SkySchedule.Meteor(seed, t, out var brightest));

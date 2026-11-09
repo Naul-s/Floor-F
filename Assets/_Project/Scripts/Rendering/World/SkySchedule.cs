@@ -219,24 +219,37 @@ namespace FloorF.Rendering
             float ang = (205f + (H(seed, k, j, 5) - 0.5f) * 24f) * Mathf.Deg2Rad;
             var dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             Vector2 from;
-            if (j == 0) from = new Vector2(Mathf.Lerp(70f, 660f, H(seed, k, 0, 6)), Mathf.Lerp(250f, 356f, H(seed, k, 0, 7)));
+            if (j == 0) from = LeadStart(seed, k);
             else
             {
                 // burst followers start near their lead (same patch of sky, slightly apart)
-                var lead = new Vector2(Mathf.Lerp(70f, 660f, H(seed, k, 0, 6)), Mathf.Lerp(250f, 356f, H(seed, k, 0, 7)));
+                var lead = LeadStart(seed, k);
                 from = lead + new Vector2((H(seed, k, j, 6) - 0.5f) * 140f, (H(seed, k, j, 7) - 0.5f) * 50f);
                 from.y = Mathf.Min(from.y, 356f);
             }
-            float travel = fire ? Mathf.Lerp(150f, 210f, H(seed, k, j, 8)) : Mathf.Lerp(60f, 120f, H(seed, k, j, 8));
+            float travel = fire ? Mathf.Lerp(150f, 210f, H(seed, k, j, 8)) : Mathf.Lerp(80f, 140f, H(seed, k, j, 8));
             m.Head = from + dir * (travel * p);
             m.Dir = dir;
             m.Level = MeteorLevel(p);
-            float tail = fire ? Mathf.Lerp(26f, 36f, H(seed, k, j, 9)) : Mathf.Lerp(11f, 20f, H(seed, k, j, 9));
+            float tail = fire ? Mathf.Lerp(30f, 40f, H(seed, k, j, 9)) : Mathf.Lerp(18f, 30f, H(seed, k, j, 9));
             m.Tail = Mathf.RoundToInt(tail * Mathf.Min(1f, p * 3f + 0.2f));
             m.Slot = k;
             m.Index = j;
             m.Fireball = fire;
             return true;
+        }
+
+        /// <summary>
+        /// Where a slot's lead meteor appears (viewport pixels). Two lanes keep the shower where the sky is open in the
+        /// gameplay frame: left of the hotel (falling into the gap between the HUD's left panel and the hotel) and right
+        /// of it (falling over the far towers below the HUD's top-right panels); the hotel column itself is skipped.
+        /// </summary>
+        public static Vector2 LeadStart(int seed, int k)
+        {
+            float lane = H(seed, k, 0, 10), u = H(seed, k, 0, 6), v = H(seed, k, 0, 7);
+            return lane < 0.45f
+                ? new Vector2(Mathf.Lerp(150f, 250f, u), Mathf.Lerp(270f, 356f, v))
+                : new Vector2(Mathf.Lerp(450f, 680f, u), Mathf.Lerp(215f, 335f, v));
         }
 
         /// <summary>Every meteor in the sky at <paramref name="time"/> (appended to <paramref name="into"/>; returns the count).</summary>
@@ -264,11 +277,14 @@ namespace FloorF.Rendering
             return any;
         }
 
-        /// <summary>Meteor brightness over its life <paramref name="p"/> (0..1): quick rise, long fade.</summary>
+        /// <summary>Meteor brightness over its life <paramref name="p"/> (0..1): quick rise, bright hold, long fade.</summary>
         public static float MeteorLevel(float p)
         {
             if (p < 0f || p >= 1f) return 0f;
-            return p < 0.2f ? p / 0.2f : 1f - (p - 0.2f) / 0.8f;
+            // flare up, burn bright for a while, then fade (still one rise + one fall)
+            if (p < 0.15f) return p / 0.15f;
+            if (p < 0.45f) return 1f;
+            return 1f - (p - 0.45f) / 0.55f;
         }
 
         /// <summary>Brightness of ONE meteor (slot k, index j) over time (photosensitivity: one rise + one fall).</summary>

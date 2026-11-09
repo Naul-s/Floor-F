@@ -649,7 +649,7 @@ namespace FloorF.Rendering
         }
 
         /// <summary>Streak from <paramref name="head"/> back against <paramref name="dir"/>, fading along its tail.</summary>
-        void Streak(Vector2 head, Vector2 dir, int tail, float level, int[] ramp, bool thick)
+        void Streak(Vector2 head, Vector2 dir, int tail, float level, int[] ramp, bool thick, float falloff = 1.3f)
         {
             int lastX = int.MinValue, lastY = int.MinValue;
             var perp = new Vector2(-dir.y, dir.x);
@@ -660,7 +660,7 @@ namespace FloorF.Rendering
                 if (x == lastX && y == lastY) continue;
                 lastX = x; lastY = y;
                 float k = 1f - i / (tail + 1f);
-                float l = level * Mathf.Pow(k, 1.3f);
+                float l = level * Mathf.Pow(k, falloff);
                 if (thick && i < tail * 0.4f)
                 {
                     var q = p + perp;
@@ -680,7 +680,7 @@ namespace FloorF.Rendering
         void DrawMeteor(in SkySchedule.MeteorPose m)
         {
             var ramp = m.Fireball ? fireballRamp : meteorRamp;
-            Streak(m.Head, m.Dir, m.Tail, m.Level, ramp, m.Fireball);
+            Streak(m.Head, m.Dir, m.Tail, m.Level, ramp, m.Fireball, 0.85f);
             int hx = Mathf.FloorToInt(m.Head.x), hy = Mathf.FloorToInt(m.Head.y);
             if (m.Fireball)
             {
@@ -692,7 +692,7 @@ namespace FloorF.Rendering
                 }
                 Sparkle(hx, hy, m.Level, ramp, 1, true);
             }
-            else if (m.Level > 0.55f) Sparkle(hx, hy, m.Level, ramp, 1, false);
+            else if (m.Level > 0.45f) Sparkle(hx, hy, m.Level, ramp, 1, false);
             else Px(hx, hy, m.Level, ramp);
         }
 
