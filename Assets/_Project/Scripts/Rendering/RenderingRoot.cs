@@ -70,6 +70,7 @@ namespace FloorF.Rendering
         internal float JuiceTime => juiceTime;
         internal bool IsBuilt => building != null;
         internal PaletteAtlas Palette => palette;
+        internal RenderAssets Assets => assets;
         internal LivingLights LivingLights => livingLights;
         internal CityView City => city;
         internal HotelFacade Facade => facade;
@@ -190,7 +191,8 @@ namespace FloorF.Rendering
             city = new CityView(world, palette, livingLights, RenderingStyle.CameraShear, z0, frame.PixelsPerUnit);
             city.Build(z0 - 0.15f);
             facade = new HotelFacade(world, assets, layout, building, palette, livingLights);
-            facade.Build();
+            facade.Build(frame.Grid);
+            assets.ApplyPatternGrid(frame.PixelsPerUnit);
             pipeline.Glow?.SetPools(LightPools());
             street = new StreetLife(world, assets, palette, RenderingStyle.CameraShear, z0, RenderingStyle.CitySeed);
             street.Build();
@@ -315,6 +317,8 @@ namespace FloorF.Rendering
             var grid = rig.Current.Grid;
             building.ApplyPixelGrid(grid);
             city.ApplyPixelGrid(grid);
+            facade.ApplyPixelGrid(grid);
+            assets.ApplyPatternGrid(grid.PixelsPerUnit);
             street.Tick(jdt, grid);
             TickWeather(juiceTime + StreetPrewarmSeconds);
             sky.Tick(juiceTime + StreetPrewarmSeconds, IsSimHeld ? 0f : jdt, rig.Current, IsStarNightNow);

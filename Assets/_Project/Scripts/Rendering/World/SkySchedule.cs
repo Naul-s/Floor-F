@@ -84,8 +84,9 @@ namespace FloorF.Rendering
     /// Pure, seeded sky schedules (EditMode-tested, PhotosensitivityTests): twinkle waves, glints, the star-night meteor
     /// shower and the wish-star envelopes. Like <see cref="LightSchedule"/> everything is a function of (seed, index,
     /// time) - no RNG state - so the same seed shows the same sky at the same time, and a frozen clock freezes it.
-    /// Photosensitivity: twinkles are slow waves (&gt;= 2.4 s period), glints and meteors are one rise + one fall each and
-    /// live in their own time slots (never two inside one second), wish stars fade in/out once.
+    /// Photosensitivity: twinkles are slow waves (&gt;= 2.4 s period), glints are one rise + one fall each in their own time
+    /// slots (never two inside one second); meteors are small MOVING streaks (one rise + one fall each, a few dozen pixels,
+    /// never a flashing area - several may cross the sky at once); wish stars fade in/out once.
     /// </summary>
     static class SkySchedule
     {
@@ -145,11 +146,24 @@ namespace FloorF.Rendering
             return i == index ? l : 0f;
         }
 
-        // ---- meteor shower (star night): at most one meteor per slot, ~one every 5 s
-        public const float MeteorSlot = 3.4f;
-        public const float MeteorChance = 0.62f;
-        public const float MeteorMinSeconds = 0.5f;
-        public const float MeteorMaxSeconds = 0.85f;
+        // ---- meteor shower (star night): a steady stream of shooting stars, now and then a burst or a fireball.
+        // Slot k (ShowerSlot s long) always starts one lead meteor, ShowerJitter into the slot, so consecutive leads are
+        // 0.6..1.5 s apart; BurstChance of the slots add 1-2 followers close behind; FireballChance of the leads are big,
+        // slow, green-white fireballs. Every meteor is ONE small moving streak with one rise + one fall of brightness.
+
+        public const float ShowerSlot = 1.05f;
+        public const float ShowerJitter = 0.45f;
+        public const float BurstChance = 0.2f;
+        public const float BurstMinDelay = 0.12f;
+        public const float BurstMaxDelay = 0.38f;
+        public const float FireballChance = 0.1f;
+        public const float MeteorMinSeconds = 0.45f;
+        public const float MeteorMaxSeconds = 0.8f;
+        public const float FireballMinSeconds = 1.0f;
+        public const float FireballMaxSeconds = 1.4f;
+        public const int MaxPerSlot = 3;
+        /// <summary>Longest a slot's meteors can still be in the sky after the slot starts.</summary>
+        public const float MaxSlotLife = ShowerJitter + (MaxPerSlot - 1) * BurstMaxDelay + FireballMaxSeconds;
 
         public struct MeteorPose
         {
@@ -160,30 +174,94 @@ namespace FloorF.Rendering
             public float Level;
             public int Tail;
             public int Slot;
+            /// <summary>0 = the slot's lead meteor, 1..2 = burst followers.</summary>
+            public int Index;
+            public bool Fireball;
+            /// <summary>Unique per meteor (slot * MaxPerSlot + index).</summary>
+            public int Id => Slot * MaxPerSlot + Index;
+            /// <summary>Streak width in pixels near the head (fireballs are thick).</summary>
+            public int Width => Fireball ? 3 : 1;
         }
 
-        public static bool Meteor(int seed, float time, out MeteorPose m)
+        static float H(int seed, int k, int j, int field) => LightSchedule.Hash(seed, 600 + j * 20 + field, k, 7);
+
+        /// <summary>Meteors in slot <paramref name="k"/>: 1, or 2-3 in a burst.</summary>
+        public static int SlotCount(int seed, int k)
+        {
+            if (H(seed, k, 0, 1) >= BurstChance) return 1;
+            return H(seed, k, 0, 2) < 0.6f ? 2 : 3;
+        }
+
+        public static float MeteorStart(int seed, int k, int j)
+        {
+            float lead = k * ShowerSlot + H(seed, k, 0, 0) * ShowerJitter;
+            float t = lead;
+            for (int i = 1; i <= j; i++) t += Mathf.Lerp(BurstMinDelay, BurstMaxDelay, H(seed, k, i, 0));
+            return t;
+        }
+
+        public static bool IsFireball(int seed, int k, int j) => j == 0 && H(seed, k, 0, 3) < FireballChance;
+
+        public static float MeteorDuration(int seed, int k, int j)
+            => IsFireball(seed, k, j) ? Mathf.Lerp(FireballMinSeconds, FireballMaxSeconds, H(seed, k, j, 4)) : Mathf.Lerp(MeteorMinSeconds, MeteorMaxSeconds, H(seed, k, j, 4));
+
+        /// <summary>Meteor j of slot k at <paramref name="time"/> (false while it is not in the sky).</summary>
+        public static bool MeteorAt(int seed, int k, int j, float time, out MeteorPose m)
         {
             m = default;
-            float t = Mathf.Max(0f, time);
-            int k = Mathf.FloorToInt(t / MeteorSlot);
-            if (LightSchedule.Hash(seed, 60, k, 0) >= MeteorChance) return false;
-            float duration = Mathf.Lerp(MeteorMinSeconds, MeteorMaxSeconds, LightSchedule.Hash(seed, 60, k, 1));
-            float start = k * MeteorSlot + 0.2f + LightSchedule.Hash(seed, 60, k, 2) * (MeteorSlot - 0.5f - duration);
-            float r = t - start;
+            if (k < 0 || j < 0 || j >= SlotCount(seed, k)) return false;
+            float start = MeteorStart(seed, k, j), duration = MeteorDuration(seed, k, j);
+            float r = time - start;
             if (r < 0f || r >= duration) return false;
             float p = r / duration;
-            // radiant up and to the right: every meteor falls down-left, a little spread
-            float ang = (205f + (LightSchedule.Hash(seed, 60, k, 3) - 0.5f) * 22f) * Mathf.Deg2Rad;
+            bool fire = IsFireball(seed, k, j);
+            // one radiant up and to the right: every meteor falls down-left, a little spread
+            float ang = (205f + (H(seed, k, j, 5) - 0.5f) * 24f) * Mathf.Deg2Rad;
             var dir = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
-            var from = new Vector2(Mathf.Lerp(90f, 630f, LightSchedule.Hash(seed, 60, k, 4)), Mathf.Lerp(235f, 352f, LightSchedule.Hash(seed, 60, k, 5)));
-            float travel = Mathf.Lerp(70f, 130f, LightSchedule.Hash(seed, 60, k, 6));
+            Vector2 from;
+            if (j == 0) from = new Vector2(Mathf.Lerp(70f, 660f, H(seed, k, 0, 6)), Mathf.Lerp(250f, 356f, H(seed, k, 0, 7)));
+            else
+            {
+                // burst followers start near their lead (same patch of sky, slightly apart)
+                var lead = new Vector2(Mathf.Lerp(70f, 660f, H(seed, k, 0, 6)), Mathf.Lerp(250f, 356f, H(seed, k, 0, 7)));
+                from = lead + new Vector2((H(seed, k, j, 6) - 0.5f) * 140f, (H(seed, k, j, 7) - 0.5f) * 50f);
+                from.y = Mathf.Min(from.y, 356f);
+            }
+            float travel = fire ? Mathf.Lerp(150f, 210f, H(seed, k, j, 8)) : Mathf.Lerp(60f, 120f, H(seed, k, j, 8));
             m.Head = from + dir * (travel * p);
             m.Dir = dir;
             m.Level = MeteorLevel(p);
-            m.Tail = Mathf.RoundToInt(Mathf.Lerp(13f, 24f, LightSchedule.Hash(seed, 60, k, 7)) * Mathf.Min(1f, p * 3f + 0.2f));
+            float tail = fire ? Mathf.Lerp(26f, 36f, H(seed, k, j, 9)) : Mathf.Lerp(11f, 20f, H(seed, k, j, 9));
+            m.Tail = Mathf.RoundToInt(tail * Mathf.Min(1f, p * 3f + 0.2f));
             m.Slot = k;
+            m.Index = j;
+            m.Fireball = fire;
             return true;
+        }
+
+        /// <summary>Every meteor in the sky at <paramref name="time"/> (appended to <paramref name="into"/>; returns the count).</summary>
+        public static int Meteors(int seed, float time, List<MeteorPose> into)
+        {
+            float t = Mathf.Max(0f, time);
+            int k1 = Mathf.FloorToInt(t / ShowerSlot), k0 = Mathf.Max(0, Mathf.FloorToInt((t - MaxSlotLife) / ShowerSlot));
+            int n = 0;
+            for (int k = k0; k <= k1; k++)
+                for (int j = 0; j < MaxPerSlot; j++)
+                    if (MeteorAt(seed, k, j, t, out var m)) { into?.Add(m); n++; }
+            return n;
+        }
+
+        /// <summary>The brightest meteor in the sky at <paramref name="time"/>.</summary>
+        public static bool Meteor(int seed, float time, out MeteorPose m)
+        {
+            m = default;
+            bool any = false;
+            float t = Mathf.Max(0f, time);
+            int k1 = Mathf.FloorToInt(t / ShowerSlot), k0 = Mathf.Max(0, Mathf.FloorToInt((t - MaxSlotLife) / ShowerSlot));
+            for (int k = k0; k <= k1; k++)
+                for (int j = 0; j < MaxPerSlot; j++)
+                    if (MeteorAt(seed, k, j, t, out var c) && (!any || c.Level > m.Level)) { m = c; any = true; }
+            return any;
         }
 
         /// <summary>Meteor brightness over its life <paramref name="p"/> (0..1): quick rise, long fade.</summary>
@@ -193,8 +271,14 @@ namespace FloorF.Rendering
             return p < 0.2f ? p / 0.2f : 1f - (p - 0.2f) / 0.8f;
         }
 
-        /// <summary>Sum of meteor brightness at <paramref name="time"/> (tests: the shower as a whole).</summary>
-        public static float MeteorBrightness(int seed, float time) => Meteor(seed, time, out var m) ? m.Level : 0f;
+        /// <summary>Brightness of ONE meteor (slot k, index j) over time (photosensitivity: one rise + one fall).</summary>
+        public static float MeteorLevelOf(int seed, int k, int j, float time) => MeteorAt(seed, k, j, time, out var m) ? m.Level : 0f;
+
+        /// <summary>
+        /// Target pixels a meteor lights (streak length x width + the head's "+" and glow allowance) - tests: the shower
+        /// is small moving objects, never a flashing area.
+        /// </summary>
+        public static int MeteorPixels(in MeteorPose m) => (m.Tail + 1) * m.Width + (m.Fireball ? 24 : 5);
 
         // ---- wish stars
         public const float WishFadeIn = 0.3f;

@@ -87,7 +87,7 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.Greater(root.City.WindowCount, 150, "skyline windows");
             Assert.AreEqual(1, root.City.Root.GetComponentsInChildren<Renderer>().Length, "city = 1 renderer");
             Assert.IsNotNull(root.Facade);
-            Assert.LessOrEqual(root.Facade.Renderers.Count, 14, "facade merged per material");
+            Assert.LessOrEqual(root.Facade.Renderers.Count, 16, "facade merged per material (+ pixel details)");
             Assert.Greater(root.Facade.BulbCount, 20, "HOTEL sign bulbs");
             Assert.AreSame(root.Palette.Material, root.City.Renderer.sharedMaterial, "city shares the palette material");
             foreach (var t in root.Street.ActiveCarTransforms())

@@ -194,6 +194,16 @@ namespace FloorF.Rendering
             return b.Build("City " + ppu + "ppu");
         }
 
+        /// <summary>Wall pattern of a block (by its colour): brick, concrete panels, glazed tiles, stone; far towers get floor lines.</summary>
+        public static WallPattern PatternOf(in Block blk)
+        {
+            if (blk.Z > 6f) return WallPattern.Bands;
+            if (blk.Color == Brick) return WallPattern.Brick;
+            if (blk.Color == Grey) return WallPattern.Panel;
+            if (blk.Color == Navy) return WallPattern.Tile;
+            return WallPattern.Stone;
+        }
+
         /// <summary>Light of a street lamp's pool (hue x intensity, see PixelGlow.LightPool).</summary>
         static readonly Color LampPoolLight = new Color(1.00f, 0.80f, 0.48f) * 0.45f;
 
@@ -207,7 +217,9 @@ namespace FloorF.Rendering
             // the front face sits on whole screen-plane units: x and y both (y: top edge; the bottom meets the ground)
             float x0 = WX(blk.X0, z), x1 = WX(blk.X1, z);
             float yTop = WY(top, z);
-            b.Box(new Vector3(x0, g, z), new Vector3(x1, yTop, z + depth), blk.Color);
+            // walls: top + side flat-shaded, the front face a pixel pattern (brick, panels, tiles...) in the block colour
+            b.Box(new Vector3(x0, g, z), new Vector3(x1, yTop, z + depth), -1, atlas.Static(PaletteMeshBuilder.Top(blk.Color)), atlas.Static(PaletteMeshBuilder.Side(blk.Color)));
+            b.PatternFront(blk.X0, g + shear.y * (z - z0), blk.X1, top, z, atlas.Tile(PatternOf(blk), blk.Color), new PixelGrid(1f / px, shear, z0));
             if (!replay) BuildingRects.Add(Rect.MinMaxRect(blk.X0, g + shear.y * (z - z0), blk.X1 + shear.x * depth, top + shear.y * depth));
             // roof cap strip (lighter) and a few rooftop boxes
             var cap = PaletteMeshBuilder.Top(blk.Color);

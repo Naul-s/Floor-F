@@ -75,7 +75,7 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.IsTrue(sky.StarRenderer.enabled);
             Assert.IsFalse(sky.StarNight, "day 1 is an ordinary night");
             Assert.IsFalse(sky.BandVisible, "no Milky Way on an ordinary night");
-            Assert.LessOrEqual(sky.Root.GetComponentsInChildren<Renderer>(true).Length, 4, "sky = at most 4 renderers");
+            Assert.LessOrEqual(sky.Root.GetComponentsInChildren<Renderer>(true).Length, 5, "sky = at most 5 renderers (stars, band, fx, wish, meteors)");
 
             // twinkles rewrite palette texels, glints come and go, nothing new gets created
             int renderers = sky.Root.GetComponentsInChildren<Renderer>(true).Length;
@@ -290,7 +290,7 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.IsTrue(sky.BandVisible, "Milky Way on star night");
             for (int i = 0; i < 300 && sky.MeteorsSeen < before + 2; i++) yield return null;
             Assert.GreaterOrEqual(sky.MeteorsSeen, before + 2, "meteor shower");
-            Assert.LessOrEqual(sky.Root.GetComponentsInChildren<Renderer>(true).Length, 4);
+            Assert.LessOrEqual(sky.Root.GetComponentsInChildren<Renderer>(true).Length, 5);
 
             sky.ForceStarNight = false;
             yield return null;
