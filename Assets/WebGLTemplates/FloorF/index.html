@@ -170,6 +170,11 @@
 
       var script = document.createElement("script");
       script.src = buildUrl + "/{{{ LOADER_FILENAME }}}";
+      // never wait forever on floor 1: a missing loader (bad upload / unpacked wrong) must say so
+      script.onerror = function () {
+        showBanner("Could not load the game files (Build/{{{ LOADER_FILENAME }}}). Please re-upload the ZIP.<br>" +
+                   "게임 파일을 불러오지 못했습니다. ZIP을 다시 올려 주세요.", "error");
+      };
       script.onload = function () {
         createUnityInstance(canvas, config, function (progress) {
           // floors 1..8 follow the download; 9 only once the game is ready
