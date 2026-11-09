@@ -152,19 +152,74 @@ namespace FloorF.Tests.EditMode.Rendering
         }
 
         [Test]
-        public void MeteorShower_OneAtATime_NotTooBusy()
+        public void MeteorShower_SteadyRhythm_WithBurstsAndFireballs([Values(1408, 3)] int seed)
         {
-            int meteors = 0, last = int.MinValue;
+            // one lead meteor per slot, 0.6..1.5 s after the previous one; some slots burst (2-3), some leads are fireballs
+            float prev = SkySchedule.MeteorStart(seed, 0, 0);
+            int slots = 600, bursts = 0, fireballs = 0, total = SkySchedule.SlotCount(seed, 0);
+            for (int k = 1; k < slots; k++)
+            {
+                float start = SkySchedule.MeteorStart(seed, k, 0);
+                Assert.That(start - prev, Is.InRange(0.6f - 1e-3f, 1.5f + 1e-3f), "steady rhythm between leads (slot " + k + ")");
+                prev = start;
+                int n = SkySchedule.SlotCount(seed, k);
+                Assert.That(n, Is.InRange(1, SkySchedule.MaxPerSlot));
+                if (n > 1) bursts++;
+                if (SkySchedule.IsFireball(seed, k, 0)) fireballs++;
+                total += n;
+                for (int j = 1; j < n; j++)
+                    Assert.Greater(SkySchedule.MeteorStart(seed, k, j), SkySchedule.MeteorStart(seed, k, j - 1), "burst followers come after their lead");
+            }
+            Assert.That(bursts / (float)slots, Is.InRange(0.1f, 0.32f), "occasional bursts of 2-3");
+            Assert.That(fireballs / (float)slots, Is.InRange(0.04f, 0.18f), "a few brighter fireballs");
+            float every = slots * SkySchedule.ShowerSlot / total;
+            Assert.That(every, Is.InRange(0.6f, 1.1f), "a meteor about every second (" + every.ToString("0.00") + " s)");
+
+            // poses: in the sky, falling down-left from one radiant, a handful at once at most; Meteor() = the brightest
+            var poses = new List<SkySchedule.MeteorPose>();
+            int busy = 0, samples = 0, most = 0;
             for (float t = 0f; t < 600f; t += 0.02f)
-                if (SkySchedule.Meteor(1408, t, out var m))
+            {
+                poses.Clear();
+                int n = SkySchedule.Meteors(seed, t, poses);
+                samples++;
+                if (n > 0) busy++;
+                most = Mathf.Max(most, n);
+                float best = 0f;
+                foreach (var m in poses)
                 {
-                    if (m.Slot != last) { meteors++; last = m.Slot; }
-                    Assert.That(m.Head.x, Is.InRange(-150f, 800f));
+                    Assert.That(m.Head.x, Is.InRange(-200f, 800f));
+                    Assert.That(m.Head.y, Is.InRange(60f, 360f), "upper sky");
                     Assert.Greater(m.Dir.y, -0.75f, "shallow streaks");
                     Assert.Less(m.Dir.x, 0f, "one radiant: every meteor falls down-left");
+                    Assert.That(m.Level, Is.InRange(0f, 1f));
+                    Assert.LessOrEqual(m.Tail, 40);
+                    best = Mathf.Max(best, m.Level);
                 }
-            float every = 600f / Mathf.Max(1, meteors);
-            Assert.That(every, Is.InRange(3.5f, 9f), "about one meteor every ~5 s");
+                Assert.AreEqual(n > 0, SkySchedule.Meteor(seed, t, out var brightest));
+                if (n > 0) Assert.AreEqual(best, brightest.Level, 1e-5f);
+            }
+            Assert.Greater(busy / (float)samples, 0.45f, "the shower keeps falling: a meteor in the sky most of the time");
+            Assert.That(most, Is.InRange(2, 5), "several at once in bursts, never a swarm");
+        }
+
+        [Test]
+        public void MeteorShower_IsDeterministicPerSeed()
+        {
+            string Run(int seed)
+            {
+                var sb = new System.Text.StringBuilder();
+                var poses = new List<SkySchedule.MeteorPose>();
+                for (float t = 0f; t < 60f; t += 0.25f)
+                {
+                    poses.Clear();
+                    SkySchedule.Meteors(seed, t, poses);
+                    foreach (var m in poses) sb.Append(m.Id).Append(':').Append(m.Head.x.ToString("0.0")).Append(',').Append(m.Head.y.ToString("0.0")).Append(m.Fireball ? 'F' : '.').Append(';');
+                }
+                return sb.ToString();
+            }
+            Assert.AreEqual(Run(1408), Run(1408), "same seed, same shower");
+            Assert.AreNotEqual(Run(1408), Run(1409), "another seed, another shower");
         }
 
         [Test]

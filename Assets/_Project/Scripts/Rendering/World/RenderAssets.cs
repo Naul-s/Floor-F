@@ -127,6 +127,100 @@ namespace FloorF.Rendering
             return m;
         }
 
+        // ------------------------------------------------------------------ lit pixel patterns (the hotel's masonry)
+
+        readonly Dictionary<long, Material> patternCache = new Dictionary<long, Material>();
+        readonly Dictionary<WallPattern, Texture2D> patternTextures = new Dictionary<WallPattern, Texture2D>();
+        readonly List<Material> patternMaterials = new List<Material>();
+        readonly List<Vector2Int> patternSizes = new List<Vector2Int>();
+        float patternPpu = -1f;
+
+        /// <summary>Pattern materials made so far (tests).</summary>
+        public IReadOnlyList<Material> PatternMaterials => patternMaterials;
+        public float PatternPixelsPerUnit => patternPpu;
+
+        public bool IsPattern(Material m) => m != null && patternMaterials.Contains(m);
+
+        /// <summary>Repeating grey tile of <paramref name="p"/> (shade / max), point-filtered.</summary>
+        public Texture2D PatternTexture(WallPattern p)
+        {
+            if (patternTextures.TryGetValue(p, out var tex)) return tex;
+            var size = PixelPatterns.Size(p);
+            tex = Own(new Texture2D(size.x, size.y, TextureFormat.RGBA32, false)
+            {
+                name = "Pattern " + p,
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Repeat,
+            });
+            tex.SetPixels32(PixelPatterns.Bake(p, Color.white, 1f / PixelPatterns.Max(p)));
+            tex.Apply(false, false);
+            patternTextures[p] = tex;
+            return tex;
+        }
+
+        /// <summary>
+        /// Shared lit material with pixel pattern <paramref name="p"/> in <paramref name="color"/>. Meshes using it need
+        /// screen-plane UVs (<see cref="ProjectUVs"/>); <see cref="ApplyPatternGrid"/> keeps one tile texel = one target
+        /// pixel in the active frame.
+        /// </summary>
+        public Material PatternLit(Color color, WallPattern p)
+        {
+            long key = ((long)ColorKey(color) << 8) | (long)p;
+            if (patternCache.TryGetValue(key, out var m)) return m;
+            float max = PixelPatterns.Max(p);
+            m = NewLit(new Color(Mathf.Clamp01(color.r * max), Mathf.Clamp01(color.g * max), Mathf.Clamp01(color.b * max), 1f));
+            m.name = "Pattern " + p + " " + ColorUtility.ToHtmlStringRGB(color);
+            SetTexture(m, PatternTexture(p));
+            patternCache[key] = m;
+            patternMaterials.Add(m);
+            patternSizes.Add(PixelPatterns.Size(p));
+            if (patternPpu > 0f) Tile(m, PixelPatterns.Size(p), patternPpu);
+            return m;
+        }
+
+        static int ColorKey(Color c)
+        {
+            var c32 = (Color32)c;
+            return (c32.r << 16) | (c32.g << 8) | c32.b;
+        }
+
+        static void Tile(Material m, Vector2Int size, float ppu)
+        {
+            m.SetTextureScale(BaseMapId, new Vector2(ppu / size.x, ppu / size.y));
+            m.SetTextureOffset(BaseMapId, Vector2.zero);
+        }
+
+        /// <summary>Active frame's pixels per unit: pattern texels stay whole target pixels (gameplay and title frames).</summary>
+        public void ApplyPatternGrid(float pixelsPerUnit)
+        {
+            if (Mathf.Approximately(pixelsPerUnit, patternPpu)) return;
+            patternPpu = pixelsPerUnit;
+            for (int i = 0; i < patternMaterials.Count; i++) Tile(patternMaterials[i], patternSizes[i], pixelsPerUnit);
+        }
+
+        /// <summary>
+        /// UV = screen-plane position (world units) of every vertex: a planar projection along the camera's oblique view, so
+        /// pattern texels land on the screen's pixel lattice on every face (front, top and side alike).
+        /// </summary>
+        public static void ProjectUVs(Mesh mesh, Matrix4x4 localToWorld, Vector2 shear, float shearDepth)
+        {
+            var v = mesh.vertices;
+            var uv = new Vector2[v.Length];
+            for (int i = 0; i < v.Length; i++) uv[i] = PixelGrid.Project(localToWorld.MultiplyPoint3x4(v[i]), shear, shearDepth);
+            mesh.uv = uv;
+        }
+
+        /// <summary>Box with its own mesh carrying screen-plane UVs (pattern materials on per-object boxes).</summary>
+        public GameObject PatternBox(Transform parent, string name, Vector3 localCenter, Vector3 size, Material material, Vector2 shear, float shearDepth, bool castShadows = true)
+        {
+            var go = Box(parent, name, localCenter, size, material, castShadows);
+            var mesh = Own(Object.Instantiate(Cube));
+            mesh.name = name;
+            ProjectUVs(mesh, go.transform.localToWorldMatrix, shear, shearDepth);
+            go.GetComponent<MeshFilter>().sharedMesh = mesh;
+            return go;
+        }
+
         public static void SetColor(Material m, Color color)
         {
             if (m.HasProperty(BaseColorId)) m.SetColor(BaseColorId, color);
@@ -171,6 +265,10 @@ namespace FloorF.Rendering
             litCache.Clear();
             unlitCache.Clear();
             swatchCubes.Clear();
+            patternCache.Clear();
+            patternTextures.Clear();
+            patternMaterials.Clear();
+            patternSizes.Clear();
         }
     }
 

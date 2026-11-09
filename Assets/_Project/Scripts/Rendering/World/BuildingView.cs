@@ -134,16 +134,17 @@ namespace FloorF.Rendering
             float height = n * h;
 
             var slab = assets.Lit(RenderingStyle.Slab);
-            var slabEdge = assets.Lit(RenderingStyle.SlabEdge);
-            var outer = assets.Lit(RenderingStyle.OuterWall);
+            // pixel masonry: dentil course on every slab edge, brick side walls (screen-plane UVs, see RenderAssets.PatternLit)
+            var slabEdge = assets.PatternLit(RenderingStyle.SlabEdge, WallPattern.Dentil);
+            var outer = assets.PatternLit(RenderingStyle.OuterWall, WallPattern.Brick);
             var shaftBack = assets.Lit(RenderingStyle.ShaftBack);
             var frame = assets.Lit(RenderingStyle.ShaftFrame);
 
             // roof (plinth, cornice, pilasters and roof props: HotelFacade)
             SlabWithShaftHole("Roof", height, slab, slabEdge, includeHole: false);
             // outer side walls (full height)
-            assets.Box(Root, "Wall L", new Vector3(left - WallThickness * 0.5f, height * 0.5f, 0f), new Vector3(WallThickness, height, d + WallThickness), outer);
-            assets.Box(Root, "Wall R", new Vector3(right + WallThickness * 0.5f, height * 0.5f, 0f), new Vector3(WallThickness, height, d + WallThickness), outer);
+            assets.PatternBox(Root, "Wall L", new Vector3(left - WallThickness * 0.5f, height * 0.5f, 0f), new Vector3(WallThickness, height, d + WallThickness), outer, RenderingStyle.CameraShear, -d * 0.5f);
+            assets.PatternBox(Root, "Wall R", new Vector3(right + WallThickness * 0.5f, height * 0.5f, 0f), new Vector3(WallThickness, height, d + WallThickness), outer, RenderingStyle.CameraShear, -d * 0.5f);
             // shaft: dark back panel + gold front posts for the whole height
             float shaftBackZ = d * 0.5f - 0.35f;
             assets.Box(Root, "Shaft Back", new Vector3(sx, height * 0.5f, shaftBackZ), new Vector3(ShaftHalfWidth * 2f, height, 0.1f), shaftBack, false);
@@ -176,14 +177,20 @@ namespace FloorF.Rendering
             if (!includeHole)
             {
                 assets.Box(Root, name, new Vector3(sx, y, 0f), new Vector3(w, SlabThickness, d), slab);
-                assets.Box(Root, name + " Edge", new Vector3(sx, y, -d * 0.5f - 0.02f), new Vector3(w, SlabThickness, 0.04f), edge, false);
+                EdgeBox(name + " Edge", new Vector3(sx, y, -d * 0.5f - 0.02f), new Vector3(w, SlabThickness, 0.04f), edge);
                 return;
             }
             float holeL = sx - ShaftHalfWidth, holeR = sx + ShaftHalfWidth;
             assets.Box(Root, name + " L", new Vector3((left + holeL) * 0.5f, y, 0f), new Vector3(holeL - left, SlabThickness, d), slab);
             assets.Box(Root, name + " R", new Vector3((holeR + right) * 0.5f, y, 0f), new Vector3(right - holeR, SlabThickness, d), slab);
-            assets.Box(Root, name + " Edge L", new Vector3((left + holeL) * 0.5f, y, -d * 0.5f - 0.02f), new Vector3(holeL - left, SlabThickness, 0.04f), edge, false);
-            assets.Box(Root, name + " Edge R", new Vector3((holeR + right) * 0.5f, y, -d * 0.5f - 0.02f), new Vector3(right - holeR, SlabThickness, 0.04f), edge, false);
+            EdgeBox(name + " Edge L", new Vector3((left + holeL) * 0.5f, y, -d * 0.5f - 0.02f), new Vector3(holeL - left, SlabThickness, 0.04f), edge);
+            EdgeBox(name + " Edge R", new Vector3((holeR + right) * 0.5f, y, -d * 0.5f - 0.02f), new Vector3(right - holeR, SlabThickness, 0.04f), edge);
+        }
+
+        void EdgeBox(string name, Vector3 center, Vector3 size, Material edge)
+        {
+            if (assets.IsPattern(edge)) assets.PatternBox(Root, name, center, size, edge, RenderingStyle.CameraShear, -layout.Depth * 0.5f, false);
+            else assets.Box(Root, name, center, size, edge, false);
         }
 
         void BuildFloor(FloorIndex f, DestinationId destination, FloorLabel label, bool relabelled, Material slab, Material slabEdge)

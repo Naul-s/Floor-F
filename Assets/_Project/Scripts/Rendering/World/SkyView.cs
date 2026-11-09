@@ -14,7 +14,10 @@ namespace FloorF.Rendering
     ///   Stars layer (1 palette mesh): moon with craters + banded halo, steady / twinkling stars (twinkle = shared
     ///                                  palette texels rewritten each frame).
     ///   Band layer  (1 textured quad, star night only): baked dithered gradient sky + Milky Way + dense faint stars.
-    ///   Fx layer    (1 palette mesh rebuilt while something moves): glints, meteors (behind the city, like real sky).
+    ///   Fx layer    (1 palette mesh rebuilt while something moves): glints (behind the city, like real sky).
+    ///   Meteor layer (1 palette mesh, ADDITIVE, depth-tested, star night only): the continuous meteor shower - in front
+    ///                of the sky and the far towers (<see cref="MeteorDepth"/> sits between the two rows of buildings),
+    ///                behind the hotel and the near row, so streaks cross the open sky and the distant skyline.
     ///   Wish layer  (1 palette mesh, ADDITIVE, ZTest Always - drawn over the city and the hotel): wish stars with a
     ///                banded glow, their sparkles and the wish burst. They are magical and the player must click them,
     ///                so they never hide behind a building; still placed on the same viewport mapping (event coords).
@@ -25,6 +28,8 @@ namespace FloorF.Rendering
         public const float StarDepth = 60f;
         public const float BandDepth = 61f;
         public const float FxDepth = 59f;
+        /// <summary>Meteor layer depth: behind the near row of buildings (and the hotel), in front of the back row.</summary>
+        public const float MeteorDepth = 8.5f;
         /// <summary>
         /// Top left corner: above the left neighbours in the gameplay frame (their roofs reach ~0.88), left of the HUD
         /// panels (from ~0.14 at 16:9) and of the title logo (top centre), never behind the hotel.
@@ -50,6 +55,11 @@ namespace FloorF.Rendering
         static readonly Color[] MeteorStops =
         {
             new Color(0.96f, 0.98f, 1.00f), new Color(0.62f, 0.82f, 1.00f), new Color(0.36f, 0.50f, 0.92f), new Color(0.22f, 0.22f, 0.52f), new Color(0.11f, 0.11f, 0.26f),
+        };
+        /// <summary>Fireballs burn green-white (never golden: wish stars own gold).</summary>
+        static readonly Color[] FireballStops =
+        {
+            new Color(1.00f, 1.00f, 0.96f), new Color(0.72f, 1.00f, 0.80f), new Color(0.36f, 0.86f, 0.72f), new Color(0.20f, 0.46f, 0.62f), new Color(0.12f, 0.16f, 0.34f),
         };
         static readonly Color[] WishStops =
         {
@@ -90,17 +100,20 @@ namespace FloorF.Rendering
         readonly int seed;
         readonly PixelQuads fxQuads = new PixelQuads();
         readonly PixelQuads wishQuads = new PixelQuads();
+        readonly PixelQuads meteorQuads = new PixelQuads();
+        readonly List<SkySchedule.MeteorPose> meteors = new List<SkySchedule.MeteorPose>();
+        readonly List<int> recentMeteors = new List<int>();
         PixelQuads target;
         readonly List<Wish> wishes = new List<Wish>();
         readonly int[] twinkleCentre = new int[StarField.TwinkleGroups];
         readonly int[] twinkleArm = new int[StarField.TwinkleGroups];
-        int[] glintRamp, meteorRamp, wishRamp, coreRamp, glowRamp;
+        int[] glintRamp, meteorRamp, fireballRamp, wishRamp, coreRamp, glowRamp;
         List<SkyStar> stars;
         readonly List<SkyStar> glints = new List<SkyStar>();
-        Transform starLayer, bandLayer, fxLayer, wishLayer;
-        MeshRenderer starRenderer, bandRenderer, fxRenderer, wishRenderer;
-        Mesh fxMesh, wishMesh;
-        bool wishDirty;
+        Transform starLayer, bandLayer, fxLayer, wishLayer, meteorLayer;
+        MeshRenderer starRenderer, bandRenderer, fxRenderer, wishRenderer, meteorRenderer;
+        Mesh fxMesh, wishMesh, meteorMesh;
+        bool wishDirty, meteorDirty;
         Texture2D bandTexture;
         bool fxDirty;
         float time;
@@ -113,6 +126,14 @@ namespace FloorF.Rendering
         public MeshRenderer FxRenderer => fxRenderer;
         /// <summary>Wish stars + burst: additive, drawn over the city and the hotel.</summary>
         public MeshRenderer WishRenderer => wishRenderer;
+        /// <summary>Star-night meteor shower: additive, depth-tested (null when the shader is missing: meteors use the fx layer).</summary>
+        public MeshRenderer MeteorRenderer => meteorRenderer;
+        public bool MeteorsInFront => meteorRenderer != null;
+        /// <summary>Meteors in the sky this frame.</summary>
+        public int ActiveMeteors => meteors.Count;
+        public IReadOnlyList<SkySchedule.MeteorPose> ActiveMeteorPoses => meteors;
+        public int MeteorQuadCount => meteorQuads.Count;
+        public int FireballsSeen { get; private set; }
         /// <summary>False only when the additive shader is missing (then wish stars fall back to the sky's fx layer).</summary>
         public bool WishInFront { get; private set; }
         public int WishQuadCount => wishQuads.Count;
@@ -123,13 +144,13 @@ namespace FloorF.Rendering
         /// <summary>Rainy night: clouds hide the moon, the stars and the glints (set by the weather every frame).</summary>
         public bool Overcast { get; set; }
         public bool MeteorActive { get; private set; }
-        /// <summary>The meteor in flight (valid while <see cref="MeteorActive"/>).</summary>
+        /// <summary>The brightest meteor in flight (valid while <see cref="MeteorActive"/>).</summary>
         public SkySchedule.MeteorPose Meteor { get; private set; }
         public int ActiveGlint { get; private set; } = -1;
         public int FxQuadCount => fxQuads.Count;
         public int WishCount => wishes.Count;
+        /// <summary>Distinct meteors drawn so far.</summary>
         public int MeteorsSeen { get; private set; }
-        int lastMeteorSlot = int.MinValue;
 
         public SkyView(Transform parent, RenderAssets assets, PaletteAtlas atlas, int seed)
         {
@@ -195,7 +216,11 @@ namespace FloorF.Rendering
             // additive ramps fade to black (adds nothing), opaque ones to the sky colour
             var wishBase = WishInFront ? Color.black : RenderingStyle.Background;
             glintRamp = Ramp(GlintColor, RenderingStyle.Background);
-            meteorRamp = Ramp(MeteorStops, RenderingStyle.Background);
+            var meteorMat = assets.NewAdditive(atlas.Texture, "Meteors (additive, depth-tested)");
+            if (meteorMat != null) meteorMat.SetFloat(ZTestId, (float)CompareFunction.LessEqual);
+            var meteorBase = meteorMat != null ? Color.black : RenderingStyle.Background;
+            meteorRamp = Ramp(MeteorStops, meteorBase);
+            fireballRamp = Ramp(FireballStops, meteorBase);
             wishRamp = Ramp(WishStops, wishBase);
             coreRamp = Ramp(WishCore, wishBase);
             glowRamp = Ramp(WishGlow, wishBase);
@@ -239,7 +264,17 @@ namespace FloorF.Rendering
             wishMesh.MarkDynamic();
             wishLayer = Layer("Wish Stars", wishMesh, front != null ? front : atlas.Material, out wishRenderer);
             wishRenderer.enabled = false;
+
+            if (meteorMat != null)
+            {
+                meteorMesh = assets.Own(new Mesh { name = "Meteors" });
+                meteorMesh.MarkDynamic();
+                meteorLayer = Layer("Meteors", meteorMesh, meteorMat, out meteorRenderer);
+                meteorRenderer.enabled = false;
+            }
         }
+
+        static readonly int ZTestId = Shader.PropertyToID("_ZTest");
 
         Transform Layer(string name, Mesh mesh, Material material, out MeshRenderer renderer)
         {
@@ -501,6 +536,7 @@ namespace FloorF.Rendering
             Place(bandLayer, frame, BandDepth);
             Place(fxLayer, frame, FxDepth);
             Place(wishLayer, frame, FxDepth);
+            Place(meteorLayer, frame, MeteorDepth);
 
             for (int g = 0; g < StarField.TwinkleGroups; g++)
             {
@@ -534,14 +570,26 @@ namespace FloorF.Rendering
                 var s = glints[gi];
                 Sparkle(s.X, s.Y, glint, glintRamp, glint > 0.75f ? 2 : glint > 0.4f ? 1 : 0, false);
             }
-            MeteorActive = false;
-            if (StarNight && SkySchedule.Meteor(seed, time, out var m))
+            // meteor shower: its own additive, depth-tested layer (or the fx layer without the shader)
+            meteors.Clear();
+            meteorQuads.Clear();
+            if (StarNight) SkySchedule.Meteors(seed, time, meteors);
+            MeteorActive = meteors.Count > 0;
+            if (meteorRenderer != null) target = meteorQuads;
+            float best = -1f;
+            foreach (var m in meteors)
             {
-                MeteorActive = true;
-                Meteor = m;
-                if (m.Slot != lastMeteorSlot) { lastMeteorSlot = m.Slot; MeteorsSeen++; }
-                Streak(m.Head, m.Dir, m.Tail, m.Level, meteorRamp, false);
+                if (m.Level > best) { best = m.Level; Meteor = m; }
+                if (!recentMeteors.Contains(m.Id))
+                {
+                    recentMeteors.Add(m.Id);
+                    if (recentMeteors.Count > 32) recentMeteors.RemoveAt(0);
+                    MeteorsSeen++;
+                    if (m.Fireball) FireballsSeen++;
+                }
+                DrawMeteor(m);
             }
+            target = fxQuads;
             // wish stars: their own layer drawn over the world (or the fx layer if the additive shader is missing)
             if (WishInFront) target = wishQuads;
             foreach (var w in wishes) DrawWish(w);
@@ -553,6 +601,17 @@ namespace FloorF.Rendering
                 fxDirty = any;
             }
             fxRenderer.enabled = any;
+
+            if (meteorRenderer != null)
+            {
+                bool anyMeteor = meteorQuads.Count > 0;
+                if (anyMeteor || meteorDirty)
+                {
+                    meteorQuads.Apply(meteorMesh);
+                    meteorDirty = anyMeteor;
+                }
+                meteorRenderer.enabled = anyMeteor;
+            }
 
             bool anyWish = wishQuads.Count > 0;
             if (anyWish || wishDirty)
@@ -590,7 +649,7 @@ namespace FloorF.Rendering
         }
 
         /// <summary>Streak from <paramref name="head"/> back against <paramref name="dir"/>, fading along its tail.</summary>
-        void Streak(Vector2 head, Vector2 dir, int tail, float level, int[] ramp, bool thick)
+        void Streak(Vector2 head, Vector2 dir, int tail, float level, int[] ramp, bool thick, float falloff = 1.3f)
         {
             int lastX = int.MinValue, lastY = int.MinValue;
             var perp = new Vector2(-dir.y, dir.x);
@@ -601,7 +660,7 @@ namespace FloorF.Rendering
                 if (x == lastX && y == lastY) continue;
                 lastX = x; lastY = y;
                 float k = 1f - i / (tail + 1f);
-                float l = level * Mathf.Pow(k, 1.3f);
+                float l = level * Mathf.Pow(k, falloff);
                 if (thick && i < tail * 0.4f)
                 {
                     var q = p + perp;
@@ -612,6 +671,29 @@ namespace FloorF.Rendering
                 Px(x, y, l, ramp);
             }
             Px(Mathf.FloorToInt(head.x), Mathf.FloorToInt(head.y), level, ramp);
+        }
+
+        /// <summary>
+        /// Shooting star: fading tail + a bright head (a small "+" near its peak). Fireballs: a thick green-white tail, a
+        /// bright core and a few sparks breaking off behind.
+        /// </summary>
+        void DrawMeteor(in SkySchedule.MeteorPose m)
+        {
+            var ramp = m.Fireball ? fireballRamp : meteorRamp;
+            Streak(m.Head, m.Dir, m.Tail, m.Level, ramp, m.Fireball, 0.85f);
+            int hx = Mathf.FloorToInt(m.Head.x), hy = Mathf.FloorToInt(m.Head.y);
+            if (m.Fireball)
+            {
+                for (int i = 1; i <= 3; i++)
+                {
+                    float h = LightSchedule.Hash(m.Id, i, 77, 0);
+                    var at = m.Head - m.Dir * (m.Tail * (0.35f + 0.5f * h)) + new Vector2(-m.Dir.y, m.Dir.x) * ((h - 0.5f) * 6f);
+                    Px(Mathf.FloorToInt(at.x), Mathf.FloorToInt(at.y), m.Level * (0.7f - 0.15f * i), ramp);
+                }
+                Sparkle(hx, hy, m.Level, ramp, 1, true);
+            }
+            else if (m.Level > 0.45f) Sparkle(hx, hy, m.Level, ramp, 1, false);
+            else Px(hx, hy, m.Level, ramp);
         }
 
         void DrawWish(Wish w)

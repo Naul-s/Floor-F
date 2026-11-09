@@ -133,8 +133,20 @@ namespace FloorF.Tests.EditMode.Rendering
             }
             int glints = Check(t => SkySchedule.Glint(seed, StarField.GlintCount, t, out _), 900f, "all glints");
             Assert.Greater(glints, 100, "glints do happen");
-            int meteors = Check(t => SkySchedule.MeteorBrightness(seed, t), 900f, "meteor shower");
-            Assert.Greater(meteors, 100, "meteors do happen");
+            // the meteor shower is many small MOVING objects, not a flashing area: every meteor rises once and fades once...
+            int meteors = 0;
+            for (int k = 0; k < 500; k++)
+                for (int j = 0; j < SkySchedule.SlotCount(seed, k); j++)
+                {
+                    int kk = k, jj = j;
+                    float t0 = SkySchedule.MeteorStart(seed, k, j);
+                    var tr = Transitions(t => SkySchedule.MeteorLevelOf(seed, kk, jj, t), t0 - 0.1f, t0 + SkySchedule.FireballMaxSeconds + 0.2f);
+                    Assert.LessOrEqual(tr.Count, 2, "meteor " + k + "/" + j + ": one rise + one fall");
+                    AssertAtMostThreePerSecond(tr, "meteor " + k + "/" + j);
+                    meteors++;
+                }
+            Assert.Greater(meteors, 500, "meteors do happen");
+            MeteorShower_NeverAFlashingArea(seed);
             // wish star head: fade in, cross, fade out (wished on early / late)
             foreach (float end in new[] { 0.1f, 0.5f, 3f })
                 Check(t => SkySchedule.WishHeadLevel(t, t >= end ? end : -1f), 6f, "wish head ending at " + end);
@@ -145,6 +157,27 @@ namespace FloorF.Tests.EditMode.Rendering
                 int index = i;
                 Check(t => SkySchedule.BurstLevel(t, index), 2f, "wish burst spark " + i);
             }
+        }
+
+        /// <summary>
+        /// ...and everything the shower lights at any moment (all streaks + heads + their glow, as if they were all inside
+        /// ONE patch of a 10-degree field of view = a quarter of the 640x360 frame) stays far below the 10% luminance
+        /// change WCAG counts as a flash: a meteor can never be a "general flash", however many fall at once.
+        /// </summary>
+        static void MeteorShower_NeverAFlashingArea(int seed)
+        {
+            const float fieldArea = 640f * 360f / 4f;
+            var poses = new List<SkySchedule.MeteorPose>();
+            float worst = 0f;
+            for (float t = 0f; t < 900f; t += 1f / 30f)
+            {
+                poses.Clear();
+                SkySchedule.Meteors(seed, t, poses);
+                float lit = 0f;
+                foreach (var m in poses) lit += SkySchedule.MeteorPixels(m) * m.Level;
+                worst = Mathf.Max(worst, lit / fieldArea);
+            }
+            Assert.Less(worst, Delta * 0.25f, "shower lights at most a sliver of any field of view (worst " + worst.ToString("0.0000") + ")");
         }
 
         // ------------------------------------------------------------------ event-driven floor lights

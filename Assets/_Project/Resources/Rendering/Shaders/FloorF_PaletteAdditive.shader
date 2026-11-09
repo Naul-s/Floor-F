@@ -1,5 +1,6 @@
-// Palette texels added on top of the world (wish stars, rain): ZTest Always, drawn after every opaque and transparent
-// object of the world camera, so it is never hidden by the city or the hotel. Point-sampled palette (layer units =
+// Palette texels added on top of the world (wish stars, rain): ZTest Always by default, drawn after every opaque and
+// transparent object of the world camera, so it is never hidden by the city or the hotel. _ZTest = LEqual (4) makes a
+// depth-tested variant (star-night meteors: in front of the sky and the far towers, behind the hotel and the near row). Point-sampled palette (layer units =
 // target pixels), colour * _Tint added to the target. WebGL2 / GLES3 safe (no inline samplers, no derivatives).
 Shader "FloorF/PaletteAdditive"
 {
@@ -7,6 +8,7 @@ Shader "FloorF/PaletteAdditive"
     {
         _MainTex ("Palette", 2D) = "white" {}
         _Tint ("Tint", Color) = (1,1,1,1)
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("ZTest", Float) = 8
     }
     SubShader
     {
@@ -16,7 +18,7 @@ Shader "FloorF/PaletteAdditive"
             Name "PaletteAdditive"
             Blend One One
             ZWrite Off
-            ZTest Always
+            ZTest [_ZTest]
             Cull Off
             CGPROGRAM
             #pragma vertex vert

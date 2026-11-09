@@ -17,8 +17,11 @@ namespace FloorF.Rendering
         readonly Texture2D texture;
         readonly Color32[] px = new Color32[Size * Size];
         readonly Dictionary<int, int> statics = new Dictionary<int, int>();
+        readonly Dictionary<long, RectInt> tiles = new Dictionary<long, RectInt>();
         int next;
         bool dirty;
+        // pattern tiles are packed in shelves from the TOP row down; single texels grow from the bottom row up
+        int shelfTop = Size, shelfX = Size, shelfHeight;
 
         public Material Material { get; }
         public Texture2D Texture => texture;
@@ -61,9 +64,42 @@ namespace FloorF.Rendering
             return Allocate(c32);
         }
 
+        /// <summary>Rows (from the top) taken by pattern tiles.</summary>
+        public int TileRows => Size - (shelfTop - shelfHeight);
+        public int TileCount => tiles.Count;
+
+        /// <summary>
+        /// Atlas rectangle holding one tile of <paramref name="pattern"/> in colour <paramref name="c"/> (shared per
+        /// pattern + colour). Faces drawn with <see cref="PaletteMeshBuilder.PatternFront"/> repeat it pixel for pixel.
+        /// </summary>
+        public RectInt Tile(WallPattern pattern, Color c)
+        {
+            var c32 = (Color32)c;
+            long key = ((long)Key(c32) << 8) | (long)pattern;
+            if (tiles.TryGetValue(key, out var r)) return r;
+            var size = PixelPatterns.Size(pattern);
+            if (shelfX + size.x > Size)
+            {
+                shelfTop -= shelfHeight;
+                shelfX = 0;
+                shelfHeight = 0;
+            }
+            int y0 = shelfTop - size.y;
+            if (y0 * Size < next || y0 < 0) throw new System.InvalidOperationException("palette atlas full (pattern tiles)");
+            r = new RectInt(shelfX, y0, size.x, size.y);
+            var bake = PixelPatterns.Bake(pattern, c);
+            for (int y = 0; y < size.y; y++)
+                for (int x = 0; x < size.x; x++) px[(y0 + y) * Size + shelfX + x] = bake[y * size.x + x];
+            shelfX += size.x;
+            shelfHeight = Mathf.Max(shelfHeight, size.y);
+            tiles[key] = r;
+            dirty = true;
+            return r;
+        }
+
         int Allocate(Color32 c)
         {
-            if (next >= px.Length) throw new System.InvalidOperationException("palette atlas full");
+            if (next >= px.Length || next >= (shelfTop - shelfHeight) * Size) throw new System.InvalidOperationException("palette atlas full");
             px[next] = c;
             dirty = true;
             return next++;
@@ -132,6 +168,43 @@ namespace FloorF.Rendering
             t.Add(i); t.Add(i + 2); t.Add(i + 3);
         }
 
+        /// <summary>Quad with its own UVs per corner (pattern tiles).</summary>
+        public void Quad(Vector3 bl, Vector3 tl, Vector3 tr, Vector3 br, Vector2 uvBl, Vector2 uvTr)
+        {
+            int i = v.Count;
+            v.Add(bl); v.Add(tl); v.Add(tr); v.Add(br);
+            uv.Add(uvBl); uv.Add(new Vector2(uvBl.x, uvTr.y)); uv.Add(uvTr); uv.Add(new Vector2(uvTr.x, uvBl.y));
+            t.Add(i); t.Add(i + 1); t.Add(i + 2);
+            t.Add(i); t.Add(i + 2); t.Add(i + 3);
+        }
+
+        static int FloorDiv(int a, int b) => a >= 0 ? a / b : -((-a + b - 1) / b);
+
+        /// <summary>
+        /// Front face (-Z, depth <paramref name="z"/>) covering the SCREEN-PLANE rectangle sx0..sx1 x sy0..sy1, filled with
+        /// atlas <paramref name="tile"/> repeated so one tile texel = one pixel of <paramref name="grid"/>; tiles are
+        /// anchored on the screen-plane pixel lattice (k * tile size), so neighbouring faces continue the same courses.
+        /// </summary>
+        public void PatternFront(float sx0, float sy0, float sx1, float sy1, float z, RectInt tile, PixelGrid grid)
+        {
+            float ppu = grid.PixelsPerUnit;
+            float p0 = sx0 * ppu, p1 = sx1 * ppu, q0 = sy0 * ppu, q1 = sy1 * ppu;
+            if (p1 <= p0 || q1 <= q0) return;
+            int tw = tile.width, th = tile.height;
+            const float inv = 1f / PaletteAtlas.Size;
+            for (int cy = FloorDiv(Mathf.FloorToInt(q0), th) * th; cy < q1; cy += th)
+                for (int cx = FloorDiv(Mathf.FloorToInt(p0), tw) * tw; cx < p1; cx += tw)
+                {
+                    float a0 = Mathf.Max(cx, p0), a1 = Mathf.Min(cx + tw, p1), b0 = Mathf.Max(cy, q0), b1 = Mathf.Min(cy + th, q1);
+                    if (a1 <= a0 || b1 <= b0) continue;
+                    float x0 = PixelGrid.WorldX(a0 / ppu, z, grid.Shear, grid.ShearDepth), x1 = PixelGrid.WorldX(a1 / ppu, z, grid.Shear, grid.ShearDepth);
+                    float y0 = PixelGrid.WorldY(b0 / ppu, z, grid.Shear, grid.ShearDepth), y1 = PixelGrid.WorldY(b1 / ppu, z, grid.Shear, grid.ShearDepth);
+                    var uv0 = new Vector2((tile.x + a0 - cx) * inv, (tile.y + b0 - cy) * inv);
+                    var uv1 = new Vector2((tile.x + a1 - cx) * inv, (tile.y + b1 - cy) * inv);
+                    Quad(new Vector3(x0, y0, z), new Vector3(x0, y1, z), new Vector3(x1, y1, z), new Vector3(x1, y0, z), uv0, uv1);
+                }
+        }
+
         /// <summary>Rectangle facing the camera (-Z) at depth <paramref name="z"/>.</summary>
         public void Front(float x0, float y0, float x1, float y1, float z, int texel)
             => Quad(new Vector3(x0, y0, z), new Vector3(x0, y1, z), new Vector3(x1, y1, z), new Vector3(x1, y0, z), texel);
@@ -197,6 +270,10 @@ namespace FloorF.Rendering
             Count++;
         }
 
+        /// <summary>Screen-plane projection for pattern materials' UVs (see <see cref="RenderAssets.ProjectUVs"/>).</summary>
+        public Vector2 Shear = RenderingStyle.CameraShear;
+        public float ShearDepth;
+
         /// <summary>One child renderer per material under <paramref name="parent"/> (local space = parent space).</summary>
         public List<MeshRenderer> Build(Transform parent, string name, bool castShadows)
         {
@@ -209,6 +286,7 @@ namespace FloorF.Rendering
                 foreach (var p in list) verts += p.mesh.vertexCount;
                 if (verts > 65000) mesh.indexFormat = IndexFormat.UInt32;
                 mesh.CombineMeshes(list.ToArray(), true, true);
+                if (assets.IsPattern(mat)) RenderAssets.ProjectUVs(mesh, parent.localToWorldMatrix, Shear, ShearDepth);
                 var go = new GameObject(name + " (" + mat.name + ")");
                 go.transform.SetParent(parent, false);
                 go.AddComponent<MeshFilter>().sharedMesh = mesh;
