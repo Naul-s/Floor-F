@@ -33,6 +33,8 @@ namespace FloorF.UI
         CharmsView charms;
         ScenicView scenic;
         ClickFxView clickFx;
+        DebugReadoutView debugReadout;
+        DebugReadoutChanged lastDebug;
         /// <summary>Above the HUD canvas: click effect, scenic hint, establishing caption. No GraphicRaycaster (never blocks).</summary>
         Canvas fxCanvas;
         RectTransform fxRect;
@@ -69,6 +71,7 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<WishMade>(e => { if (built && !OnTitle) wish.OnMade(e); }));
             subs.Add(bus.Subscribe<WishStarFaded>(e => { if (built) wish.OnFaded(e); }));
             subs.Add(bus.Subscribe<EndingReached>(OnEndingReached));
+            subs.Add(bus.Subscribe<DebugReadoutChanged>(e => { lastDebug = e; if (built) debugReadout.On(e); }));
         }
 
         /// <summary>Counts the ending in the collection (EndingReached is flow-silent on the title demo; guarded anyway).</summary>
@@ -141,6 +144,8 @@ namespace FloorF.UI
             menu = new MenuView(ctx, rt, () => scenic.TryEnterScenic(), () => scenic.SuppressPauseMenu, p => clickFx.Spawn(p, big: true));
             menu.BringToFront();
             clickFx.Clear();
+            debugReadout = new DebugReadoutView(fxRect); // above the click effects; Gameplay's debug cheats only
+            debugReadout.On(lastDebug);
             built = true;
             laidOutFor = ctx.CanvasRect.rect.size;
             relayoutFrame = Time.frameCount + 1; // once more after the first rendered frame

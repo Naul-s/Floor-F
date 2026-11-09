@@ -96,5 +96,37 @@ namespace FloorF.Tests.PlayMode.Gameplay
                 Assert.AreEqual(DayPhase.Ending, day.Phase, "off again: keys inert");
             }
         }
+
+        [UnityTest]
+        public IEnumerator Readout_IsPublishedForTheUi_TagWhileOn_BodyWithF1()
+        {
+            var o = Overlay();
+            var seen = new List<DebugReadoutChanged>();
+            using (GameServices.Events.Subscribe<DebugReadoutChanged>(e => seen.Add(e)))
+            {
+                yield return null;
+                Assert.AreEqual(0, seen.Count, "debug mode off: nothing on screen");
+
+                Type(o, "LUCKY");
+                yield return null;
+                Assert.IsNotEmpty(seen);
+                var last = seen[seen.Count - 1];
+                StringAssert.StartsWith("DEBUG", last.Tag);
+                Assert.IsNull(last.Body);
+
+                Press(o, DebugKey.F1);
+                yield return null;
+                last = seen[seen.Count - 1];
+                Assert.IsNotNull(last.Body, "F1 shows the readout");
+                StringAssert.Contains("DEBUG MODE", last.Body, "key list included");
+                StringAssert.Contains("Luck", last.Body);
+
+                Type(o, "LUCKY");
+                yield return null;
+                last = seen[seen.Count - 1];
+                Assert.IsNull(last.Tag, "off again: tag hidden");
+                if (!o.Cheats.OverlayWithoutDebugMode) Assert.IsNull(last.Body);
+            }
+        }
     }
 }

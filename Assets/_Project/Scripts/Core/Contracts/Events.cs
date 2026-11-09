@@ -403,6 +403,19 @@ namespace FloorF.Core
         public ScenicViewChanged(bool on, bool establishing) { On = on; Establishing = establishing; }
     }
 
+    /// <summary>
+    /// Published by Gameplay's debug cheats (hand-testing aid, off until typed LUCKY / Ctrl+Shift+D) whenever their
+    /// on-screen readout changes; UI draws it on top of everything (IMGUI does not show in the WebGL build).
+    /// <see cref="Tag"/>: small corner tag ("DEBUG  luck +10 = 60"), null = hidden. <see cref="Body"/>: the F1 readout
+    /// (state + key list, plain text with '\n'), null = hidden.
+    /// </summary>
+    public readonly struct DebugReadoutChanged
+    {
+        public readonly string Tag;
+        public readonly string Body;
+        public DebugReadoutChanged(string tag, string body) { Tag = tag; Body = body; }
+    }
+
     /// <summary>Published by UI for interface feedback sounds (Audio subscribes). UI-only; Gameplay never publishes it.</summary>
     public readonly struct UiSound
     {

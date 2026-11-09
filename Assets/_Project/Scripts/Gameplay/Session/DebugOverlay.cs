@@ -10,7 +10,7 @@ namespace FloorF.Gameplay
     /// Hand-testing aid, present in EVERY build (WebGL release included) but inert until debug mode is switched on
     /// deliberately (Ctrl+Shift+D, or typing L-U-C-K-Y). See <see cref="DebugCheats"/> for the gate and the key map.
     /// While debug mode is on a small "DEBUG" tag shows in the top-right corner (with the last cheat for a moment).
-    /// F1 toggles the IMGUI text readout (release builds: only in debug mode; Editor/dev builds: always) which then lists
+    /// F1 toggles the text readout (published as DebugReadoutChanged, drawn by UI; release builds: only in debug mode; Editor/dev builds: always) which then lists
     /// the debug keys too. While the readout is shown, in the Shop, B buys the first affordable offer (a charm, or a label
     /// onto the first floor it fits - prefers the real 4th), R rerolls. Not part of the UI module.
     /// </summary>
@@ -28,7 +28,6 @@ namespace FloorF.Gameplay
         readonly List<GuestId> buffer = new List<GuestId>();
         readonly List<DebugKey> pressed = new List<DebugKey>(8);
         readonly List<char> letters = new List<char>(4);
-        GUIStyle style, tagStyle;
         int shownActionCount;
         float actionShownUntil;
 
@@ -107,12 +106,35 @@ namespace FloorF.Gameplay
             }
         }
 
-        void OnGUI()
+        /// <summary>Rebuilds the readout (body at most every <see cref="BodyRefreshSeconds"/>) and publishes it when it changed.</summary>
+        void LateUpdate()
         {
             if (session == null || cheats == null) return;
-            if (cheats.Enabled) DrawTag();
-            if (!cheats.OverlayVisible || !session.HasStarted) return;
-            if (style == null) style = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, fontSize = 12, richText = false };
+            string tag = cheats.Enabled ? TagText() : null;
+            string body = lastBody;
+            bool showBody = cheats.OverlayVisible && session.HasStarted;
+            if (!showBody) body = null;
+            else if (lastBody == null || Time.unscaledTime >= nextBodyRefresh)
+            {
+                body = BodyText();
+                nextBodyRefresh = Time.unscaledTime + BodyRefreshSeconds;
+            }
+            if (tag == lastTag && body == lastBody) return;
+            lastTag = tag;
+            lastBody = body;
+            GameServices.Events.Publish(new DebugReadoutChanged(tag, body));
+        }
+
+        const float BodyRefreshSeconds = 0.2f;
+        string lastTag, lastBody;
+        float nextBodyRefresh;
+
+        /// <summary>Test hook: the last published readout.</summary>
+        internal string LastTag => lastTag;
+        internal string LastBody => lastBody;
+
+        string BodyText()
+        {
             var e = session.Elevator;
             var b = session.Building;
             sb.Clear();
@@ -154,20 +176,13 @@ namespace FloorF.Gameplay
                 case DayPhase.Ending: sb.Append("ENDING: ").Append(session.Ending).Append("\n[Enter] play again"); break;
             }
             if (cheats.Enabled) sb.Append("\n\n").Append(DebugCheats.HelpText);
-            int lines = 1;
-            for (int i = 0; i < sb.Length; i++) if (sb[i] == '\n') lines++;
-            GUI.Box(new Rect(8, 8, 380, 12 + 15 * lines), sb.ToString(), style);
+            return sb.ToString();
         }
 
-        /// <summary>Small unobtrusive tag in the top-right corner while debug mode is on.</summary>
-        void DrawTag()
-        {
-            if (tagStyle == null)
-                tagStyle = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.UpperRight, fontSize = 11, fontStyle = FontStyle.Bold, normal = { textColor = new Color(1f, 0.35f, 0.3f, 0.85f) } };
-            string text = Time.unscaledTime < actionShownUntil && !string.IsNullOrEmpty(cheats.LastAction)
-                ? "DEBUG  " + cheats.LastAction
-                : "DEBUG";
-            GUI.Label(new Rect(Screen.width - 408, 2, 400, 18), text, tagStyle);
-        }
+        /// <summary>Small unobtrusive tag in the top-right corner while debug mode is on (+ the last cheat for a moment).</summary>
+        string TagText()
+            => Time.unscaledTime < actionShownUntil && !string.IsNullOrEmpty(cheats.LastAction)
+                ? (cheats.OverlayVisible ? "DEBUG  " : "DEBUG  [F1] keys   ") + cheats.LastAction
+                : cheats.OverlayVisible ? "DEBUG" : "DEBUG  [F1] keys";
     }
 }
