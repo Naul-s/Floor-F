@@ -645,7 +645,10 @@ namespace FloorF.Audio
                     ch.Track = MusicTrack.None;
                 }
                 var def = lib.Find(ch.Track);
-                float seam = def != null && src.clip != null ? AudioRules.SeamGain(src.time, src.clip.length, def.seamFade) : 1f;
+                // WebGL streams music clips: length/time are unknown until loaded ("Trying to get length of sound which
+                // is not loaded yet" every frame) - no seam fade until then
+                float seam = def != null && src.clip != null && src.clip.loadState == AudioDataLoadState.Loaded
+                    ? AudioRules.SeamGain(src.time, src.clip.length, def.seamFade) : 1f;
                 float trackVol = def != null ? def.volume : 1f;
                 src.volume = master * lib.musicVolume * trackVol * ch.Level * ch.Fade * duck * seam;
                 src.pitch = pitch;

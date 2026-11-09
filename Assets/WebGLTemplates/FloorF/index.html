@@ -28,6 +28,19 @@
 
       // sizing is pure CSS (style.css #stage), so a hidden-then-shown or fullscreened iframe always fits
 
+      // Unity decodes each sound with decodeAudioData(buf, ok, fail). It handles the failure callback, but Chrome ALSO
+      // returns a promise whose rejection nobody catches, and Unity's loader turns any unhandled rejection into an
+      // alert(). A sound some browser can't decode must never pop up an error box: log it and carry on (registered
+      // before the loader so it runs first and stops the loader's handler).
+      window.addEventListener("unhandledrejection", function (e) {
+        var r = e.reason;
+        if (r && (r.name === "EncodingError" || /decode audio/i.test(String(r.message || r)))) {
+          console.warn("[Floor F] a sound could not be decoded by this browser and was skipped:", r);
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
+      });
+
       // ---- 5x7 bitmap font (rows top -> bottom, "#" = pixel)
       var FONT = {
         "F": ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],

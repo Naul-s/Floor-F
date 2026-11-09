@@ -48,6 +48,45 @@ namespace FloorF.EditorTools
         public const float ShieldVolume = 0.5f;
         public const float PeelVolume = 0.2f;
 
+        /// <summary>
+        /// WebGL re-encodes every clip to AAC and the BROWSER decodes it (decodeAudioData). AAC works in 1024-sample
+        /// frames; clips of a few ms (Kenney click_002 is 10 ms = 441 samples) become 1-2 frame streams that some
+        /// decoders (e.g. Windows' Media Foundation behind Chrome/Edge) reject with "EncodingError: Unable to decode
+        /// audio data" (user report, itch.io, 2026-11-09). Any library clip shorter than this is copied with trailing
+        /// silence to this length - same samples, same level, sounds identical.
+        /// </summary>
+        public const float MinClipSeconds = 0.25f;
+        public const string PaddedFolder = "Assets/_Project/Audio/Generated/Padded";
+
+        static AudioClip PadIfShort(string path, AudioClip clip)
+        {
+            if (clip.length >= MinClipSeconds || path.StartsWith(PaddedFolder)) return clip;
+            int channels = Mathf.Max(1, clip.channels), rate = clip.frequency;
+            clip.LoadAudioData();
+            var src = new float[clip.samples * channels];
+            if (!clip.GetData(src, 0)) throw new IOException("[AudioLibraryBuilder] could not read samples of " + path);
+            int frames = Mathf.CeilToInt(MinClipSeconds * rate);
+            var padded = new float[frames * channels];
+            System.Array.Copy(src, padded, src.Length);
+            Directory.CreateDirectory(Path.GetFullPath(PaddedFolder));
+            string outPath = PaddedFolder + "/" + Path.GetFileNameWithoutExtension(path) + "_pad.wav";
+            File.WriteAllBytes(Path.GetFullPath(outPath), DoorClipTrimmer.WriteWav16(padded, channels, rate));
+            AssetDatabase.ImportAsset(outPath, ImportAssetOptions.ForceUpdate);
+            var ai = (AudioImporter)AssetImporter.GetAtPath(outPath);
+            ai.forceToMono = false;            // samples were taken from the imported (already mono/normalised) clip
+            ai.loadInBackground = false;
+            var s = ai.defaultSampleSettings;
+            s.compressionFormat = AudioCompressionFormat.Vorbis;
+            s.quality = 0.6f;
+            s.loadType = AudioClipLoadType.DecompressOnLoad;
+            s.sampleRateSetting = AudioSampleRateSetting.PreserveSampleRate;
+            ai.defaultSampleSettings = s;
+            ai.SaveAndReimport();
+            var result = AssetDatabase.LoadAssetAtPath<AudioClip>(outPath);
+            Debug.LogFormat("[AudioLibraryBuilder] padded {0} ({1:0.000}s) -> {2} ({3:0.000}s)", path, clip.length, outPath, result.length);
+            return result;
+        }
+
         static string[] ThunderClips()
         {
             var a = new string[ProceduralSfxSynth.ThunderVariants];
@@ -68,8 +107,8 @@ namespace FloorF.EditorTools
             AudioClip C(string path)
             {
                 var clip = AssetDatabase.LoadAssetAtPath<AudioClip>(path);
-                if (clip == null) missing.Add(path);
-                return clip;
+                if (clip == null) { missing.Add(path); return null; }
+                return PadIfShort(path, clip);
             }
             CueDef Cue(AudioCue cue, string[] clips, float volume, float pitch, float jitter, float minInterval,
                 string layer = null, float layerVolume = 0.4f)
