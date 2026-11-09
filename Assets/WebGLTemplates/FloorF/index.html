@@ -11,27 +11,21 @@
   <body>
     <div id="stage">
       <canvas id="unity-canvas" width={{{ WIDTH }}} height={{{ HEIGHT }}} tabindex="-1"></canvas>
-      <div id="loading">
-        <div id="logo">FLOOR <span>F</span></div>
-        <div id="panel">
-          <div id="indicator"><span id="arrow">&#9650;</span><span id="floor">1</span></div>
-          <div id="shaft"><div id="car"></div></div>
-        </div>
-        <div id="hint">Going up&hellip; / 올라가는 중&hellip;</div>
-      </div>
+      <canvas id="loading" width="160" height="90"></canvas>
       <div id="warning"></div>
       <button id="fullscreen" title="Fullscreen / 전체 화면" aria-label="Fullscreen">&#x26F6;</button>
     </div>
     <script>
-      // Floor F loading page: an elevator floor indicator counts up 1..9 (the 4th floor reads "F") as the build loads.
+      // Floor F loading page, drawn as pixel art on a 160x90 canvas (scaled up with crisp pixels):
+      // the elevator climbs 1 -> 2 -> 3 -> F -> 5 ... 9, one floor at a time, while the build loads.
       var canvas = document.querySelector("#unity-canvas");
       var stage = document.querySelector("#stage");
-      var loading = document.querySelector("#loading");
-      var floorEl = document.querySelector("#floor");
-      var carEl = document.querySelector("#car");
+      var loader = document.querySelector("#loading");
+      var g = loader.getContext("2d");
       var LABELS = ["1", "2", "3", "F", "5", "6", "7", "8", "9"];
+      var STEP_MS = 320;          // at least this long per floor, so every floor is seen
+      var HOLD_MS = 900;          // stay on 9 once loaded, then fade
 
-      // keep 16:9 and fit the window (itch.io iframe or a full tab)
       function fit() {
         var w = window.innerWidth, h = window.innerHeight;
         var s = Math.min(w / 16, h / 9);
@@ -40,6 +34,109 @@
       }
       window.addEventListener("resize", fit);
       fit();
+
+      // ---- 5x7 bitmap font (rows top -> bottom, "#" = pixel)
+      var FONT = {
+        "F": ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],
+        "L": ["#....", "#....", "#....", "#....", "#....", "#....", "#####"],
+        "O": [".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+        "R": ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"],
+        "G": [".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".###."],
+        "I": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "#####"],
+        "N": ["#...#", "##..#", "#.#.#", "#..##", "#...#", "#...#", "#...#"],
+        "U": ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+        "P": ["####.", "#...#", "#...#", "####.", "#....", "#....", "#...."],
+        "1": ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
+        "2": [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
+        "3": ["####.", "....#", "....#", ".###.", "....#", "....#", "####."],
+        "5": ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
+        "6": [".###.", "#....", "#....", "####.", "#...#", "#...#", ".###."],
+        "7": ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
+        "8": [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."],
+        "9": [".###.", "#...#", "#...#", ".####", "....#", "....#", ".###."],
+        ".": [".....", ".....", ".....", ".....", ".....", ".....", "..#.."],
+        " ": [".....", ".....", ".....", ".....", ".....", ".....", "....."]
+      };
+      function glyph(ch, x, y, s, color) {
+        var rows = FONT[ch] || FONT[" "];
+        g.fillStyle = color;
+        for (var r = 0; r < 7; r++)
+          for (var c = 0; c < 5; c++)
+            if (rows[r][c] === "#") g.fillRect(x + c * s, y + r * s, s, s);
+      }
+      function text(str, x, y, s, color) {
+        for (var i = 0; i < str.length; i++) glyph(str[i], x + i * 6 * s, y, s, color);
+      }
+      function textWidth(str, s) { return str.length * 6 * s - s; }
+      function rect(x, y, w, h, color) { g.fillStyle = color; g.fillRect(x, y, w, h); }
+
+      // a few fixed stars
+      var STARS = [[12, 8], [30, 20], [47, 6], [70, 14], [96, 9], [121, 18], [140, 7], [150, 26], [8, 34], [152, 44], [20, 70], [140, 72]];
+
+      var shown = 0, target = 0, lastStep = 0, loaded = false, loadedAt = 0, carY = 0, start = performance.now();
+
+      function draw(now) {
+        // background
+        rect(0, 0, 160, 90, "#0b0b14");
+        rect(0, 0, 160, 30, "#100f1d");
+        var t = (now - start) / 1000;
+        for (var i = 0; i < STARS.length; i++) {
+          var tw = (i % 3 === 0) && (Math.floor(t / 1.7 + i) % 4 === 0);   // slow, rare twinkle
+          rect(STARS[i][0], STARS[i][1], 1, 1, tw ? "#f4ecd8" : "#4a4766");
+        }
+
+        // logo: "FLOOR" gold block letters (scale 2) with brown extrusion + red LED "F" panel
+        var s = 2, lx = 80 - Math.floor((textWidth("FLOOR", s) + 6 + 18) / 2), ly = 12;
+        text("FLOOR", lx + 1, ly + 1, s, "#5a3200");               // extrusion
+        text("FLOOR", lx, ly, s, "#ffcf3f");
+        for (var k = 0; k < 5; k++) rect(lx + k * 12, ly, 10, 1, "#fff0b0"); // top highlight row
+        var px = lx + textWidth("FLOOR", s) + 6;
+        rect(px - 2, ly - 2, 18, 18, "#3a2a20");                    // panel frame
+        rect(px - 1, ly - 1, 16, 16, "#120606");
+        glyph("F", px + 2, ly, 2, "#ff4a3a");
+
+        // indicator panel: arrow + floor label
+        var floorLabel = LABELS[shown];
+        var ix = 54, iy = 46;
+        rect(ix - 1, iy - 1, 42, 22, "#3a2a20");
+        rect(ix, iy, 40, 20, "#120606");
+        var ax = ix + 8, ay = iy + 7;                              // up arrow (5 wide)
+        rect(ax + 2, ay, 1, 1, "#ff7a5a"); rect(ax + 1, ay + 1, 3, 1, "#ff7a5a"); rect(ax, ay + 2, 5, 1, "#ff7a5a");
+        rect(ax + 2, ay + 3, 1, 3, "#ff7a5a");
+        glyph(floorLabel, ix + 20, iy + 3, 2, floorLabel === "F" ? "#ffcf3f" : "#ff4a3a");
+
+        // shaft + car (smoothly between floors)
+        var sx = 104, sy = 38, sh = 38;
+        rect(sx - 1, sy - 1, 8, sh + 2, "#3a2a20");
+        rect(sx, sy, 6, sh, "#16141f");
+        for (var f = 1; f < 9; f++) rect(sx, sy + sh - Math.round(f * sh / 9), 6, 1, "#221f2e");
+        var want = shown * (sh - 4) / 8;
+        carY += (want - carY) * 0.25;
+        rect(sx + 1, sy + sh - 4 - Math.round(carY), 4, 4, "#e8c070");
+
+        // hint
+        var dots = ".".repeat(1 + Math.floor(t * 2) % 3);
+        var hint = "GOING UP" + dots;
+        text(hint, 80 - Math.floor(textWidth("GOING UP...", 1) / 2), 80, 1, "#8f8572");
+      }
+
+      function tick(now) {
+        // the shown floor chases the real progress one floor at a time
+        if (shown < target && now - lastStep >= STEP_MS) { shown++; lastStep = now; }
+        draw(now);
+        if (loaded && shown === 8) {
+          if (!loadedAt || loadedAt < lastStep) loadedAt = Math.max(loadedAt, lastStep);
+          if (now - loadedAt >= HOLD_MS) { fadeOut(); return; }
+        }
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+
+      function fadeOut() {
+        loader.style.transition = "opacity 0.6s";
+        loader.style.opacity = "0";
+        setTimeout(function () { loader.style.display = "none"; }, 650);
+      }
 
       function showBanner(msg, type) {
         var box = document.querySelector("#warning");
@@ -71,26 +168,15 @@
         showBanner: showBanner,
       };
 
-      function setProgress(p) {
-        var i = Math.max(0, Math.min(8, Math.floor(p * 9)));
-        floorEl.textContent = LABELS[i];
-        floorEl.className = LABELS[i] == "F" ? "f" : "";
-        carEl.style.bottom = (i * 100 / 9) + "%";
-      }
-
       var script = document.createElement("script");
       script.src = buildUrl + "/{{{ LOADER_FILENAME }}}";
       script.onload = function () {
         createUnityInstance(canvas, config, function (progress) {
-          setProgress(progress);
+          // floors 1..8 follow the download; 9 only once the game is ready
+          target = Math.max(target, Math.min(7, Math.floor(progress * 8)));
         }).then(function (unityInstance) {
-          // the engine needs ~2 s of dark first frames before the title shows: stay on "9" a moment, then fade
-          setProgress(1);
-          setTimeout(function () {
-            loading.style.transition = "opacity 0.6s";
-            loading.style.opacity = "0";
-            setTimeout(function () { loading.style.display = "none"; }, 650);
-          }, 1800);
+          loaded = true;
+          target = 8;
           document.querySelector("#fullscreen").onclick = function () { unityInstance.SetFullscreen(1); };
         }).catch(function (message) {
           showBanner(message, "error");
