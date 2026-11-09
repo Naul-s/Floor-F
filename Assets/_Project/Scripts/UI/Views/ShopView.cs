@@ -21,7 +21,26 @@ namespace FloorF.UI
     /// </summary>
     sealed class ShopView
     {
-        public const float CardW = 600f, Pad = 18f, InnerW = CardW - 2f * Pad, CellGap = 8f, CellH = 80f;
+        public const float CardW = 600f, Pad = 18f, InnerW = CardW - 2f * Pad, CellGap = 8f, CellH = 96f;
+        /// <summary>Headline area above the badge row: one 36px line, or two 24px lines for a long charm name.</summary>
+        const float HeadlineH = CellH - 35f;
+
+        /// <summary>
+        /// 36px on one line ("4 → F"), else 24px on one line, else 24px over two lines ("◈ Good-luck / talisman") -
+        /// names stay readable instead of shrinking to 12px. 12px only if even two lines do not fit.
+        /// </summary>
+        static void FitHeadline(TextMeshProUGUI t)
+        {
+            t.textWrappingMode = TextWrappingModes.NoWrap;
+            UIBuild.Fit(t, 36f);
+            if (t.fontSize >= 24f) return;
+            t.fontSize = 24f;
+            t.textWrappingMode = TextWrappingModes.Normal;
+            var r = t.rectTransform.rect;
+            if (t.GetPreferredValues(t.text, r.width, float.PositiveInfinity).y <= r.height + 0.5f) return;
+            t.textWrappingMode = TextWrappingModes.NoWrap;
+            UIBuild.Fit(t, 24f);
+        }
         public const float CellW = (InnerW - CellGap) * 0.5f, CellPad = 8f, HeaderH = 44f, ButtonsH = 52f;
         const float PillH = 20f, DetailPad = 10f;
 
@@ -138,7 +157,7 @@ namespace FloorF.UI
             c.Parts.Label.gameObject.SetActive(false);
             var r = c.Parts.Rect;
             c.Headline = UIBuild.Text("Headline", r, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Left, bold: true);
-            UIBuild.Place(c.Headline.rectTransform, new Vector2(0f, 1f), new Vector2(CellPad, -4f), new Vector2(CellW - 2f * CellPad, 44f));
+            UIBuild.Place(c.Headline.rectTransform, new Vector2(0f, 1f), new Vector2(CellPad, -4f), new Vector2(CellW - 2f * CellPad, HeadlineH));
             c.Headline.textWrappingMode = TextWrappingModes.NoWrap;
             c.Price = UIBuild.Text("Price", r, "", 24f, UIStyle.Good, TextAlignmentOptions.Right, bold: true);
             UIBuild.Place(c.Price.rectTransform, new Vector2(1f, 1f), new Vector2(-CellPad, -6f), new Vector2(60f, 36f));
@@ -394,8 +413,8 @@ namespace FloorF.UI
                 c.Price.rectTransform.sizeDelta = new Vector2(priceW, 36f);
                 c.Headline.text = c.Charm ? CharmTitle(def, true) : UIFormat.StickerHeadline(def, ko);
                 if (c.Headline.font != null) c.Headline.font.TryAddCharacters(c.Headline.text);
-                c.Headline.rectTransform.sizeDelta = new Vector2(Mathf.Max(60f, CellW - 2f * CellPad - priceW - 8f), 44f);
-                UIBuild.Fit(c.Headline, 36f);
+                c.Headline.rectTransform.sizeDelta = new Vector2(Mathf.Max(60f, CellW - 2f * CellPad - priceW - 8f), HeadlineH);
+                FitHeadline(c.Headline);
 
                 // badges: kind + 1 DAY
                 c.KindText.text = ctx.S(c.Charm ? UIStrings.KindCharm : UIStrings.KindLabel);
@@ -425,7 +444,7 @@ namespace FloorF.UI
 
                 var bg = isSel ? UIStyle.BtnTarget : soldOut || owned ? UIStyle.BtnBlocked : UIStyle.Btn;
                 c.Parts.Background.color = bg;
-                c.Price.color = isSel ? UIStyle.Dark : soldOut || broke ? UIStyle.Unlucky : UIStyle.Good;
+                c.Price.color = isSel ? UIStyle.Dark : owned ? UIStyle.InkDim : soldOut || broke ? UIStyle.Unlucky : UIStyle.Good; // bought: paid, not "too dear"
                 c.Sub.color = isSel ? UIStyle.Dark : subColor;
                 c.Headline.color = isSel ? UIStyle.Dark : broke || owned || soldOut ? FadedLucky : UIStyle.Lucky;
                 // unaffordable: still clickable (labels: to see the floors; charms: says what is missing), never when gone
@@ -646,9 +665,11 @@ namespace FloorF.UI
             return null;
         }
 
+        /// <param name="wraps">Hint only: a text set to wrap (e.g. a two-line charm headline) is always checked by height.</param>
         static string Overflow(TextMeshProUGUI t, bool wraps)
         {
             if (t == null || !t.gameObject.activeInHierarchy || string.IsNullOrEmpty(t.text)) return null;
+            wraps |= t.textWrappingMode != TextWrappingModes.NoWrap;
             var r = t.rectTransform.rect;
             var need = wraps ? t.GetPreferredValues(t.text, r.width, float.PositiveInfinity) : t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity);
             if (!wraps) return need.x > r.width + 0.5f ? "'" + t.text + "' needs width " + need.x + " > " + r.width : null; // one line: width

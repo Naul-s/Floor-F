@@ -16,7 +16,8 @@ namespace FloorF.UI
     sealed class CharmsView
     {
         public const float TitleH = 22f, LineH = 30f, Gap = 8f, BoxPad = 6f;
-        const float PopLife = 0.6f, FloatLife = 1.6f;
+        const float PopLife = 0.6f, FloatLife = 1.6f, PopScale = 0.12f;
+        static readonly Color BoxFill = new Color(0.05f, 0.055f, 0.08f, 1f);
 
         sealed class Line
         {
@@ -43,7 +44,8 @@ namespace FloorF.UI
         {
             this.ctx = ctx;
             this.hud = hud;
-            boxEdge = UIBuild.Framed("CharmsBox", canvas, UIStyle.Box, UIStyle.Hex(UIFormat.ShieldHex), 2f);
+            // opaque fill: the edge image sits behind it, a translucent fill would wash the box cyan (and white on a pop)
+            boxEdge = UIBuild.Framed("CharmsBox", canvas, BoxFill, UIStyle.Hex(UIFormat.ShieldHex), 2f);
             box = boxEdge.rectTransform;
             UIBuild.Place(box, new Vector2(1f, 1f), new Vector2(-24f, -400f), new Vector2(HudView.ColumnWidth, 60f));
             title = UIBuild.Text("Title", box, "", 12f, UIStyle.Hex(UIFormat.ShieldHex), TextAlignmentOptions.Left, bold: true);
@@ -142,6 +144,7 @@ namespace FloorF.UI
             l.Rect.sizeDelta = new Vector2(HudView.ColumnWidth - 28f, LineH);
             l.Name = UIBuild.Text("Name", l.Rect, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
             UIBuild.Stretch(l.Name.rectTransform);
+            l.Name.rectTransform.pivot = new Vector2(0f, 0.5f);
             l.Name.textWrappingMode = TextWrappingModes.NoWrap;
             l.State = UIBuild.Text("State", l.Rect, "", 12f, UIStyle.InkDim, TextAlignmentOptions.Right);
             UIBuild.Stretch(l.State.rectTransform);
@@ -198,10 +201,11 @@ namespace FloorF.UI
                     {
                         l.Pop -= dt;
                         float t = 1f - Mathf.Clamp01(l.Pop / PopLife);
-                        scale = 1f + 0.18f * Mathf.Sin(t * Mathf.PI);
+                        scale = 1f + PopScale * Mathf.Sin(t * Mathf.PI);
                         edgeK = Mathf.Max(edgeK, Mathf.Sin(t * Mathf.PI));
                     }
-                    l.Rect.localScale = new Vector3(scale, scale, 1f);
+                    // only the name pops, growing out of its left edge: the "used" tag and the box edge stay put
+                    l.Name.rectTransform.localScale = new Vector3(scale, scale, 1f);
                 }
                 boxEdge.color = Color.Lerp(UIStyle.Hex(UIFormat.ShieldHex), Color.white, edgeK);
             }
@@ -234,7 +238,7 @@ namespace FloorF.UI
                 return sb.ToString();
             }
         }
-        public float MaxLineScale { get { float m = 1f; foreach (var l in lines) if (l.Rect.gameObject.activeSelf) m = Mathf.Max(m, l.Rect.localScale.x); return m; } }
+        public float MaxLineScale { get { float m = 1f; foreach (var l in lines) if (l.Rect.gameObject.activeSelf) m = Mathf.Max(m, l.Name.rectTransform.localScale.x); return m; } }
 
         /// <summary>null when every charm line fits the box at 24px and the box stays on screen, else why not.</summary>
         public string Overflow(RectTransform canvas)
@@ -246,6 +250,12 @@ namespace FloorF.UI
             {
                 if (!l.Rect.gameObject.activeSelf) continue;
                 if (l.Name.fontSize < 24f) return "'" + l.Name.text + "' shrank to " + l.Name.fontSize;
+                if (l.State.text.Length > 0)
+                {
+                    float sw = l.State.GetPreferredValues(l.State.text, float.PositiveInfinity, float.PositiveInfinity).x;
+                    var sr = UIBuild.CanvasRect(canvas, l.State.rectTransform);
+                    if (sr.xMax > r.xMax - 2f || sr.xMax - sw < r.xMin) return "'" + l.State.text + "' outside the box " + sr + " vs " + r;
+                }
                 float w = l.Name.GetPreferredValues(l.Name.text, float.PositiveInfinity, float.PositiveInfinity).x;
                 if (w > l.Name.rectTransform.rect.width + 0.5f) return "'" + l.Name.text + "' needs " + w + " > " + l.Name.rectTransform.rect.width;
             }

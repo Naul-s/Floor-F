@@ -256,7 +256,7 @@ namespace FloorF.Tests.PlayMode.UI
             string text = Plain(ui.CharmsText);
             StringAssert.Contains("TODAY'S CHARMS", text);
             StringAssert.Contains("Lucky Talisman", text);
-            StringAssert.Contains("Calm Bell", text);
+            StringAssert.Contains("Calm lobby bell", text);
             Assert.IsNull(ui.CharmsOverflow());
             var charms = ui.CharmsRect;
             var rules = ui.RulesBoxRect;
@@ -268,7 +268,7 @@ namespace FloorF.Tests.PlayMode.UI
             yield return UITestDriver.Frames(2);
             text = Plain(ui.CharmsText);
             StringAssert.Contains("오늘의 부적", text);
-            StringAssert.Contains("평온의 종", text);
+            StringAssert.Contains("평온의 로비 종", text);
             Assert.IsNull(ui.CharmsOverflow(), "ko");
             GameServices.Get<IGameSettings>().UseKorean = false;
 
@@ -311,7 +311,7 @@ namespace FloorF.Tests.PlayMode.UI
             bus.Publish(new CharmTriggered(new StickerId("calm_bell"), guest));
             yield return null;
             Assert.IsTrue(ui.CharmFloatVisible);
-            StringAssert.Contains("Calm Bell helped!", Plain(ui.CharmFloatText));
+            StringAssert.Contains("Calm lobby bell helped!", Plain(ui.CharmFloatText));
             var fr = ui.CharmFloatRect;
             Assert.IsTrue(fr.xMin >= 0f && fr.xMax <= ui.CanvasSize.x && fr.yMin >= 0f && fr.yMax <= ui.CanvasSize.y, "float on screen " + fr);
 
@@ -321,6 +321,8 @@ namespace FloorF.Tests.PlayMode.UI
             bus.Publish(new LuckJudged(guest, LuckSource.FloorLabel, 4, LuckVerdict.Unlucky, FloorIndex.FromPhysicalNumber(4)));
             StringAssert.Contains("막았다!", ui.LastPopupText);
             StringAssert.Contains("행운 부적이 막았다!", Plain(ui.LastPopupText));
+            StringAssert.Contains("운 그대로", ui.LastPopupText, "caption in the current language (even when merged)");
+            StringAssert.DoesNotContain("no luck lost", ui.LastPopupText);
             GameServices.Get<IGameSettings>().UseKorean = false;
         }
 
@@ -421,6 +423,16 @@ namespace FloorF.Tests.PlayMode.UI
             var building = GameServices.Get<IBuildingQuery>();
             Assert.AreEqual(4, ui.ShopOfferCount, "rules.shopOfferCount");
             Assert.IsNull(ui.ShopDescriptionProblem(), "real offers fit");
+            foreach (bool ko in new[] { false, true })
+            {
+                GameServices.Get<IGameSettings>().UseKorean = ko;
+                yield return UITestDriver.Frames(2);
+                for (int i = 0; i < ui.ShopOfferCount; i++)
+                    Assert.GreaterOrEqual(ui.ShopOfferHeadlineSize(i), 24f, (ko ? "ko " : "en ") + ui.ShopOfferHeadline(i));
+                Assert.IsNull(ui.ShopDescriptionProblem(), ko ? "ko" : "en");
+            }
+            GameServices.Get<IGameSettings>().UseKorean = false;
+            yield return UITestDriver.Frames(2);
             int staple = ui.ShopOfferIndex("four_to_f");
             Assert.GreaterOrEqual(staple, 0, "the 4 -> F staple is always offered");
             Assert.AreEqual("always here", ui.ShopOfferSub(staple));

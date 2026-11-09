@@ -94,6 +94,9 @@ namespace FloorF.UI
 
         const float PopupW = 170f, PopupH = 104f, CharmLineH = 30f;
 
+        static string PopupText(Popup p) =>
+            p.Number.text + " " + p.Verdict.text + " " + p.Caption.text + (p.Charm.gameObject.activeSelf ? " " + p.Charm.text : "");
+
         /// <param name="shieldLine">
         /// Non-null: a shield charm ate this Unlucky verdict (CharmTriggered right before it) - no red alarm, a cyan
         /// "BLOCKED!" popup with this line under it ("◈ Talisman blocked it!").
@@ -108,7 +111,13 @@ namespace FloorF.UI
                 {
                     p.Count++;
                     p.Verdict.text = VerdictWord(e.Verdict, shielded) + "  x" + p.Count;
-                    LastPopupText = p.Number.text + " " + p.Verdict.text + " " + p.Caption.text;
+                    if (shielded)
+                    {
+                        // a second shield in the same moment: name the latest charm, current language
+                        p.Caption.text = ctx.S(UIStrings.NoLuckLost);
+                        SetCharmLine(p, shieldLine);                    }
+                    LastPopupText = PopupText(p);
+                    LastPopupColor = p.Verdict.color;
                     return;
                 }
             }
@@ -143,7 +152,7 @@ namespace FloorF.UI
             pop.Origin = origin;
             popups.Add(pop);
             pop.Rect.SetAsLastSibling();
-            LastPopupText = pop.Number.text + " " + pop.Verdict.text + " " + pop.Caption.text + (pop.Charm.gameObject.activeSelf ? " " + pop.Charm.text : "");
+            LastPopupText = PopupText(pop);
             LastPopupColor = pop.Verdict.color;
             Animate(pop);
             LayoutSpeech();

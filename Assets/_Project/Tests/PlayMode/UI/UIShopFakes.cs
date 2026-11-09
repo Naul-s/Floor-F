@@ -130,17 +130,18 @@ namespace FloorF.Tests.PlayMode.UI
             };
 
         public static StickerDef Talisman() => Charm("talisman", StickerEffects.Shield, 1f, 40, "Lucky Talisman", "행운 부적",
-            "Blocks the first UNLUCKY moment of tomorrow: that verdict costs no Luck at all.",
-            "내일 처음 한 번의 불길한 판정을 막아요: 그 판정은 운을 하나도 깎지 않아요.");
-        public static StickerDef Bell() => Charm("calm_bell", StickerEffects.Patience, 0.5f, 30, "Calm Bell", "평온의 종",
-            "A soft chime in the lobby: guests wait half again as long before they give up and take the stairs.",
-            "로비에 울리는 맑은 종소리: 손님이 포기하고 계단으로 가기까지 1.5배 더 기다려요.");
+            // descriptions at the content budget (ShopContentTests: 55 chars en / 30 ko) - the longest real data gets
+            "Tomorrow's first UNLUCKY moment costs no Luck at all.",
+            "내일 처음 불길한 판정은 운을 하나도 깎지 않는다.");
+        public static StickerDef Bell() => Charm("calm_bell", StickerEffects.Patience, 0.5f, 30, "Calm lobby bell", "평온의 로비 종",
+            "A soft chime: guests wait half again as long tomorrow.",
+            "맑은 종소리. 내일 손님이 1.5배 더 오래 기다린다.");
         public static StickerDef Cable() => Charm("swift_cable", StickerEffects.Speed, 0.25f, 35, "Swift Cable", "빠른 케이블",
-            "Freshly oiled cables: the car and its doors move a quarter faster all day long.",
-            "새로 기름칠한 케이블: 하루 종일 엘리베이터와 문이 4분의 1 더 빨라요.");
+            "Freshly oiled: car and doors move 25% faster tomorrow.",
+            "새로 기름칠한 케이블. 내일 엘리베이터 25% 빠름.");
         public static StickerDef Coin() => Charm("golden_coin", StickerEffects.Tips, 0.3f, 50, "Golden Coin", "황금 동전",
-            "A golden coin taped under the panel. Nobody knows why it works, but every tip tomorrow is 30% bigger - even from the grumpy accountant.",
-            "패널 밑에 붙인 황금 동전. 왜 통하는지는 아무도 모르지만 내일은 모든 팁이 30% 커져요 - 깐깐한 회계사의 팁까지도.");
+            "A coin taped under the panel: every tip is 30% bigger.",
+            "패널 밑 황금 동전. 내일은 모든 팁이 30% 커진다.");
 
         /// <summary>The day's real label stickers first, then the charms (offerCount picks from the front).</summary>
         public static List<StickerDef> Pool(GameData data, params StickerDef[] charms)
