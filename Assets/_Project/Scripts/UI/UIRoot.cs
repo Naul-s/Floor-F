@@ -482,6 +482,10 @@ namespace FloorF.UI
         internal string ShopOfferDayTag(int i) => shop.OfferDayTag(i);
         internal string ShopOfferSub(int i) => shop.OfferSub(i);
         internal bool ShopOfferInteractable(int i) => shop.OfferInteractable(i);
+        internal ShopView.CardLook ShopOfferLook(int i) => shop.OfferLook(i);
+        internal bool ShopOfferLocked(int i) => shop.OfferLocked(i);
+        internal bool ShopOfferHoverTints(int i) => shop.OfferHoverTints(i);
+        internal bool FlowWeddingLook => flow.WeddingLook;
         internal float ShopOfferHeadlineSize(int i) => shop.OfferHeadlineSize(i);
         internal void FocusShopOffer(int i) => shop.FocusOffer(i);
         internal string ShopDetailText => shop.DetailText;

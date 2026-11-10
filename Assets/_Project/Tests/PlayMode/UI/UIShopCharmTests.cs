@@ -197,6 +197,21 @@ namespace FloorF.Tests.PlayMode.UI
                 UITestDriver.Session().Score.AddTips(-50, earned: false); // $10 left
                 yield return UITestDriver.Frames(2);
                 Assert.AreEqual("need +$40", ui.ShopOfferSub(coin));
+                // cannot pay: a flat locked slab that does not answer the pointer; bought stays a different (gone) look
+                Assert.AreEqual(ShopView.CardLook.Broke, ui.ShopOfferLook(coin));
+                Assert.IsTrue(ui.ShopOfferLocked(coin), "padlock beside the price");
+                Assert.IsFalse(ui.ShopOfferHoverTints(coin), "no hover / press tint");
+                Assert.IsTrue(ui.ShopOfferInteractable(coin), "still takes the click (says what is missing)");
+                Assert.AreEqual(ShopView.CardLook.Gone, ui.ShopOfferLook(talisman));
+                Assert.IsFalse(ui.ShopOfferLocked(talisman));
+                Assert.IsNull(ui.ShopDescriptionProblem(), "locked cards still fit");
+                yield return Day0Driver.Shot("ui_shop_unaffordable", true);
+                GameServices.Get<IGameSettings>().UseKorean = true;
+                yield return UITestDriver.Frames(2);
+                Assert.IsNull(ui.ShopDescriptionProblem(), "locked cards still fit (ko)");
+                yield return Day0Driver.Shot("ui_shop_unaffordable_ko", true);
+                GameServices.Get<IGameSettings>().UseKorean = false;
+                yield return UITestDriver.Frames(2);
                 ui.ClickShopOffer(coin);
                 Assert.AreEqual(UiSoundKind.Error, heard[heard.Count - 1]);
                 Assert.AreEqual("Not enough tips.", ui.ShopResult);

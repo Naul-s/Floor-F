@@ -695,6 +695,16 @@ namespace FloorF.Tests.PlayMode.UI
             var elevator = GameServices.Get<IElevatorQuery>();
             var waiting = new System.Collections.Generic.List<GuestId>();
             for (int i = 0; i < 100 && guests.GetWaiting(FloorIndex.Ground, waiting) < 3; i++) yield return null;
+            yield return UITestDriver.Frames(3);
+            // three guests queue in the lobby: one compact chip each, side by side, none on top of another
+            Assert.GreaterOrEqual(guests.GetWaiting(FloorIndex.Ground, waiting), 3);
+            for (int a = 0; a < waiting.Count; a++)
+            {
+                var ra = ui.ChipRect(waiting[a]);
+                Assert.AreEqual(GuestBubblesView.WaitH, ra.height, 0.5f, "waiting chips are one compact row");
+                for (int b = a + 1; b < waiting.Count; b++) Assert.IsFalse(ra.Overlaps(ui.ChipRect(waiting[b])), "queue chips overlap: " + ra + " / " + ui.ChipRect(waiting[b]));
+            }
+            Assert.IsTrue(System.IO.File.Exists(FrameCapture.Capture("ui_queue" + suffix)));
             ui.ClickOpen();
             for (int i = 0; i < 60 && elevator.Occupancy < 3; i++) yield return null;
             ui.ClickClose();

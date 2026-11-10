@@ -9,7 +9,9 @@ namespace FloorF.UI
     /// <summary>
     /// Number chips above guests (GDD 4: lucky number + 0-2 unlucky over every head, destination as an icon tinted with its colour;
     /// the name only when it fits whole beside the icon - DestinationBadge.NameMode.FullOrNone).
-    /// Waiting guests: one chip above each head, packed left-to-right in line order so neighbours never overlap.
+    /// Waiting guests: one COMPACT one-row chip ([destination icon] numbers, patience bar underneath) per guest, packed
+    /// left-to-right in line order inside the floor's own headroom (between the heads and the ceiling) - a queue never
+    /// hides the guests beside it, nor the ones waiting on the floor above.
     /// Riders: grouped in a 4-wide grid hugging the left side of the car (they stand too close to label one by one).
     /// Riders' chips grow an odometer row on top (rule 3: "↕5" = floors travelled since boarding, GuestInfo.FloorsTravelled),
     /// gold / red when stepping out now would be lucky / unlucky (UIFormat.DistanceVerdict, Friday the 13th included).
@@ -21,7 +23,11 @@ namespace FloorF.UI
         /// <summary>Odometer row on top of a rider's chip; rider chips are <see cref="RiderChipH"/> tall.</summary>
         public const float OdoH = 24f, RiderChipH = ChipH + OdoH;
         public const float Spacing = 3f;
-        const float HeadHeight = 1.45f, ColumnMargin = 4f;
+        const float HeadHeight = 1.45f, HeadFloor = 1.25f, ColumnMargin = 4f;
+        /// <summary>Waiting chip: one row, <see cref="WaitH"/> tall (fits the headroom of a floor: ~34px at 1280x720);
+        /// icon-only badge (a name would not fit: the text fallback gets <see cref="WaitTextBadge"/>), numbers at their
+        /// natural width up to <see cref="WaitNumMax"/>.</summary>
+        public const float WaitH = 32f, WaitBadge = 26f, WaitTextBadge = 58f, WaitNumMax = 78f, WaitGap = 2f;
         public const int RiderColumns = 3;
 
         public static readonly Color OdoNeutral = new Color(0.2f, 0.21f, 0.26f, 1f);
@@ -33,7 +39,10 @@ namespace FloorF.UI
             public Image Edge;
             public TextMeshProUGUI Numbers;
             public DestinationBadge Badge;
-            public RectTransform Patience;
+            public RectTransform Patience, Track;
+            /// <summary>Current width (waiting chips are as wide as their numbers) and the numbers' natural width at 24px.</summary>
+            public float W = ChipW, NumW;
+            public bool LaidOut, TextBadge;
             public Image PatienceImage;
             public RectTransform Odo;
             public Image OdoFill;
@@ -89,7 +98,8 @@ namespace FloorF.UI
             c.Badge = new DestinationBadge(c.Rect, BadgeSize, DestinationBadge.NameMode.FullOrNone);
             UIBuild.Place(c.Badge.Rect, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, BadgeH));
             var track = UIBuild.Box("PatienceTrack", c.Rect, new Color(0f, 0f, 0f, 0.9f));
-            UIBuild.Place(track.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(ChipW - 6f, 4f));
+            c.Track = track.rectTransform;
+            UIBuild.Place(c.Track, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(ChipW - 6f, 4f));
             c.PatienceImage = UIBuild.Box("Patience", track.transform, UIStyle.Good);
             c.Patience = c.PatienceImage.rectTransform;
             c.Patience.anchorMin = Vector2.zero;
@@ -106,7 +116,10 @@ namespace FloorF.UI
             c.Id = info.Id;
             c.Edge.color = ctx.GuestColor(info.Archetype);
             c.Numbers.text = UIFormat.Numbers(info.Luck, info.HideNumbers, ctx.Day != null && ctx.Day.IsStarNight && !ctx.Day.IsTutorial);
-            UIBuild.Fit(c.Numbers, 24f);
+            c.Numbers.fontSize = UIFonts.Px(24f);
+            if (c.Numbers.font != null) c.Numbers.font.TryAddCharacters(c.Numbers.text);
+            c.NumW = Mathf.Clamp(Mathf.Ceil(c.Numbers.GetPreferredValues(c.Numbers.text, float.PositiveInfinity, float.PositiveInfinity).x) + 1f, 14f, WaitNumMax);
+            c.LaidOut = false; // Fill lays it out (waiting: compact row / riding: numbers over the badge + odometer)
             c.ShownDestination = new DestinationId("\u0000");
             chips.Add(info.Id.Value, c);
             return c;
@@ -114,6 +127,8 @@ namespace FloorF.UI
 
         void Fill(Chip c, in GuestInfo info, bool riding)
         {
+            bool textBadge = !riding && UIIcons.For(ctx.Destination(info.Destination)) == null;
+            if (!c.LaidOut || c.Riding != riding || c.TextBadge != textBadge) ApplyLayout(c, riding, textBadge);
             if (c.ShownDestination != info.Destination || c.LanguageKorean != ctx.Korean)
             {
                 c.ShownDestination = info.Destination;
@@ -124,17 +139,39 @@ namespace FloorF.UI
             c.Patience.anchorMax = new Vector2(p, 1f);
             c.Patience.offsetMax = Vector2.zero;
             c.PatienceImage.color = UIStyle.Patience(p);
-            SetRiding(c, riding);
             if (riding) FillOdometer(c, info);
             c.Seen = frame;
         }
 
-        static void SetRiding(Chip c, bool riding)
+        /// <summary>
+        /// Riding: 80px chip, numbers over a full-width badge (icon + name when it fits), odometer row on top.
+        /// Waiting: one compact row - [icon] numbers - over a thin patience bar.
+        /// </summary>
+        static void ApplyLayout(Chip c, bool riding, bool textBadge)
         {
-            if (c.Riding == riding) return;
+            c.LaidOut = true;
             c.Riding = riding;
+            c.TextBadge = textBadge;
             c.Odo.gameObject.SetActive(riding);
-            c.Rect.sizeDelta = new Vector2(ChipW, riding ? RiderChipH : ChipH);
+            if (riding)
+            {
+                c.W = ChipW;
+                c.Rect.sizeDelta = new Vector2(ChipW, RiderChipH);
+                UIBuild.Place(c.Numbers.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, ChipH - 1f - 26f), new Vector2(ChipW - 4f, 26f));
+                UIBuild.Place(c.Badge.Rect, new Vector2(0.5f, 0f), new Vector2(0f, 7f), new Vector2(ChipW - 6f, BadgeH));
+                UIBuild.Place(c.Track, new Vector2(0.5f, 0f), new Vector2(0f, 2f), new Vector2(ChipW - 6f, 4f));
+            }
+            else
+            {
+                float bw = textBadge ? WaitTextBadge : WaitBadge;
+                c.W = 3f + bw + 3f + c.NumW + 4f;
+                c.Rect.sizeDelta = new Vector2(c.W, WaitH);
+                UIBuild.Place(c.Badge.Rect, Vector2.zero, new Vector2(3f, 6f), new Vector2(bw, WaitH - 9f));
+                UIBuild.Place(c.Numbers.rectTransform, Vector2.zero, new Vector2(3f + bw + 3f, 5f), new Vector2(c.NumW, WaitH - 8f));
+                UIBuild.Place(c.Track, Vector2.zero, new Vector2(2f, 2f), new Vector2(c.W - 4f, 3f));
+            }
+            UIBuild.Fit(c.Numbers, 24f);
+            c.ShownDestination = new DestinationId("\u0000"); // the badge re-fits its new rect
             c.ShownFloors = -1;
         }
 
@@ -187,17 +224,25 @@ namespace FloorF.UI
                 for (int f = 0; f < floors; f++)
                 {
                     int n = ctx.Guests.GetWaiting(new FloorIndex(f), waiting);
-                    float minX = haveColumn ? colMax + ChipW * 0.5f : float.MinValue;
+                    float minLeft = haveColumn ? colMax : float.MinValue;
+                    float floorH = ctx.Layout != null ? ctx.Layout.FloorHeight : 3f;
                     for (int i = 0; i < n; i++)
                     {
                         if (!ctx.Guests.TryGet(waiting[i], out var info) || info.State != GuestState.Waiting) continue;
                         if (!ctx.Locator.TryGetGuestPosition(info.Id, out var wp)) continue;
-                        if (!ctx.WorldToCanvas(UIContext.ToVector3(wp) + Vector3.up * HeadHeight, out var pos)) continue;
-                        pos.x = Mathf.Max(pos.x, minX);
-                        minX = pos.x + ChipW + Spacing;
+                        var world = UIContext.ToVector3(wp);
+                        if (!ctx.WorldToCanvas(world + Vector3.up * HeadHeight, out var pos)) continue;
                         var c = Get(info);
                         Fill(c, info, riding: false);
-                        c.Rect.anchoredPosition = pos;
+                        // one row per floor, in line order: each chip as close to its guest as the previous one allows
+                        float left = Mathf.Max(pos.x - c.W * 0.5f, minLeft);
+                        minLeft = left + c.W + WaitGap;
+                        // inside this floor's headroom: just above the head, top under the ceiling (the floor above
+                        // keeps its guests visible); on a tiny view it may dip to the hairline, never onto the faces
+                        float y = pos.y + 2f;
+                        if (ctx.WorldToCanvas(world + Vector3.up * floorH, out var ceiling)) y = Mathf.Min(y, ceiling.y - WaitH);
+                        if (ctx.WorldToCanvas(world + Vector3.up * HeadFloor, out var low)) y = Mathf.Max(y, low.y);
+                        c.Rect.anchoredPosition = new Vector2(left + c.W * 0.5f, y);
                     }
                 }
 
@@ -237,7 +282,7 @@ namespace FloorF.UI
             {
                 if (!chips.TryGetValue(riders[i].Value, out var c) || !c.Rect.gameObject.activeSelf || c.Seen != frame) continue;
                 var p = c.Rect.anchoredPosition;
-                var r = new Rect(p.x - ChipW * 0.5f, p.y, ChipW, c.Rect.sizeDelta.y);
+                var r = new Rect(p.x - c.W * 0.5f, p.y, c.W, c.Rect.sizeDelta.y);
                 rect = any ? Rect.MinMaxRect(Mathf.Min(rect.xMin, r.xMin), Mathf.Min(rect.yMin, r.yMin), Mathf.Max(rect.xMax, r.xMax), Mathf.Max(rect.yMax, r.yMax)) : r;
                 any = true;
             }
@@ -263,7 +308,7 @@ namespace FloorF.UI
         {
             if (!chips.TryGetValue(guest.Value, out var c) || !c.Rect.gameObject.activeSelf) return default;
             var p = c.Rect.anchoredPosition;
-            return new Rect(p.x - ChipW * 0.5f, p.y, ChipW, c.Rect.sizeDelta.y);
+            return new Rect(p.x - c.W * 0.5f, p.y, c.W, c.Rect.sizeDelta.y);
         }
 
         /// <summary>Widest odometer text vs its plate (test hook): null when every visible one fits, else the offender.</summary>
@@ -285,8 +330,8 @@ namespace FloorF.UI
             {
                 if (!c.Rect.gameObject.activeSelf) continue;
                 float x = c.Rect.anchoredPosition.x;
-                if (x + ChipW * 0.5f > minX + 0.5f && x - ChipW * 0.5f < maxX - 0.5f)
-                    return "chip x " + (x - ChipW * 0.5f).ToString("0") + ".." + (x + ChipW * 0.5f).ToString("0") + " vs " + minX.ToString("0") + ".." + maxX.ToString("0");
+                if (x + c.W * 0.5f > minX + 0.5f && x - c.W * 0.5f < maxX - 0.5f)
+                    return "chip x " + (x - c.W * 0.5f).ToString("0") + ".." + (x + c.W * 0.5f).ToString("0") + " vs " + minX.ToString("0") + ".." + maxX.ToString("0");
             }
             return null;
         }

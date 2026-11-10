@@ -22,6 +22,22 @@ namespace FloorF.Tests.EditMode.UI
         }
 
         [Test]
+        public void LabelEffect_SaysWhatTheStickerDoes_EnKo()
+        {
+            var four = new StickerDef { id = "four_to_f", from = "4", to = "F" };
+            StickerDef Any(string to) => new StickerDef { id = "any", from = "*", to = to };
+            Assert.AreEqual("Renumbers floor 4 to F for a day", UIFormat.LabelEffect(four, false));
+            Assert.AreEqual("4층의 번호를 하루 동안 F로 바꿈", UIFormat.LabelEffect(four, true));
+            Assert.AreEqual("Renumbers any one floor to 8 for a day", UIFormat.LabelEffect(Any("8"), false));
+            Assert.AreEqual("원하는 층 하나의 번호를 하루 동안 8로 바꿈", UIFormat.LabelEffect(Any("8"), true), "팔 + 로");
+            Assert.AreEqual("원하는 층 하나의 번호를 하루 동안 3으로 바꿈", UIFormat.LabelEffect(Any("3"), true), "삼 + 으로");
+            Assert.AreEqual("원하는 층 하나의 번호를 하루 동안 13으로 바꿈", UIFormat.LabelEffect(Any("13"), true));
+            Assert.AreEqual("", UIFormat.LabelEffect(Charm(StickerEffects.Tips, 0.3f), false), "charms: CharmEffect");
+            Assert.AreEqual("Tips +30%", UIFormat.StickerEffect(Charm(StickerEffects.Tips, 0.3f), false));
+            Assert.AreEqual(UIFormat.LabelEffect(four, true), UIFormat.StickerEffect(four, true));
+        }
+
+        [Test]
         public void CharmEffect_EnKo()
         {
             Assert.AreEqual("Guests wait 50% longer", UIFormat.CharmEffect(Charm(StickerEffects.Patience, 0.5f), false));

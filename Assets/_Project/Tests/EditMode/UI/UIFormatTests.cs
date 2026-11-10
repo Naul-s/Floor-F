@@ -126,6 +126,8 @@ namespace FloorF.Tests.EditMode.UI
             var any = new StickerDef { id = "any_to_8", from = "*", to = "8" };
             Assert.AreEqual("4 → F", UIFormat.StickerHeadline(four, false));
             Assert.AreEqual("any → 8", UIFormat.StickerHeadline(any, false));
+            Assert.AreEqual("원하는 층 → 8", UIFormat.StickerHeadline(any, true), "ko: not the awkward '아무 → 8'");
+            Assert.AreEqual("4 → F", UIFormat.StickerHeadline(four, true));
         }
 
         [Test]

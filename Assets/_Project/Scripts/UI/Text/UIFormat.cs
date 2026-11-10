@@ -190,13 +190,30 @@ namespace FloorF.UI
             }
         }
 
-        /// <summary>Sticker headline from its data ("4 → F", "* → 8" shown as "any → 8").</summary>
+        /// <summary>Sticker headline from its data ("4 → F", "* → 8" shown as "any → 8" / "원하는 층 → 8").</summary>
         public static string StickerHeadline(StickerDef s, bool ko)
         {
             if (s == null) return "?";
-            string from = s.MatchesAnyLabel ? (ko ? "아무" : "any") : s.from.Trim();
+            string from = s.MatchesAnyLabel ? UIStrings.AnyFloor.Get(ko) : s.from.Trim();
             return from + " → " + (s.to ?? "").Trim();
         }
+
+        /// <summary>
+        /// What a label sticker does, in plain words, from its data: "Renumbers any one floor to 8 for a day" /
+        /// "Renumbers floor 4 to F for a day". "" for charms (see <see cref="CharmEffect"/>) and stickers without a 'to'.
+        /// </summary>
+        public static string LabelEffect(StickerDef s, bool ko)
+        {
+            if (s == null || s.IsCharm) return "";
+            string to = (s.to ?? "").Trim();
+            if (to.Length == 0) return "";
+            return s.MatchesAnyLabel
+                ? KoreanParticles.Format(UIStrings.EffectRelabelAny.Get(ko), to)
+                : KoreanParticles.Format(UIStrings.EffectRelabelFrom.Get(ko), to, (s.from ?? "").Trim());
+        }
+
+        /// <summary>The "what it does" line of any shop item: <see cref="LabelEffect"/> or <see cref="CharmEffect"/>.</summary>
+        public static string StickerEffect(StickerDef s, bool ko) => s == null ? "" : s.IsCharm ? CharmEffect(s, ko) : LabelEffect(s, ko);
 
         /// <summary>
         /// One glyph per charm effect (KS X 1001 symbols - Galmuri11 has them): shield ◈, patience ♥, speed ≫, tips $,

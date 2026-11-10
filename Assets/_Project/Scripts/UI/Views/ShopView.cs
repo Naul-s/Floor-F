@@ -49,11 +49,22 @@ namespace FloorF.UI
             public UIBuild.ButtonParts Parts;
             public TextMeshProUGUI Headline, Price, Sub, KindText, DayText;
             public Image KindPill, DayPill;
-            public RectTransform Focus;
+            public RectTransform Focus, Lock;
+            public Image[] Bevel;
+            public ColorBlock LiveColors, FlatColors;
+            public CardLook Look = (CardLook)(-1);
             public StickerId Id;
             public bool Charm;
             public int Index;
         }
+
+        /// <summary>
+        /// How a card reads at a glance. Live: a raised key (bevel, gold name, green price, hover/press tint). Picked: gold,
+        /// pressed in. Broke (cannot pay): a flat dark slab, grey name, grey badges, a red padlock beside the red price,
+        /// no hover/press tint - it still takes the click (labels show their floors, charms say what is missing).
+        /// Gone (sold out / already bought): a see-through ghost of the live card, not clickable.
+        /// </summary>
+        public enum CardLook { Live, Picked, Broke, Gone }
 
         readonly UIContext ctx;
         readonly ElevatorPanelView panel;
@@ -156,12 +167,17 @@ namespace FloorF.UI
             c.Parts = UIBuild.Button("Offer" + index, grid, "", 12f, UIStyle.Btn, null);
             c.Parts.Label.gameObject.SetActive(false);
             var r = c.Parts.Rect;
+            c.LiveColors = c.FlatColors = c.Parts.Button.colors;
+            c.FlatColors.highlightedColor = c.FlatColors.pressedColor = c.FlatColors.selectedColor = c.FlatColors.normalColor;
+            c.Bevel = UIBuild.Bevel("Bevel", r, UIBuild.BevelLight, UIBuild.BevelDark, 2f, 0f, sides: false);
             c.Headline = UIBuild.Text("Headline", r, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(c.Headline.rectTransform, new Vector2(0f, 1f), new Vector2(CellPad, -4f), new Vector2(CellW - 2f * CellPad, HeadlineH));
             c.Headline.textWrappingMode = TextWrappingModes.NoWrap;
             c.Price = UIBuild.Text("Price", r, "", 24f, UIStyle.Good, TextAlignmentOptions.Right, bold: true);
             UIBuild.Place(c.Price.rectTransform, new Vector2(1f, 1f), new Vector2(-CellPad, -6f), new Vector2(60f, 36f));
             c.Price.textWrappingMode = TextWrappingModes.NoWrap;
+            c.Lock = Padlock(r);
+            c.Lock.gameObject.SetActive(false);
             c.KindPill = Pill("Kind", r, out c.KindText);
             c.DayPill = Pill("Day", r, out c.DayText);
             c.Sub = UIBuild.Text("Sub", r, "", 12f, UIStyle.Ink, TextAlignmentOptions.BottomRight);
@@ -175,6 +191,22 @@ namespace FloorF.UI
             hover.Exit = () => { if (hovered == self.Index) SetHovered(-1); };
             c.Parts.Button.onClick.AddListener(() => OnCellClicked(self));
             return c;
+        }
+
+        public const float LockW = 14f, LockH = 18f;
+
+        /// <summary>Pixel padlock (14x18): a red body with a keyhole under a shackle. Sits left of an unaffordable price.</summary>
+        static RectTransform Padlock(RectTransform parent)
+        {
+            var root = UIBuild.Rect("Lock", parent);
+            UIBuild.Place(root, new Vector2(1f, 1f), Vector2.zero, new Vector2(LockW, LockH));
+            var ink = UIStyle.Unlucky;
+            UIBuild.Place(UIBuild.Box("Body", root, ink).rectTransform, Vector2.zero, Vector2.zero, new Vector2(LockW, 10f));
+            UIBuild.Place(UIBuild.Box("Keyhole", root, BrokeFill).rectTransform, Vector2.zero, new Vector2(6f, 3f), new Vector2(2f, 4f));
+            UIBuild.Place(UIBuild.Box("ShackleL", root, ink).rectTransform, Vector2.zero, new Vector2(2f, 10f), new Vector2(2f, 6f));
+            UIBuild.Place(UIBuild.Box("ShackleR", root, ink).rectTransform, Vector2.zero, new Vector2(10f, 10f), new Vector2(2f, 6f));
+            UIBuild.Place(UIBuild.Box("ShackleTop", root, ink).rectTransform, Vector2.zero, new Vector2(2f, 16f), new Vector2(10f, 2f));
+            return root;
         }
 
         static Image Pill(string name, RectTransform parent, out TextMeshProUGUI text)
@@ -305,11 +337,13 @@ namespace FloorF.UI
         }
 
         /// <summary>Charm name (with its coloured glyph when <paramref name="glyph"/>).</summary>
-        string CharmTitle(StickerDef s, bool glyph)
+        string CharmTitle(StickerDef s, bool glyph, bool tint = true)
         {
             string name = ctx.StickerName(s);
             if (string.IsNullOrEmpty(name)) name = s != null ? s.id : "?";
-            return glyph && s != null ? "<color=" + UIFormat.CharmHex(s.effect) + ">" + UIFormat.CharmGlyph(s.effect) + "</color> " + name : name;
+            if (!glyph || s == null) return name;
+            return tint ? "<color=" + UIFormat.CharmHex(s.effect) + ">" + UIFormat.CharmGlyph(s.effect) + "</color> " + name
+                : UIFormat.CharmGlyph(s.effect) + " " + name; // unaffordable card: the glyph greys out with the name
         }
 
         void Open()
@@ -414,9 +448,13 @@ namespace FloorF.UI
                 if (c.Price.font != null) c.Price.font.TryAddCharacters(c.Price.text);
                 float priceW = Mathf.Ceil(c.Price.GetPreferredValues(c.Price.text, float.PositiveInfinity, float.PositiveInfinity).x) + 2f;
                 c.Price.rectTransform.sizeDelta = new Vector2(priceW, 36f);
-                c.Headline.text = c.Charm ? CharmTitle(def, true) : UIFormat.StickerHeadline(def, ko);
+                // cannot pay: a padlock left of the price (the name gives up that width)
+                float lockW = broke ? LockW + 4f : 0f;
+                if (c.Lock.gameObject.activeSelf != broke) c.Lock.gameObject.SetActive(broke);
+                c.Lock.anchoredPosition = new Vector2(-(CellPad + priceW + 4f), -(6f + (36f - LockH) * 0.5f));
+                c.Headline.text = c.Charm ? CharmTitle(def, true, tint: !broke) : UIFormat.StickerHeadline(def, ko);
                 if (c.Headline.font != null) c.Headline.font.TryAddCharacters(c.Headline.text);
-                c.Headline.rectTransform.sizeDelta = new Vector2(Mathf.Max(60f, CellW - 2f * CellPad - priceW - 8f), HeadlineH);
+                c.Headline.rectTransform.sizeDelta = new Vector2(Mathf.Max(60f, CellW - 2f * CellPad - priceW - 8f - lockW), HeadlineH);
                 FitHeadline(c.Headline);
 
                 // badges: kind + 1 DAY
@@ -427,8 +465,8 @@ namespace FloorF.UI
                 c.KindPill.rectTransform.sizeDelta = new Vector2(kw, PillH);
                 c.DayPill.rectTransform.anchoredPosition = new Vector2(CellPad + kw + 4f, 7f);
                 c.DayPill.rectTransform.sizeDelta = new Vector2(dw, PillH);
-                c.KindPill.color = c.Charm ? CharmPill : LabelPill;
-                c.DayPill.color = DayPill;
+                c.KindPill.color = broke ? BrokePill : c.Charm ? CharmPill : LabelPill;
+                c.DayPill.color = broke ? BrokePill : DayPill;
                 c.KindText.color = c.DayText.color = UIStyle.Dark;
 
                 // stock / need / bought (right of the badges)
@@ -445,15 +483,30 @@ namespace FloorF.UI
                 c.Sub.rectTransform.sizeDelta = new Vector2(Mathf.Max(20f, CellW - subX - CellPad), PillH);
                 UIBuild.Fit(c.Sub, 12f);
 
-                var bg = isSel ? UIStyle.BtnTarget : soldOut || owned ? UIStyle.BtnBlocked : UIStyle.Btn;
+                var look = soldOut || owned ? CardLook.Gone : isSel ? CardLook.Picked : broke ? CardLook.Broke : CardLook.Live;
+                var bg = look == CardLook.Picked ? UIStyle.BtnTarget : look == CardLook.Gone ? UIStyle.BtnBlocked : look == CardLook.Broke ? BrokeFill : UIStyle.Btn;
                 c.Parts.Background.color = bg;
-                c.Price.color = isSel ? UIStyle.Dark : owned ? UIStyle.InkDim : soldOut || broke ? UIStyle.Unlucky : UIStyle.Good; // bought: paid, not "too dear"
+                // red price = "too dear" only; gone cards (sold out / bought) just fade
+                c.Price.color = isSel ? UIStyle.Dark : look == CardLook.Gone ? UIStyle.InkDim : broke ? UIStyle.Unlucky : UIStyle.Good;
                 c.Sub.color = isSel ? UIStyle.Dark : subColor;
-                c.Headline.color = isSel ? UIStyle.Dark : broke || owned || soldOut ? FadedLucky : UIStyle.Lucky;
+                c.Headline.color = isSel ? UIStyle.Dark : look == CardLook.Broke ? BrokeInk : look == CardLook.Gone ? FadedLucky : UIStyle.Lucky;
                 // unaffordable: still clickable (labels: to see the floors; charms: says what is missing), never when gone
                 c.Parts.Button.interactable = !soldOut && !owned;
+                if (look != c.Look)
+                {
+                    c.Look = look;
+                    // live = raised key, picked = pressed in, broke / gone = flat; only cards one can buy answer the pointer
+                    if (look == CardLook.Live) UIBuild.SetBevel(c.Bevel, UIBuild.BevelLight, UIBuild.BevelDark);
+                    else if (look == CardLook.Picked) UIBuild.SetBevel(c.Bevel, UIBuild.BevelDark, UIBuild.BevelLight);
+                    else UIBuild.SetBevel(c.Bevel, Color.clear, Color.clear);
+                    c.Parts.Button.colors = look == CardLook.Broke ? c.FlatColors : c.LiveColors;
+                }
             }
         }
+
+        /// <summary>Unaffordable card: a flat slab darker than a live card, with grey ink and grey badges.</summary>
+        static readonly Color BrokeFill = new Color(0.115f, 0.12f, 0.145f, 1f), BrokeInk = new Color(0.6f, 0.59f, 0.56f, 1f),
+            BrokePill = new Color(0.5f, 0.5f, 0.52f, 1f);
 
         /// <summary>
         /// Gameplay's staple (GameSession.Shop): a label sticker for the real 4th floor's original label (4 -> F) is offered
@@ -485,7 +538,7 @@ namespace FloorF.UI
         /// <summary>Effect line (charms) + description for one offer; height = what it needs at the details width.</summary>
         float MeasureDetail(StickerDef s, out string effect, out string desc)
         {
-            effect = UIFormat.CharmEffect(s, ctx.Korean);
+            effect = UIFormat.StickerEffect(s, ctx.Korean); // what it does (labels and charms); the description says why
             desc = ctx.StickerDescription(s);
             float w = DetailInnerW, h = 0f;
             if (!string.IsNullOrEmpty(effect)) h += Need(detailEffect, effect, w) + 4f;
@@ -519,7 +572,7 @@ namespace FloorF.UI
             if (!string.IsNullOrEmpty(effect))
             {
                 detailEffect.text = effect;
-                detailEffect.color = UIStyle.Hex(UIFormat.CharmHex(def.effect));
+                detailEffect.color = def.IsCharm ? UIStyle.Hex(UIFormat.CharmHex(def.effect)) : UIStyle.Lucky;
                 float eh = Need(detailEffect, effect, w);
                 Place(detailEffect.rectTransform, y, w, eh);
                 y += eh + 4f;
@@ -613,6 +666,11 @@ namespace FloorF.UI
         public string OfferDayTag(int i) => i >= 0 && i < shownCount ? cells[i].DayText.text : null;
         public string OfferSub(int i) => i >= 0 && i < shownCount ? cells[i].Sub.text : null;
         public bool OfferInteractable(int i) => i >= 0 && i < shownCount && cells[i].Parts.Button.interactable;
+        /// <summary>Live / Picked / Broke / Gone (test hook); Gone for an index without a card.</summary>
+        public CardLook OfferLook(int i) => i >= 0 && i < shownCount ? cells[i].Look : CardLook.Gone;
+        public bool OfferLocked(int i) => i >= 0 && i < shownCount && cells[i].Lock.gameObject.activeSelf;
+        /// <summary>True when hovering / pressing the card tints it (only cards one can pay for).</summary>
+        public bool OfferHoverTints(int i) => i >= 0 && i < shownCount && cells[i].Parts.Button.colors.highlightedColor != cells[i].Parts.Button.colors.normalColor;
         public float OfferHeadlineSize(int i) => i >= 0 && i < shownCount ? cells[i].Headline.fontSize : 0f;
         public string OfferId(int i) => i >= 0 && i < shownCount ? cells[i].Id.Value : null;
         public int OfferIndex(string id)
