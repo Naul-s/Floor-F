@@ -86,8 +86,22 @@ namespace FloorF.UI
             hint.gameObject.SetActive(false);
         }
 
-        /// <summary>Explain card: top edge (px from the screen top) and width (the HUD's right column).</summary>
-        public const float CardTop = HudView.RulesBottom + HudView.Friday13LineH + HudView.BadgeGap + HudView.StarBadgeH + 10f, HudCardW = 376f;
+        /// <summary>Explain card: top edge (px from the screen top) under the open rule box + star badge, and width (the
+        /// HUD's right column). While the day runs it follows <see cref="ColumnTop"/> (the column restacks when the rule
+        /// box folds).</summary>
+        public const float CardTop = HudView.RulesBottom + HudView.Friday13LineH + HudView.BadgeGap + HudView.StarBadgeH + HudView.CardGap, HudCardW = 376f;
+
+        /// <summary>Set by UIRoot: px from the canvas top where the card starts (HudView.ColumnCardTop).</summary>
+        public System.Func<float> ColumnTop;
+
+        /// <summary>Px from the canvas top under the explain card while it is shown, else 0.</summary>
+        public float CardBottom => card.gameObject.activeSelf ? -card.anchoredPosition.y + card.rect.height : 0f;
+
+        void PlaceCard()
+        {
+            var p = new Vector2(-24f, -(ColumnTop != null ? ColumnTop() : CardTop));
+            if (card.anchoredPosition != p) card.anchoredPosition = p;
+        }
 
         bool Running => ctx.HasGame && ctx.Phase == DayPhase.Running;
         bool HintsOn => ctx.Settings == null || ctx.Settings.ShowTutorialHints;
@@ -205,6 +219,7 @@ namespace FloorF.UI
                 card.gameObject.SetActive(true);
                 LayoutRebuilder.ForceRebuildLayoutImmediate(card);
             }
+            if (card.gameObject.activeSelf) PlaceCard();
             if (cardAge >= 0f)
             {
                 if (!ctx.Paused) cardAge += dt; // gone before the first star (>= 8 s in)

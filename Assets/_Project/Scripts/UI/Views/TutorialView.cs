@@ -44,9 +44,10 @@ namespace FloorF.UI
         /// <summary>Only when the hold is refused: how long an explain step stays before the lesson moves on.</summary>
         public const float ChipsLife = 4.5f, WhyLife = 7f, PageLife = 6f;
         const float Margin = 24f, FadeSpeed = 8f;
-        /// <summary>Right column under the HUD's rule box.</summary>
-        public const float ColumnTop = HudView.RulesBottom + 10f, ColumnW = 376f;
-        /// <summary>Cards end this far above the bottom of a 720-high canvas (clear of the language / pause buttons).</summary>
+        /// <summary>Right column under the HUD's open rule box; while the day runs the cards follow
+        /// <see cref="HudView.ColumnCardTop"/> (they move up under the folded "?" tab).</summary>
+        public const float ColumnTop = HudView.RulesBottom + HudView.CardGap, ColumnW = 376f;
+        /// <summary>Cards end this far above the bottom of a 720-high canvas (clear of the pause button).</summary>
         public const float BottomClear = 60f;
         public const float MaxCardHeight = UIStyle.RefHeight - ColumnTop - BottomClear;
         /// <summary>Cut-out margin around the target (smaller than half the panel's button gap: neighbours stay covered).</summary>
@@ -316,6 +317,7 @@ namespace FloorF.UI
             if (!(Live && HintsOn) || ctx.Paused) { ReleaseHold(); Hide(); return; }
 
             Compose();
+            PlaceColumn();
 
             // one hold per coach mark: switch marks without letting the game run, release when there is none
             string want = markKey;
@@ -890,6 +892,14 @@ namespace FloorF.UI
         }
 
         public void RefreshLanguage() { /* every card is rebuilt each tick from ctx.S / ctx.F */ }
+
+        /// <summary>Prompt / why cards hang right under the HUD's right column (rule box or its tab).</summary>
+        void PlaceColumn()
+        {
+            var p = new Vector2(-Margin, -hud.ColumnCardTop);
+            if (banner.anchoredPosition != p) banner.anchoredPosition = p;
+            if (why.anchoredPosition != p) why.anchoredPosition = p;
+        }
 
         // ------------------------------------------------------------------ test hooks
 

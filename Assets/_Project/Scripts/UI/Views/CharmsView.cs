@@ -191,7 +191,7 @@ namespace FloorF.UI
             if (show)
             {
                 if (list.Count != shownCount || ctx.Korean != shownKo) Rebuild(list);
-                box.anchoredPosition = new Vector2(-24f, -(hud.RightColumnBottom + Gap));
+                box.anchoredPosition = new Vector2(-24f, -(hud.CharmsTop + Gap));
                 float edgeK = 0f;
                 foreach (var l in lines)
                 {
