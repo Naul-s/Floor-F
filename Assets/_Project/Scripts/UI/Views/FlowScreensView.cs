@@ -130,6 +130,8 @@ namespace FloorF.UI
             }
             starDeco.gameObject.SetActive(false);
 
+            BuildDecoration();
+
             hiddenBadge = new HiddenBadge("HiddenBadge", card, 24f, 18f, BadgeHeight);
             hiddenBadge.Root.anchorMin = hiddenBadge.Root.anchorMax = new Vector2(0.5f, 1f);
             hiddenBadge.Root.pivot = new Vector2(0.5f, 0.5f);
@@ -138,6 +140,170 @@ namespace FloorF.UI
 
             dim.gameObject.SetActive(false);
         }
+
+        // ------------------------------------------------------------------ decoration (outside the layout, no raycasts)
+
+        /// <summary>Wedding day accents (Day 6): rose on the gold card.</summary>
+        public static readonly Color WeddingInk = UIStyle.Hex("#FF8FB8");
+        const float InnerInset = 8f, StudSize = 6f, RuleW = 150f, RuleGap = 26f;
+
+        Image[] innerFrame, studs, rules;
+        Image ruleGem;
+        RectTransform ruleRings, fridayDeco, weddingDeco, starDots;
+        bool weddingCard;
+
+        /// <summary>
+        /// Second, thin frame inside the card edge with a stud on each corner, an ornamental rule under the title
+        /// (line - gem - line; twin rings on the wedding day), and the day themes: claw marks (Friday the 13th), confetti
+        /// (wedding day), faint star dust (star night). Everything stays inside the card's padding / title band.
+        /// </summary>
+        void BuildDecoration()
+        {
+            var frame = UIBuild.Outline("InnerFrame", card, UIStyle.CardEdge, 2f, -InnerInset);
+            frame.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            frame.SetSiblingIndex(1); // right above the fill: under every text
+            innerFrame = frame.GetComponentsInChildren<Image>();
+            studs = new Image[4];
+            for (int i = 0; i < 4; i++)
+            {
+                // centred on the inner frame's corners
+                var corner = new Vector2(i % 2, i / 2);
+                var s = UIBuild.Box("Stud" + i, frame, UIStyle.CardEdge);
+                UIBuild.Place(s.rectTransform, corner, new Vector2(corner.x > 0.5f ? StudSize * 0.5f - 1f : 1f - StudSize * 0.5f, corner.y > 0.5f ? StudSize * 0.5f - 1f : 1f - StudSize * 0.5f), new Vector2(StudSize, StudSize));
+                studs[i] = s;
+            }
+
+            // rule under the title, in the gap before the next line (child of the title: it follows a wrapped title down)
+            var rule = UIBuild.Rect("Rule", title.transform);
+            rule.anchorMin = rule.anchorMax = new Vector2(0.5f, 0f);
+            rule.pivot = new Vector2(0.5f, 0.5f);
+            rule.anchoredPosition = new Vector2(0f, -8f);
+            rule.sizeDelta = new Vector2(2f * RuleW + 2f * RuleGap, 12f);
+            rules = new Image[4];
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? -1f : 1f;
+                var line = UIBuild.Box("Line" + i, rule, UIStyle.CardEdge);
+                var lrt = line.rectTransform;
+                lrt.anchorMin = lrt.anchorMax = lrt.pivot = new Vector2(0.5f, 0.5f);
+                lrt.anchoredPosition = new Vector2(side * (RuleGap + RuleW * 0.5f), 0f);
+                lrt.sizeDelta = new Vector2(RuleW, 2f);
+                rules[i] = line;
+                var dot = UIBuild.Box("Dot" + i, rule, UIStyle.CardEdge);
+                var drt = dot.rectTransform;
+                drt.anchorMin = drt.anchorMax = drt.pivot = new Vector2(0.5f, 0.5f);
+                drt.anchoredPosition = new Vector2(side * (RuleGap - 8f), 0f);
+                drt.sizeDelta = new Vector2(4f, 4f);
+                rules[2 + i] = dot;
+            }
+            ruleGem = UIBuild.Diamond("Gem", rule, Vector2.zero, 8f, UIStyle.CardEdge);
+            // wedding day: two interlocked rings instead of the gem
+            ruleRings = UIBuild.Rect("Rings", rule);
+            ruleRings.anchorMin = ruleRings.anchorMax = ruleRings.pivot = new Vector2(0.5f, 0.5f);
+            ruleRings.anchoredPosition = Vector2.zero;
+            ruleRings.sizeDelta = new Vector2(24f, 12f);
+            for (int i = 0; i < 2; i++)
+            {
+                var ring = UIBuild.Rect("Ring" + i, ruleRings);
+                ring.anchorMin = ring.anchorMax = ring.pivot = new Vector2(0.5f, 0.5f);
+                ring.anchoredPosition = new Vector2(i == 0 ? -4f : 4f, 0f);
+                ring.sizeDelta = new Vector2(10f, 10f);
+                ring.localRotation = Quaternion.Euler(0f, 0f, 45f);
+                UIBuild.Outline("Band", ring, i == 0 ? WeddingInk : UIStyle.Lucky, 2f, 0f);
+            }
+            ruleRings.gameObject.SetActive(false);
+
+            // Friday the 13th: three claw marks in each top corner of the card (clear of the centred title)
+            fridayDeco = Layer("FridayDeco");
+            for (int side = 0; side < 2; side++)
+            {
+                var box = Corner(fridayDeco, side == 1, 96f, 64f);
+                for (int k = 0; k < 3; k++)
+                {
+                    var claw = UIBuild.Box("Claw", box, new Color(UIStyle.Unlucky.r, UIStyle.Unlucky.g, UIStyle.Unlucky.b, 0.6f - 0.12f * k)).rectTransform;
+                    float x = 26f + k * 16f;
+                    // slanting down towards the card's centre
+                    var a = side == 0 ? new Vector2(x, 54f) : new Vector2(96f - x, 54f);
+                    var b = side == 0 ? new Vector2(x + 14f, 14f + 4f * k) : new Vector2(96f - x - 14f, 14f + 4f * k);
+                    UIBuild.SetLine(claw, a, b, 4f - k);
+                }
+            }
+
+            // wedding day: confetti in the top corners; star night: star dust there
+            weddingDeco = Layer("WeddingDeco");
+            starDots = Layer("StarDust");
+            for (int side = 0; side < 2; side++)
+            {
+                var wc = Corner(weddingDeco, side == 1, 130f, 64f);
+                var sc = Corner(starDots, side == 1, 130f, 64f);
+                for (int i = 0; i < Sprinkle.Length; i++)
+                {
+                    var p = Sprinkle[i];
+                    var at = new Vector2((side == 0 ? p.x : 130f - p.x) - 65f, p.y - 32f);
+                    var confetti = UIBuild.Diamond("Confetti", wc, at, p.z + 2f, i % 3 == 0 ? UIStyle.Lucky : i % 3 == 1 ? WeddingInk : UIStyle.Ink);
+                    if (i % 2 == 0) confetti.rectTransform.localRotation = Quaternion.identity;
+                    var dust = UIBuild.Box("Dust", sc, i % 2 == 0 ? HudView.StarInk : StarTitle);
+                    var drt = dust.rectTransform;
+                    drt.anchorMin = drt.anchorMax = drt.pivot = new Vector2(0.5f, 0.5f);
+                    drt.anchoredPosition = at;
+                    drt.sizeDelta = new Vector2(p.z, p.z);
+                }
+            }
+            fridayDeco.gameObject.SetActive(false);
+            weddingDeco.gameObject.SetActive(false);
+            starDots.gameObject.SetActive(false);
+            SetDecoration(UIStyle.CardEdge, false, false, false);
+        }
+
+        /// <summary>x, y inside a 130x64 corner box (from its outer bottom corner), size.</summary>
+        static readonly Vector3[] Sprinkle =
+        {
+            new Vector3(22f, 46f, 4f), new Vector3(44f, 30f, 2f), new Vector3(62f, 50f, 4f), new Vector3(84f, 22f, 2f),
+            new Vector3(100f, 44f, 4f), new Vector3(30f, 14f, 2f), new Vector3(116f, 28f, 2f),
+        };
+
+        RectTransform Layer(string name)
+        {
+            var rt = UIBuild.Stretch(UIBuild.Rect(name, card));
+            rt.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            rt.SetSiblingIndex(1); // right above the fill: under every text
+            return rt;
+        }
+
+        /// <summary>Box in a top corner of the card, just inside the inner frame.</summary>
+        static RectTransform Corner(RectTransform layer, bool right, float w, float h)
+        {
+            var rt = UIBuild.Rect(right ? "TopRight" : "TopLeft", layer);
+            UIBuild.Place(rt, new Vector2(right ? 1f : 0f, 1f), new Vector2(right ? -14f : 14f, -14f), new Vector2(w, h));
+            return rt;
+        }
+
+        /// <summary>Recolours the frame / studs / rule for the card look and shows the day theme's accents.</summary>
+        void SetDecoration(Color edge, bool friday, bool star, bool wedding)
+        {
+            var soft = new Color(edge.r, edge.g, edge.b, 0.55f);
+            foreach (var e in innerFrame) e.color = soft;
+            foreach (var s in studs) { s.color = edge; s.gameObject.SetActive(!star); } // star night: the edge stars sit there
+            var ruleInk = wedding ? WeddingInk : edge;
+            foreach (var r in rules) r.color = new Color(ruleInk.r, ruleInk.g, ruleInk.b, 0.8f);
+            ruleGem.color = ruleInk;
+            ruleGem.gameObject.SetActive(!wedding);
+            ruleRings.gameObject.SetActive(wedding);
+            fridayDeco.gameObject.SetActive(friday);
+            weddingDeco.gameObject.SetActive(wedding);
+            starDots.gameObject.SetActive(star);
+        }
+
+        /// <summary>The wedding day has no flag in DayDef: it is the day wedding guests check in (ids "..wedding..").</summary>
+        static bool IsWeddingDay(DayDef d)
+        {
+            if (d == null || d.spawns == null) return false;
+            foreach (var s in d.spawns)
+                if (s != null && s.guest != null && s.guest.IndexOf("wedding", System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            return false;
+        }
+
+        public bool WeddingLook => dim.gameObject.activeSelf && weddingCard;
 
         public DayPhase Shown => dim.gameObject.activeSelf ? shown : DayPhase.None;
 
@@ -230,7 +396,7 @@ namespace FloorF.UI
             bool ko = ctx.Korean;
             bool intro = phase == DayPhase.Intro && !ctx.Day.IsTutorial;
             bool hidden = phase == DayPhase.Ending && EndingRecord.IsHidden(ctx.Day.Ending);
-            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight, hidden);
+            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight, hidden, intro && ctx.TryGetDay(out var today) && IsWeddingDay(today));
             hiddenBadge.Show(hidden);
             if (hidden) { hiddenBadge.SetText(ctx.S(UIStrings.HiddenEnding)); hiddenBadge.Alpha = 1f; }
             unlockLine.gameObject.SetActive(phase == DayPhase.Ending && ctx.Endings != null);
@@ -301,18 +467,21 @@ namespace FloorF.UI
 
         /// <summary>Card colours for the event day (Friday the 13th wins over star night; neither = the normal card),
         /// or the hidden 4th-floor ending.</summary>
-        void SetCardLook(bool friday, bool star, bool hidden = false)
+        void SetCardLook(bool friday, bool star, bool hidden = false, bool wedding = false)
         {
             star &= !friday;
             hidden &= !friday && !star;
-            if (friday == fridayCard && star == starCard && hidden == hiddenCard) return;
+            wedding &= !friday && !star && !hidden;
+            if (friday == fridayCard && star == starCard && hidden == hiddenCard && wedding == weddingCard) return;
             fridayCard = friday;
             starCard = star;
             hiddenCard = hidden;
+            weddingCard = wedding;
             cardEdge.color = friday ? UIStyle.Unlucky : star ? HudView.StarEdge : hidden ? HiddenBadge.Ink : UIStyle.CardEdge;
             cardFill.color = friday ? FridayFill : star ? StarFill : hidden ? HiddenFill : UIStyle.Card;
             dim.GetComponent<Image>().color = friday ? FridayDim : star ? StarDim : hidden ? HiddenDim : UIStyle.Dim;
             starDeco.gameObject.SetActive(star);
+            SetDecoration(cardEdge.color, friday, star, wedding);
         }
 
         public const float BadgeHeight = 36f;

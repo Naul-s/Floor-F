@@ -169,6 +169,11 @@ namespace FloorF.UI
         public static readonly Loc EffectShieldOne = new Loc("Blocks the first UNLUCKY moment", "첫 불길 판정 1번을 막음");
         public static readonly Loc EffectShieldN = new Loc("Blocks the first {0} UNLUCKY moments", "첫 불길 판정 {0}번을 막음");
         public static readonly Loc EffectTips = new Loc("Tips +{0}%", "팁 +{0}%");
+        /// <summary>Wildcard sticker ("*" in StickerDef.from) on a shop card headline: "any → 8" / "원하는 층 → 8".</summary>
+        public static readonly Loc AnyFloor = new Loc("any", "원하는 층");
+        /// <summary>What a label sticker does (details box, above its description). {0} = the new label, {1} = the label it covers.</summary>
+        public static readonly Loc EffectRelabelAny = new Loc("Renumbers any one floor to {0} for a day", "원하는 층 하나의 번호를 하루 동안 {0:로} 바꿈");
+        public static readonly Loc EffectRelabelFrom = new Loc("Renumbers floor {1} to {0} for a day", "{1}층의 번호를 하루 동안 {0:로} 바꿈");
 
         // ---- day end: one-day purchases ran out (StickersExpired)
         public static readonly Loc StickersExpired = new Loc("Stickers and charms wore off - the shop has new ones.", "스티커와 부적은 오늘로 끝 - 상점에 새 상품이 있어요.");

@@ -292,16 +292,16 @@ namespace FloorF.UI
             {
                 var corner = new Vector2(i % 2, i / 2);
                 Bar(s.Brackets, corner, c, new Vector2(14f, 3f));
-                Bar(s.Brackets, corner, c, new Vector2(3f, 14f));
+                Bar(s.Brackets, corner, c, new Vector2(3f, 11f), 3f); // starts under the horizontal bar: translucent bars must not overlap
             }
             return s;
         }
 
-        static void Bar(RectTransform parent, Vector2 corner, Color c, Vector2 size)
+        static void Bar(RectTransform parent, Vector2 corner, Color c, Vector2 size, float inwardY = 0f)
         {
             var b = UIBuild.Box("Bracket", parent, c).rectTransform;
             b.anchorMin = b.anchorMax = b.pivot = corner;
-            b.anchoredPosition = Vector2.zero;
+            b.anchoredPosition = new Vector2(0f, corner.y > 0.5f ? -inwardY : inwardY);
             b.sizeDelta = size;
         }
 

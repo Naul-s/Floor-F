@@ -149,9 +149,111 @@ namespace FloorF.UI
                 bar.anchorMax = horizontal ? new Vector2(1f, side) : new Vector2(side, 1f);
                 bar.pivot = horizontal ? new Vector2(0.5f, side) : new Vector2(side, 0.5f);
                 bar.anchoredPosition = Vector2.zero;
-                bar.sizeDelta = horizontal ? new Vector2(0f, width) : new Vector2(width, 0f);
+                // top/bottom run the full width, left/right only fill the gap between them: no overlap, so a translucent
+                // colour or a fading CanvasGroup blends the corners exactly like the edges
+                bar.sizeDelta = horizontal ? new Vector2(0f, width) : new Vector2(width, -2f * width);
             }
             return rt;
+        }
+
+        // ------------------------------------------------------------------ pixel-art detail (runtime only, no assets)
+
+        /// <summary>
+        /// Bevel lines just inside the parent's edge (<paramref name="inset"/> px in): <paramref name="topLeft"/> on the top
+        /// (and left), <paramref name="bottomRight"/> on the bottom (and right). Light over dark = raised, dark over light =
+        /// sunk. The bars never overlap. Returns [top, bottom] or [top, bottom, left, right].
+        /// </summary>
+        public static Image[] Bevel(string name, Transform parent, Color topLeft, Color bottomRight, float width = 2f, float inset = 0f, bool sides = true)
+        {
+            var rt = Stretch(Rect(name, parent), inset);
+            var bars = new Image[sides ? 4 : 2];
+            for (int i = 0; i < bars.Length; i++)
+            {
+                bool horizontal = i < 2;
+                float side = (i % 2 == 0) ? (horizontal ? 1f : 0f) : (horizontal ? 0f : 1f); // top, bottom, left, right
+                var img = Box("Bevel" + i, rt, i % 2 == 0 ? topLeft : bottomRight);
+                var bar = img.rectTransform;
+                bar.anchorMin = horizontal ? new Vector2(0f, side) : new Vector2(side, 0f);
+                bar.anchorMax = horizontal ? new Vector2(1f, side) : new Vector2(side, 1f);
+                bar.pivot = horizontal ? new Vector2(0.5f, side) : new Vector2(side, 0.5f);
+                bar.anchoredPosition = Vector2.zero;
+                bar.sizeDelta = horizontal ? new Vector2(0f, width) : new Vector2(width, -2f * width);
+                bars[i] = img;
+            }
+            return bars;
+        }
+
+        /// <summary>Swaps a <see cref="Bevel"/> between raised (light on top) and pressed (dark on top).</summary>
+        public static void SetBevel(Image[] bars, Color topLeft, Color bottomRight)
+        {
+            if (bars == null) return;
+            for (int i = 0; i < bars.Length; i++) bars[i].color = i % 2 == 0 ? topLeft : bottomRight;
+        }
+
+        public static readonly Color BevelLight = new Color(1f, 1f, 1f, 0.16f), BevelDark = new Color(0f, 0f, 0f, 0.38f);
+
+        /// <summary>Screw head: a square stud with a lit top-left pixel and a shaded bottom-right one. Anchored like <see cref="Place"/>.</summary>
+        public static RectTransform Rivet(string name, Transform parent, Vector2 anchor, Vector2 pos, float size, Color body)
+        {
+            var img = Box(name, parent, body);
+            Place(img.rectTransform, anchor, pos, new Vector2(size, size));
+            float dot = Mathf.Max(2f, Mathf.Floor(size / 3f));
+            var shine = Box("Shine", img.transform, new Color(1f, 1f, 1f, 0.55f));
+            Place(shine.rectTransform, new Vector2(0f, 1f), Vector2.zero, new Vector2(dot, dot));
+            var shade = Box("Shade", img.transform, new Color(0f, 0f, 0f, 0.55f));
+            Place(shade.rectTransform, new Vector2(1f, 0f), Vector2.zero, new Vector2(dot, dot));
+            return img.rectTransform;
+        }
+
+        /// <summary>Square turned 45 degrees (a diamond), centred on <paramref name="pos"/> from the parent's centre.</summary>
+        public static Image Diamond(string name, Transform parent, Vector2 pos, float size, Color color)
+        {
+            var img = Box(name, parent, color);
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = pos;
+            rt.sizeDelta = new Vector2(size, size);
+            rt.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            return img;
+        }
+
+        static Sprite scanlines, brushed;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetPatterns() { scanlines = null; brushed = null; }
+
+        /// <summary>LED look: 2 dark rows every 6 px (the 72px display font draws 6px "pixels").</summary>
+        public static Sprite Scanlines => scanlines != null ? scanlines : scanlines = Pattern("UI Scanlines", new[] { 0.42f, 0.42f, 0f, 0f, 0f, 0f }, Color.black);
+
+        /// <summary>Brushed metal: faint horizontal streaks, 8 px period.</summary>
+        public static Sprite Brushed => brushed != null ? brushed : brushed = Pattern("UI Brushed", new[] { 0.06f, 0f, 0.025f, 0f, 0f, 0.045f, 0.015f, 0f }, Color.white);
+
+        /// <summary>Row pattern as a point-filtered repeating texture: one alpha per row of <paramref name="tint"/> (row 0 = bottom).</summary>
+        static Sprite Pattern(string name, float[] rowAlpha, Color tint)
+        {
+            const int W = 4;
+            var tex = new Texture2D(W, rowAlpha.Length, TextureFormat.RGBA32, false)
+            {
+                name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat, hideFlags = HideFlags.HideAndDontSave,
+            };
+            var px = new Color[W * rowAlpha.Length];
+            for (int y = 0; y < rowAlpha.Length; y++)
+                for (int x = 0; x < W; x++) px[y * W + x] = new Color(tint.r, tint.g, tint.b, rowAlpha[y]);
+            tex.SetPixels(px);
+            tex.Apply(false, true);
+            var s = Sprite.Create(tex, new UnityEngine.Rect(0f, 0f, W, rowAlpha.Length), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+            s.name = name;
+            s.hideFlags = HideFlags.HideAndDontSave;
+            return s;
+        }
+
+        /// <summary>Image repeating <paramref name="pattern"/> (1 texture pixel = 1 canvas unit) over its rect.</summary>
+        public static Image Tiled(string name, Transform parent, Sprite pattern)
+        {
+            var img = Box(name, parent, Color.white);
+            img.sprite = pattern;
+            img.type = Image.Type.Tiled;
+            return img;
         }
 
         /// <summary>Thin bar from <paramref name="a"/> to <paramref name="b"/> (canvas-local, bottom-left origin anchors).</summary>
