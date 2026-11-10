@@ -9,7 +9,8 @@ namespace FloorF.UI
     /// <summary>
     /// Always-on HUD: day + clock (IDayQuery), Luck meter (animated on LuckChanged, ghost bar on loss, +/- float),
     /// tips (TipsChanged), the lucky-streak readout under the tips (LuckStreakChanged: hidden at 0, pops on each step,
-    /// "Streak broken!" for a moment), the two-line rule reminder, and the language toggle (IGameSettings.UseKorean).
+    /// "Streak broken!" for a moment) and the rule reminder. No language toggle here: language lives in the pause menu
+    /// and the title's OPTIONS card (<see cref="MenuView"/>).
     /// </summary>
     sealed class HudView
     {
@@ -37,13 +38,12 @@ namespace FloorF.UI
         int streak;
         float streakMultiplier = 1f, brokenTimer, popTimer;
         readonly Image luckFillImage;
-        readonly UIBuild.ButtonParts language;
 
         float shownLuck = -1f, ghostLuck = -1f, ghostHold;
         float luckDeltaTimer, tipsDeltaTimer;
         int shownTips = int.MinValue;
 
-        public HudView(UIContext ctx, RectTransform canvas, System.Action onLanguage)
+        public HudView(UIContext ctx, RectTransform canvas)
         {
             this.ctx = ctx;
 
@@ -155,11 +155,6 @@ namespace FloorF.UI
             starText.textWrappingMode = TextWrappingModes.NoWrap;
             starBadge.gameObject.SetActive(false);
 
-            // language toggle (bottom-right)
-            language = UIBuild.Button("Language", canvas, "", 24f, UIStyle.Btn, () => onLanguage?.Invoke());
-            UIBuild.Place(language.Rect, new Vector2(1f, 0f), new Vector2(-24f, 16f), new Vector2(170f, 36f));
-            language.Label.color = UIStyle.Ink;
-
             RefreshLanguage();
         }
 
@@ -218,12 +213,15 @@ namespace FloorF.UI
             bool box = running && open, tab = running && !open;
             if (rulesBox.gameObject.activeSelf != box) rulesBox.gameObject.SetActive(box);
             if (rulesTab.gameObject.activeSelf != tab) rulesTab.gameObject.SetActive(tab);
-            // the event badge hangs under whichever is shown
-            float top = open ? RulesTop + rulesBox.sizeDelta.y + BadgeGap : RulesTop + TabH + BadgeGap;
-            var p = new Vector2(-24f, -top);
+            // the column restacks: the event badge hangs right under whichever is shown (box or tab), and everything
+            // below it (wish card, tutorial cards, charms) follows RightColumnBottom - no stale slot when the box folds
+            var p = new Vector2(-24f, -(RulesHeadBottom(open) + BadgeGap));
             if (fridayBadge.anchoredPosition != p) fridayBadge.anchoredPosition = p;
             if (starBadge.anchoredPosition != p) starBadge.anchoredPosition = p;
         }
+
+        /// <summary>Px from the canvas top under the rule box (open) or its folded tab, both starting at <see cref="RulesTop"/>.</summary>
+        float RulesHeadBottom(bool open) => RulesTop + (open ? rulesBox.sizeDelta.y : TabH);
 
         public RectTransform RulesTab => rulesTab;
         public bool RulesTabVisible => rulesTab.gameObject.activeInHierarchy;
@@ -302,11 +300,6 @@ namespace FloorF.UI
             UIBuild.Set(ruleStar, ctx.S(UIStrings.RuleStarNight));
             starText.text = StarBadgeLines(ctx.S(UIStrings.StarNightBadge));
             starText.fontSize = 24f;
-            if (!string.Equals(language.Label.text, ctx.S(UIStrings.Language), System.StringComparison.Ordinal))
-            {
-                language.Label.text = ctx.S(UIStrings.Language);
-                UIBuild.Fit(language.Label, 24f);
-            }
             ShowStreakText();
         }
 
@@ -474,20 +467,18 @@ namespace FloorF.UI
             t.alpha = Mathf.Clamp01(timer / 0.5f);
         }
 
-        public void ClickLanguage() => language.Button.onClick.Invoke();
         public string DayText => dayText.text;
         public string ClockText => clockText.text;
         public float ClockFontSize => clockText.fontSize;
         public bool DeltaVisible => luckDelta.alpha > 0.01f || tipsDelta.alpha > 0.01f;
 
-        /// <summary>Title screen: the demo plays behind the title card without HUD boxes (the title has its own toggle).</summary>
+        /// <summary>Title screen: the demo plays behind the title card without HUD boxes.</summary>
         public void SetVisible(bool visible)
         {
             if (dayBox.gameObject.activeSelf == visible) return;
             dayBox.gameObject.SetActive(visible);
             luckBox.gameObject.SetActive(visible);
             tipsBox.gameObject.SetActive(visible);
-            language.Rect.gameObject.SetActive(visible);
             if (!visible) { rulesBox.gameObject.SetActive(false); rulesTab.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); fridayBadge.gameObject.SetActive(false); starBadge.gameObject.SetActive(false); }
         }
 
@@ -508,6 +499,19 @@ namespace FloorF.UI
             }
         }
         public const float ColumnWidth = MeterW + 32f;
+        /// <summary>Gap between the column's boxes and a card hanging under them (wish explain card, tutorial cards).</summary>
+        public const float CardGap = 10f;
+
+        /// <summary>Px from the canvas top where a card stacked in the right column starts: right under the lowest HUD box
+        /// while the day runs (follows the rule box folding / unfolding), else under the open rule box.</summary>
+        public float ColumnCardTop => (rulesBox.gameObject.activeSelf || rulesTab.gameObject.activeSelf ? RightColumnBottom : RulesBottom) + CardGap;
+
+        /// <summary>Set by UIRoot: px from the canvas top under a transient card stacked in the column (the wish explain
+        /// card), 0 = none. The charm row hangs under it while it is shown.</summary>
+        public System.Func<float> ColumnCardBottom;
+
+        /// <summary>Where the charm row starts: under the HUD boxes and any card stacked under them.</summary>
+        public float CharmsTop => Mathf.Max(RightColumnBottom, ColumnCardBottom != null ? ColumnCardBottom() : 0f);
 
         // coach-mark targets + test hooks
         public RectTransform RulesBox => rulesBox;
@@ -560,8 +564,5 @@ namespace FloorF.UI
         public bool StreakVisible => streakBox.gameObject.activeInHierarchy;
         public string StreakText => StreakVisible ? streakText.text : null;
         public float StreakScale => streakBox.localScale.x;
-
-        /// <summary>Keep the toggle clickable above the modal flow cards.</summary>
-        public void BringLanguageToFront() => language.Rect.SetAsLastSibling();
     }
 }

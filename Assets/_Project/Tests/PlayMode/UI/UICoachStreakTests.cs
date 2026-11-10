@@ -228,8 +228,8 @@ namespace FloorF.Tests.PlayMode.UI
             var start = ui.TitlePartRect(MenuView.TitlePart.Start);
             var endings = ui.TitlePartRect(MenuView.TitlePart.Endings);
             var credits = ui.TitlePartRect(MenuView.TitlePart.Credits);
-            var language = ui.TitlePartRect(MenuView.TitlePart.Language);
-            foreach (var b in new[] { start, endings, credits, language })
+            var options = ui.TitlePartRect(MenuView.TitlePart.Options);
+            foreach (var b in new[] { start, endings, credits, options })
             {
                 Assert.AreEqual(size.x * 0.5f, b.center.x, 1f, "buttons centred: " + b);
                 Assert.LessOrEqual(b.width, size.x * 0.35f, "narrow: the hotel stays visible beside them");
@@ -238,13 +238,13 @@ namespace FloorF.Tests.PlayMode.UI
             }
             Assert.Greater(start.yMin, endings.yMax, "START on top");
             Assert.Greater(endings.yMin, credits.yMax, "then ENDINGS n/4");
-            Assert.Greater(credits.yMin, language.yMax, "then CREDITS, then the language toggle");
+            Assert.Greater(credits.yMin, options.yMax, "then CREDITS, then OPTIONS");
             Assert.Greater(start.width, credits.width, "START emphasised (wider)");
             Assert.Greater(start.height, credits.height, "START emphasised (taller)");
-            float mid = (start.yMax + language.yMin) * 0.5f;
+            float mid = (start.yMax + options.yMin) * 0.5f;
             Assert.AreEqual(size.y * 0.5f, mid, size.y * 0.1f, "the stack sits in the middle of the screen");
 
-            foreach (var p in new[] { MenuView.TitlePart.Start, MenuView.TitlePart.Endings, MenuView.TitlePart.Credits, MenuView.TitlePart.Language })
+            foreach (var p in new[] { MenuView.TitlePart.Start, MenuView.TitlePart.Endings, MenuView.TitlePart.Credits, MenuView.TitlePart.Options })
             {
                 Assert.IsTrue(ui.TitleLabelFits(p, out float font), p + " label fits on one line (" + (ko ? "ko" : "en") + ")");
                 Assert.GreaterOrEqual(font, p == MenuView.TitlePart.Start ? 36f : 24f, p + " label not shrunk");

@@ -42,8 +42,8 @@ namespace FloorF.Tests.PlayMode.UI
                 Assert.AreEqual(DayPhase.Running, day.Phase);
                 Expect(() => ui.ClickFloor(5), UiSoundKind.Click, "floor button (accepted)");
                 yield return UITestDriver.Frames(2);
-                Expect(ui.ClickLanguage, UiSoundKind.Click, "language toggle");
-                Expect(ui.ClickLanguage, UiSoundKind.Click, "language toggle back");
+                Expect(ui.ClickPauseLanguage, UiSoundKind.Click, "language toggle (pause card)");
+                Expect(ui.ClickPauseLanguage, UiSoundKind.Click, "language toggle back");
                 Expect(ui.ClickPauseButton, UiSoundKind.Click, "pause");
                 yield return null;
                 Expect(ui.ClickHintsToggle, UiSoundKind.Click, "hints toggle");

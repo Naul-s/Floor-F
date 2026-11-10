@@ -239,6 +239,9 @@ namespace FloorF.UI
             "2026 Unity Game Jam 출품작   •   음악·효과음·폰트·아이콘: 크레딧 참고");
         public static readonly Loc CreditsButton = new Loc("CREDITS", "크레딧");
         public static readonly Loc Back = new Loc("BACK  [Esc]", "뒤로  [Esc]");
+        /// <summary>Title button (the language toggle's old slot) and the card it opens: the pause card's settings.</summary>
+        public static readonly Loc OptionsButton = new Loc("OPTIONS", "설정");
+        public static readonly Loc OptionsTitle = new Loc("OPTIONS", "설정");
 
         // ---- credits screen (source: Docs/CREDITS.md; the CC BY block is the licensor's required wording, never translated)
         public static readonly Loc CreditsTitle = new Loc("CREDITS", "크레딧");

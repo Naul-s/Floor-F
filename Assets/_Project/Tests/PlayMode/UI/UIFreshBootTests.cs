@@ -80,7 +80,7 @@ namespace FloorF.Tests.PlayMode.UI
             var ui = UITestDriver.UI();
             Assert.AreEqual(korean, ui.Korean);
             Assert.IsTrue(ui.FontsCreated, "fresh runtime font assets");
-            foreach (var p in new[] { MenuView.TitlePart.Endings, MenuView.TitlePart.Credits, MenuView.TitlePart.Language })
+            foreach (var p in new[] { MenuView.TitlePart.Endings, MenuView.TitlePart.Credits, MenuView.TitlePart.Options })
             {
                 Assert.IsTrue(ui.TitleLabelFits(p, out float size), p + " fits");
                 Assert.AreEqual(24f, size, p + " label at its full 24px on a fresh boot (not shrunk to 12)");

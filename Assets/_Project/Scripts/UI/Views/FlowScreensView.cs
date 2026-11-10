@@ -149,13 +149,13 @@ namespace FloorF.UI
 
         Image[] innerFrame, studs, rules;
         Image ruleGem;
-        RectTransform ruleRings, fridayDeco, weddingDeco, starDots;
+        RectTransform ruleRings, weddingDeco, starDots;
         bool weddingCard;
 
         /// <summary>
         /// Second, thin frame inside the card edge with a stud on each corner, an ornamental rule under the title
-        /// (line - gem - line; twin rings on the wedding day), and the day themes: claw marks (Friday the 13th), confetti
-        /// (wedding day), faint star dust (star night). Everything stays inside the card's padding / title band.
+        /// (line - gem - line; twin rings on the wedding day), and the day themes: confetti (wedding day), faint star
+        /// dust (star night); Friday the 13th is just the red frame / rule (no corner marks). Everything stays inside the card's padding / title band.
         /// </summary>
         void BuildDecoration()
         {
@@ -213,22 +213,6 @@ namespace FloorF.UI
             }
             ruleRings.gameObject.SetActive(false);
 
-            // Friday the 13th: three claw marks in each top corner of the card (clear of the centred title)
-            fridayDeco = Layer("FridayDeco");
-            for (int side = 0; side < 2; side++)
-            {
-                var box = Corner(fridayDeco, side == 1, 96f, 64f);
-                for (int k = 0; k < 3; k++)
-                {
-                    var claw = UIBuild.Box("Claw", box, new Color(UIStyle.Unlucky.r, UIStyle.Unlucky.g, UIStyle.Unlucky.b, 0.6f - 0.12f * k)).rectTransform;
-                    float x = 26f + k * 16f;
-                    // slanting down towards the card's centre
-                    var a = side == 0 ? new Vector2(x, 54f) : new Vector2(96f - x, 54f);
-                    var b = side == 0 ? new Vector2(x + 14f, 14f + 4f * k) : new Vector2(96f - x - 14f, 14f + 4f * k);
-                    UIBuild.SetLine(claw, a, b, 4f - k);
-                }
-            }
-
             // wedding day: confetti in the top corners; star night: star dust there
             weddingDeco = Layer("WeddingDeco");
             starDots = Layer("StarDust");
@@ -249,7 +233,6 @@ namespace FloorF.UI
                     drt.sizeDelta = new Vector2(p.z, p.z);
                 }
             }
-            fridayDeco.gameObject.SetActive(false);
             weddingDeco.gameObject.SetActive(false);
             starDots.gameObject.SetActive(false);
             SetDecoration(UIStyle.CardEdge, false, false, false);
@@ -289,7 +272,6 @@ namespace FloorF.UI
             ruleGem.color = ruleInk;
             ruleGem.gameObject.SetActive(!wedding);
             ruleRings.gameObject.SetActive(wedding);
-            fridayDeco.gameObject.SetActive(friday);
             weddingDeco.gameObject.SetActive(wedding);
             starDots.gameObject.SetActive(star);
         }

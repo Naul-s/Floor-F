@@ -130,8 +130,11 @@ namespace FloorF.UI
             popups = new PopupsView(ctx, rt);
             wish = new WishView(ctx, rt); // click targets under the panel / HUD buttons; its Fx layer is raised below
             panel = new ElevatorPanelView(ctx, rt);
-            hud = new HudView(ctx, rt, ToggleLanguage);
+            hud = new HudView(ctx, rt);
             charms = new CharmsView(ctx, rt, hud);
+            // the right column restacks as one: rule box / tab -> event badge -> wish explain card -> charms
+            wish.ColumnTop = () => hud.ColumnCardTop;
+            hud.ColumnCardBottom = () => wish.CardBottom;
             clickFx = new ClickFxView(fxRect);
             scenic = new ScenicView(ctx, rt, fxRect); // eye button next to the day box; hint / caption on the FX canvas
             wish.Fx.SetAsLastSibling(); // hint, explain card, float-ups above the HUD boxes
@@ -139,7 +142,6 @@ namespace FloorF.UI
             shop = new ShopView(ctx, rt, panel);
             curse = new CurseView(ctx, rt); // above the HUD / popups, under the flow cards, coach marks and menu
             flow = new FlowScreensView(ctx, rt);
-            hud.BringLanguageToFront(); // above the modal flow cards, under the coach-mark overlay
             tutorial = new TutorialView(ctx, rt, panel, bubbles, hud);
             menu = new MenuView(ctx, rt, () => scenic.TryEnterScenic(), () => scenic.SuppressPauseMenu, p => clickFx.Spawn(p, big: true));
             menu.BringToFront();
@@ -283,7 +285,8 @@ namespace FloorF.UI
             HandlePresses(UIInput.Poll());
             clickFx.Tick(UIClock.UnscaledDt);
             FadeHud(UIClock.UnscaledDt);
-            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || scenic.HoldsEnter);
+            // an open title card (CREDITS / ENDINGS / OPTIONS) keeps Enter from starting a game behind it
+            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || (OnTitle && menu.TitleCardOpen) || scenic.HoldsEnter);
         }
 
         void LateUpdate()
@@ -387,7 +390,6 @@ namespace FloorF.UI
             menu.Tick();
         }
 
-        void ToggleLanguage() => ctx.ToggleLanguage(); // SettingsChanged arrives and refreshes
 
         void RefreshLanguage()
         {
@@ -578,7 +580,11 @@ namespace FloorF.UI
             }
             return "missing: " + (missing.Length > 0 ? missing.ToString() : "none") + " | overflowing: " + (over.Length > 0 ? over.ToString() : "none");
         }
-        internal void ClickLanguage() => hud.ClickLanguage();
+        /// <summary>The pause card's language button (works while the card is hidden too: it only invokes the click).</summary>
+        internal void ClickPauseLanguage() => menu.ClickPauseLanguage();
+        internal string PauseLanguageText => menu.PauseLanguageText;
+        /// <summary>Active buttons labelled like the language toggle outside the pause / OPTIONS cards (empty = none).</summary>
+        internal string LanguageTogglesOutsideMenus() => menu.LanguageTogglesOutsideMenus(ctx.CanvasRect);
 
         /// <summary>Every visible UI text as "path | font size | drawn size (mesh bounds of the LAST generated mesh) | text":
         /// a fresh boot must draw exactly like after a language round trip (the tiny-text-until-toggled bug).</summary>
@@ -767,7 +773,18 @@ namespace FloorF.UI
         internal bool TitleVisible => menu.TitleVisible;
         internal string TitleText => menu.TitleText;
         internal void ClickTitleStart() => menu.ClickStart();
-        internal void ClickTitleLanguage() => menu.ClickTitleLanguage();
+        internal void ClickTitleOptions() => menu.ClickTitleOptions();
+        internal bool OptionsVisible => menu.OptionsVisible;
+        internal void ClickOptionsLanguage() => menu.ClickOptionsLanguage();
+        internal void ClickOptionsHints() => menu.ClickOptionsHints();
+        internal void ClickOptionsBack() => menu.ClickOptionsBack();
+        internal void CloseOptionsLikeEsc() => menu.CloseOptionsLikeEsc();
+        internal void SetOptionsVolume(float v) => menu.SetOptionsVolume(v);
+        internal float OptionsVolumeValue => menu.OptionsVolumeValue;
+        internal string OptionsText => menu.OptionsText;
+        internal Rect OptionsCardRect => menu.OptionsCardRect(ctx.CanvasRect);
+        internal string OptionsOverflow() => menu.OptionsOverflow();
+        internal Rect PauseButtonRect => menu.PauseButtonRect(ctx.CanvasRect);
         internal bool PauseVisible => menu.PauseVisible;
         internal bool PauseButtonVisible => menu.PauseButtonVisible;
         internal void ClickPauseButton() => menu.ClickPauseButton();

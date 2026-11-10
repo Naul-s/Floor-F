@@ -8,11 +8,14 @@ namespace FloorF.UI
 {
     /// <summary>
     /// Title screen (DayPhase.Title: bobbing "FLOOR F" logo at the top, a centred stack of separate START ->
-    /// IMenuFlow.StartGameFromTitle / ENDINGS n/4 / CREDITS / language buttons, credit line, ENDINGS card
-    /// (<see cref="EndingsCardView"/>), CREDITS card; Gameplay's attract demo plays
+    /// IMenuFlow.StartGameFromTitle / ENDINGS n/4 / CREDITS / OPTIONS buttons, credit line, ENDINGS card
+    /// (<see cref="EndingsCardView"/>), CREDITS card, OPTIONS card (the pause card's settings: volume, language, tutorial
+    /// hints + BACK); Gameplay's attract demo plays
     /// behind a full-screen dimming backdrop, no panel) and the pause menu (IMenuFlow.IsPaused /
     /// PauseChanged: RESUME, volume slider -> IGameSettings.MasterVolume, language, tutorial hints, quit to title), plus
-    /// the HUD pause button. Everything is hidden while no IMenuFlow is registered. Esc / Enter stay with KeyboardInput.
+    /// the HUD pause button. Language is changed only on those two cards (the HUD has no toggle). Everything is hidden
+    /// while no IMenuFlow is registered. Esc / Enter stay with KeyboardInput (Esc closes a title card; Enter does not start
+    /// a game behind an open one).
     /// </summary>
     sealed class MenuView
     {
@@ -25,7 +28,7 @@ namespace FloorF.UI
         /// (<see cref="PixelLogo"/>), the tagline plate under it, button stack centre above the screen centre.
         /// Logo + tagline end above ~22% of the screen height (the hotel's sign sits below that in the title framing).</summary>
         public const float LogoTop = 12f, LogoPixel = 6f, TaglineGap = 4f, TaglineH = 20f, StackCentreY = 16f, StackGap = 16f;
-        /// <summary>Stack top above the screen centre: where the three-button stack (START, CREDITS, language) centred on
+        /// <summary>Stack top above the screen centre: where the three-button stack (START, CREDITS, OPTIONS) centred on
         /// <see cref="StackCentreY"/> had its top. ENDINGS made the stack longer; it grows downwards, clear of the tagline.</summary>
         public const float StackTopY = StackCentreY + (76f + 2f * (52f + StackGap)) * 0.5f;
         /// <summary>Pause card's mini logo: canvas units per logo pixel, gap above the card.</summary>
@@ -34,15 +37,16 @@ namespace FloorF.UI
         /// <summary>Gold-to-amber TMP vertex gradient matching the logo face (pause title).</summary>
         public static readonly VertexGradient GoldGradient = new VertexGradient(UIStyle.Hex("#FFE066"), UIStyle.Hex("#FFE066"), UIStyle.Hex("#F0962A"), UIStyle.Hex("#F0962A"));
 
-        readonly RectTransform titleRoot, pauseRoot, titleMenu, logo, tagline, buttonStack, creditsCard;
+        readonly RectTransform titleRoot, pauseRoot, titleMenu, logo, tagline, buttonStack, creditsCard, optionsCard;
         readonly PixelLogo titleLogo, pauseLogo;
         readonly Image backdrop;
-        readonly TextMeshProUGUI taglineText, credits, pauseTitle, volumeCaption, volumeValue;
+        readonly TextMeshProUGUI taglineText, credits, pauseTitle, optionsTitle;
         readonly TextMeshProUGUI creditsTitle, musicHead, music, soundHead, sound, artHead, art, aiLine, jamLine;
-        readonly UIBuild.ButtonParts start, titleEndings, titleLanguage, titleCredits, back, resume, scenic, pauseLanguage, hints, quit, pauseButton;
-        readonly Slider volume;
+        readonly UIBuild.ButtonParts start, titleEndings, titleOptions, titleCredits, back, optionsBack, resume, scenic, quit, pauseButton;
+        /// <summary>The same settings rows on the pause card and on the title's OPTIONS card.</summary>
+        readonly SettingsRows pauseSettings, optionsSettings;
         readonly EndingsCardView endingsCard;
-        bool titleShown, pauseShown, creditsOpen, endingsOpen;
+        bool titleShown, pauseShown, creditsOpen, endingsOpen, optionsOpen;
 
         readonly System.Func<bool> suppressPause;
         readonly System.Action<Vector2> burst;
@@ -86,8 +90,8 @@ namespace FloorF.UI
                 () => { ctx.Sound(UiSoundKind.Click); SetEndings(true); });
             titleCredits = MenuButton("Credits", stack, ButtonSize, -(StartSize.y + ButtonSize.y + 2f * StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
                 () => { ctx.Sound(UiSoundKind.Click); SetCredits(true); });
-            titleLanguage = MenuButton("Language", stack, ButtonSize, -(StartSize.y + 2f * ButtonSize.y + 3f * StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
-                () => ctx.ToggleLanguage());
+            titleOptions = MenuButton("Options", stack, ButtonSize, -(StartSize.y + 2f * ButtonSize.y + 3f * StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
+                () => { ctx.Sound(UiSoundKind.Click); SetOptions(true); });
 
             // ---------------------------------------------------------- credits (title -> CREDITS; Docs/CREDITS.md)
             creditsCard = UIBuild.Box("CreditsCard", titleRoot, UIStyle.TitlePanel, raycast: true).rectTransform;
@@ -108,6 +112,17 @@ namespace FloorF.UI
             back = UIBuild.Button("Back", brow, "", 24f, UIStyle.Action, () => { ctx.Sound(UiSoundKind.Click); SetCredits(false); });
             back.Label.color = UIStyle.Ink;
             creditsCard.gameObject.SetActive(false);
+
+            // ---------------------------------------------------------- options (title -> OPTIONS: the pause card's settings)
+            optionsCard = UIBuild.Framed("OptionsCard", titleRoot, UIStyle.Card, UIStyle.CardEdge, 3f, raycast: true).rectTransform;
+            UIBuild.Place(optionsCard, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 340f));
+            Column(optionsCard, new RectOffset(36, 36, 26, 28), 14f);
+            optionsTitle = UIBuild.Heading(UIBuild.Text("Title", optionsCard, "", 48f, Color.white, TextAlignmentOptions.Center, bold: true));
+            optionsTitle.enableVertexGradient = true; // the logo's gold-to-amber face, like PAUSED
+            optionsTitle.colorGradient = GoldGradient;
+            optionsSettings = new SettingsRows(this, optionsCard);
+            optionsBack = Wide(optionsCard, UIStyle.Action, () => { ctx.Sound(UiSoundKind.Click); SetOptions(false); });
+            optionsCard.gameObject.SetActive(false);
 
             // ---------------------------------------------------------- endings collection (title -> ENDINGS)
             endingsCard = new EndingsCardView(ctx, titleRoot, () => { ctx.Sound(UiSoundKind.Click); SetEndings(false); });
@@ -134,7 +149,7 @@ namespace FloorF.UI
             UIBuild.Stretch(promptText.rectTransform);
             promptText.textWrappingMode = TextWrappingModes.NoWrap;
             prompt.gameObject.SetActive(false);
-            revealButtons = new[] { start, titleEndings, titleCredits, titleLanguage };
+            revealButtons = new[] { start, titleEndings, titleCredits, titleOptions };
             revealGroups = new CanvasGroup[revealButtons.Length];
             revealY = new float[revealButtons.Length];
             for (int i = 0; i < revealButtons.Length; i++)
@@ -159,23 +174,12 @@ namespace FloorF.UI
             pauseLogo.Root.pivot = new Vector2(0.5f, 0f);
             resume = Wide(card, UIStyle.Action, OnResume);
             scenic = Wide(card, UIStyle.Btn, () => ctx.Sound(onScenic != null && onScenic()));
-            var vrow = Row(card, 44f);
-            vrow.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = false;
-            volumeCaption = UIBuild.Text("VolumeCaption", vrow, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
-            volumeCaption.gameObject.AddComponent<LayoutElement>().preferredWidth = 120f;
-            volume = UIBuild.Slider("Volume", vrow, new Vector2(220f, 36f), OnVolume);
-            var vle = volume.gameObject.AddComponent<LayoutElement>();
-            vle.flexibleWidth = 1f;
-            vle.preferredHeight = 36f;
-            volumeValue = UIBuild.Text("VolumeValue", vrow, "", 24f, UIStyle.Ink, TextAlignmentOptions.Right);
-            volumeValue.gameObject.AddComponent<LayoutElement>().preferredWidth = 72f;
-            pauseLanguage = Wide(card, UIStyle.Btn, () => ctx.ToggleLanguage());
-            hints = Wide(card, UIStyle.Btn, OnHints);
+            pauseSettings = new SettingsRows(this, card);
             quit = Wide(card, UIStyle.Btn, OnQuit);
 
-            // ---------------------------------------------------------- HUD pause button (left of the language toggle)
+            // ---------------------------------------------------------- HUD pause button (bottom-right corner)
             pauseButton = UIBuild.Button("Pause", canvas, "II", 24f, UIStyle.Btn, OnPause);
-            UIBuild.Place(pauseButton.Rect, new Vector2(1f, 0f), new Vector2(-24f - 170f - 8f, 16f), new Vector2(56f, 36f));
+            UIBuild.Place(pauseButton.Rect, new Vector2(1f, 0f), new Vector2(-24f, 16f), new Vector2(56f, 36f));
             pauseButton.Label.color = UIStyle.Ink;
 
             titleRoot.gameObject.SetActive(false);
@@ -252,21 +256,36 @@ namespace FloorF.UI
 
         void OnStart() => ctx.Sound(ctx.Menu != null && ctx.Menu.StartGameFromTitle() ? UiSoundKind.Confirm : UiSoundKind.Error);
 
+        /// <summary>A card over the title (CREDITS / ENDINGS / OPTIONS): the logo + buttons step aside for it.</summary>
+        public bool TitleCardOpen => creditsOpen || endingsOpen || optionsOpen;
+
         void SetCredits(bool show)
         {
             if (show && endingsOpen) SetEndings(false);
+            if (show && optionsOpen) SetOptions(false);
             creditsOpen = show && titleShown;
             creditsCard.gameObject.SetActive(creditsOpen);
-            titleMenu.gameObject.SetActive(!creditsOpen && !endingsOpen);
+            titleMenu.gameObject.SetActive(!TitleCardOpen);
             if (creditsOpen) { RefreshLanguage(); LayoutRebuilder.ForceRebuildLayoutImmediate(creditsCard); }
         }
 
         void SetEndings(bool show)
         {
             if (show && creditsOpen) SetCredits(false);
+            if (show && optionsOpen) SetOptions(false);
             endingsOpen = show && titleShown;
             endingsCard.Show(endingsOpen);
-            titleMenu.gameObject.SetActive(!creditsOpen && !endingsOpen);
+            titleMenu.gameObject.SetActive(!TitleCardOpen);
+        }
+
+        void SetOptions(bool show)
+        {
+            if (show && creditsOpen) SetCredits(false);
+            if (show && endingsOpen) SetEndings(false);
+            optionsOpen = show && titleShown;
+            optionsCard.gameObject.SetActive(optionsOpen);
+            titleMenu.gameObject.SetActive(!TitleCardOpen);
+            if (optionsOpen) { RefreshLanguage(); LayoutRebuilder.ForceRebuildLayoutImmediate(optionsCard); }
         }
 
         string EndingsLabel() => ctx.F(UIStrings.EndingsButton, ctx.Endings != null ? ctx.Endings.Unlocked : 0, EndingCollection.Total);
@@ -286,16 +305,59 @@ namespace FloorF.UI
             RefreshLanguage();
         }
 
+        void OnLanguage() => ctx.ToggleLanguage(); // SettingsChanged arrives and refreshes both cards
+
         void OnVolume(float v)
         {
             if (ctx.Settings != null) ctx.Settings.MasterVolume = v;
-            ShowVolume();
+            pauseSettings?.ShowVolume(v); // null while the cards are still being built
+            optionsSettings?.ShowVolume(v);
         }
 
-        void ShowVolume()
+        /// <summary>
+        /// VOLUME slider / language / tutorial hints rows (IGameSettings) built into a card's column: the pause card and the
+        /// title's OPTIONS card each have one set, kept in step by <see cref="RefreshLanguage"/> (SettingsChanged).
+        /// </summary>
+        sealed class SettingsRows
         {
-            float v = ctx.Settings != null ? ctx.Settings.MasterVolume : volume.value;
-            UIBuild.Set(volumeValue, Mathf.RoundToInt(v * 100f).ToString(CultureInfo.InvariantCulture) + "%");
+            readonly MenuView menu;
+            public readonly UIBuild.ButtonParts Language, Hints;
+            public readonly Slider Volume;
+            readonly TextMeshProUGUI caption, value;
+
+            public SettingsRows(MenuView menu, RectTransform card)
+            {
+                this.menu = menu;
+                var vrow = Row(card, 44f);
+                vrow.GetComponent<HorizontalLayoutGroup>().childForceExpandWidth = false;
+                caption = UIBuild.Text("VolumeCaption", vrow, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
+                caption.gameObject.AddComponent<LayoutElement>().preferredWidth = 120f;
+                Volume = UIBuild.Slider("Volume", vrow, new Vector2(220f, 36f), menu.OnVolume);
+                var vle = Volume.gameObject.AddComponent<LayoutElement>();
+                vle.flexibleWidth = 1f;
+                vle.preferredHeight = 36f;
+                value = UIBuild.Text("VolumeValue", vrow, "", 24f, UIStyle.Ink, TextAlignmentOptions.Right);
+                value.gameObject.AddComponent<LayoutElement>().preferredWidth = 72f;
+                Language = Wide(card, UIStyle.Btn, menu.OnLanguage);
+                Hints = Wide(card, UIStyle.Btn, menu.OnHints);
+            }
+
+            public void Refresh()
+            {
+                var ctx = menu.ctx;
+                UIBuild.Set(caption, ctx.S(UIStrings.Volume));
+                UIBuild.Set(Language.Label, ctx.S(UIStrings.Language));
+                bool on = ctx.Settings == null || ctx.Settings.ShowTutorialHints;
+                UIBuild.Set(Hints.Label, ctx.S(on ? UIStrings.HintsOn : UIStrings.HintsOff));
+                ShowVolume(ctx.Settings != null ? ctx.Settings.MasterVolume : Volume.value);
+            }
+
+            /// <summary>Slider position (no notify: the other card's slider may be the one being dragged) + percentage.</summary>
+            public void ShowVolume(float v)
+            {
+                if (!Mathf.Approximately(Volume.value, v)) Volume.SetValueWithoutNotify(v);
+                UIBuild.Set(value, Mathf.RoundToInt(v * 100f).ToString(CultureInfo.InvariantCulture) + "%");
+            }
         }
 
         // ------------------------------------------------------------------ refresh
@@ -307,13 +369,13 @@ namespace FloorF.UI
             tagline.sizeDelta = new Vector2(Mathf.Ceil(tw) + 28f, TaglineH);
             UIBuild.Set(credits, ctx.S(UIStrings.Credits));
             UIBuild.Set(start.Label, ctx.S(UIStrings.Start));
-            UIBuild.Set(titleLanguage.Label, ctx.S(UIStrings.Language));
+            UIBuild.Set(titleOptions.Label, ctx.S(UIStrings.OptionsButton));
             UIBuild.Set(titleCredits.Label, ctx.S(UIStrings.CreditsButton));
             UIBuild.Set(titleEndings.Label, EndingsLabel());
             UIBuild.Fit(start.Label, 36f); // fixed-size buttons: one line at the biggest grid size that fits (en / ko)
             UIBuild.Fit(titleEndings.Label, 24f);
             UIBuild.Fit(titleCredits.Label, 24f);
-            UIBuild.Fit(titleLanguage.Label, 24f);
+            UIBuild.Fit(titleOptions.Label, 24f);
             UIBuild.Set(creditsTitle, ctx.S(UIStrings.CreditsTitle));
             UIBuild.Set(musicHead, ctx.S(UIStrings.CreditsMusicHead));
             UIBuild.Set(music, UIStrings.CreditsMusicCcBy);
@@ -324,6 +386,10 @@ namespace FloorF.UI
             UIBuild.Set(aiLine, ctx.S(UIStrings.CreditsAi));
             UIBuild.Set(jamLine, ctx.S(UIStrings.CreditsJam));
             UIBuild.Set(back.Label, ctx.S(UIStrings.Back));
+            UIBuild.Set(optionsTitle, ctx.S(UIStrings.OptionsTitle));
+            UIBuild.Set(optionsBack.Label, ctx.S(UIStrings.Back));
+            optionsSettings.Refresh();
+            if (optionsOpen) LayoutRebuilder.ForceRebuildLayoutImmediate(optionsCard);
             if (creditsOpen) LayoutRebuilder.ForceRebuildLayoutImmediate(creditsCard);
             if (endingsOpen) endingsCard.Refresh();
             UIBuild.Set(pauseTitle, ctx.S(UIStrings.Paused));
@@ -332,13 +398,8 @@ namespace FloorF.UI
             UIBuild.Set(promptText, ctx.S(UIStrings.PressAnyKey));
             float pw = promptText.GetPreferredValues(promptText.text, float.PositiveInfinity, float.PositiveInfinity).x;
             prompt.sizeDelta = new Vector2(Mathf.Ceil(pw) + 40f, PromptH);
-            UIBuild.Set(volumeCaption, ctx.S(UIStrings.Volume));
-            UIBuild.Set(pauseLanguage.Label, ctx.S(UIStrings.Language));
-            bool on = ctx.Settings == null || ctx.Settings.ShowTutorialHints;
-            UIBuild.Set(hints.Label, ctx.S(on ? UIStrings.HintsOn : UIStrings.HintsOff));
+            pauseSettings.Refresh();
             UIBuild.Set(quit.Label, ctx.S(UIStrings.QuitToTitle));
-            if (ctx.Settings != null) volume.SetValueWithoutNotify(ctx.Settings.MasterVolume);
-            ShowVolume();
         }
 
         /// <summary>Settings changed from anywhere (incl. our own buttons): language, hints label, slider position.</summary>
@@ -354,13 +415,13 @@ namespace FloorF.UI
             {
                 titleShown = title;
                 titleRoot.gameObject.SetActive(title);
-                if (!title) { SetCredits(false); SetEndings(false); }
+                if (!title) { SetCredits(false); SetEndings(false); SetOptions(false); }
                 if (title) RefreshLanguage();
                 SetAttract(title && UIFeatures.AttractScreen); // boot and every return to the title start at "press any key"
             }
             if (title) TickAttract(UIClock.UnscaledDt);
             // gentle idle float, glint and LED flicker; the drop shadow and the tagline stay where they are
-            if (title && !creditsOpen && !endingsOpen) titleLogo.Tick(Time.unscaledTime);
+            if (title && !TitleCardOpen) titleLogo.Tick(Time.unscaledTime);
             if (endingsOpen) endingsCard.Tick(Time.unscaledTime);
             if (paused != pauseShown)
             {
@@ -370,8 +431,10 @@ namespace FloorF.UI
             }
             if (paused) pauseLogo.Tick(Time.unscaledTime);
             var keyboard = UnityEngine.InputSystem.Keyboard.current;
-            if (creditsOpen && keyboard != null && keyboard.escapeKey.wasPressedThisFrame) SetCredits(false);
-            if (endingsOpen && keyboard != null && keyboard.escapeKey.wasPressedThisFrame) SetEndings(false);
+            bool esc = keyboard != null && keyboard.escapeKey.wasPressedThisFrame;
+            if (creditsOpen && esc) SetCredits(false);
+            if (endingsOpen && esc) SetEndings(false);
+            if (optionsOpen && esc) SetOptions(false);
             bool button = menu != null && phase == DayPhase.Running && !paused;
             if (pauseButton.Rect.gameObject.activeSelf != button) pauseButton.Rect.gameObject.SetActive(button);
         }
@@ -422,7 +485,7 @@ namespace FloorF.UI
         /// <summary>Any key / click on the attract screen: the prompt pops into a gold burst, the menu comes in. True = used.</summary>
         public bool HandleAttractPress(UIPress press)
         {
-            if (!Attract || creditsOpen || endingsOpen || !press.Any) return false;
+            if (!Attract || TitleCardOpen || !press.Any) return false;
             Reveal();
             return true;
         }
@@ -502,7 +565,7 @@ namespace FloorF.UI
         public void ClickPauseScenic() => scenic.Button.onClick.Invoke();
         public string PauseScenicText => scenic.Label.text;
 
-        /// <summary>Pause card + title above everything else (the HUD language toggle stays below the title).</summary>
+        /// <summary>Pause card + title above everything else.</summary>
         public void BringToFront()
         {
             pauseButton.Rect.SetAsLastSibling();
@@ -541,11 +604,11 @@ namespace FloorF.UI
         public bool PauseButtonVisible => pauseButton.Rect.gameObject.activeSelf;
 
         /// <summary>Logo = the bobbing pixel-art face, Tagline = the plate under it.</summary>
-        public enum TitlePart { Logo, Start, Credits, Language, Tagline, Endings }
+        public enum TitlePart { Logo, Start, Credits, Options, Tagline, Endings }
         RectTransform Part(TitlePart p) => p == TitlePart.Logo ? titleLogo.Face.rectTransform : p == TitlePart.Tagline ? tagline
-            : p == TitlePart.Start ? start.Rect : p == TitlePart.Credits ? titleCredits.Rect : p == TitlePart.Endings ? titleEndings.Rect : titleLanguage.Rect;
+            : p == TitlePart.Start ? start.Rect : p == TitlePart.Credits ? titleCredits.Rect : p == TitlePart.Endings ? titleEndings.Rect : titleOptions.Rect;
         UIBuild.ButtonParts PartButton(TitlePart p) => p == TitlePart.Start ? start : p == TitlePart.Credits ? titleCredits
-            : p == TitlePart.Endings ? titleEndings : titleLanguage;
+            : p == TitlePart.Endings ? titleEndings : titleOptions;
 
         public EndingsCardView EndingsCard => endingsCard;
         public bool EndingsVisible => endingsCard.Visible;
@@ -579,22 +642,67 @@ namespace FloorF.UI
             {
                 var t = img.transform;
                 bool own = t.IsChildOf(start.Rect) || t.IsChildOf(titleEndings.Rect) || t.IsChildOf(titleCredits.Rect)
-                           || t.IsChildOf(titleLanguage.Rect) || t.IsChildOf(tagline); // IsChildOf is true for the rect itself
+                           || t.IsChildOf(titleOptions.Rect) || t.IsChildOf(tagline); // IsChildOf is true for the rect itself
                 if (!own) sb.Append(img.name).Append(' ');
             }
             return sb.ToString().Trim();
         }
         public string TitleText => UIStrings.GameName + " | " + taglineText.text + " | " + start.Label.text + " | " + titleEndings.Label.text
-                                   + " | " + titleCredits.Label.text + " | " + titleLanguage.Label.text;
+                                   + " | " + titleCredits.Label.text + " | " + titleOptions.Label.text;
         public void ClickStart() => start.Button.onClick.Invoke();
-        public void ClickTitleLanguage() => titleLanguage.Button.onClick.Invoke();
+        public void ClickTitleOptions() => titleOptions.Button.onClick.Invoke();
         public void ClickPauseButton() => pauseButton.Button.onClick.Invoke();
+        public Rect PauseButtonRect(RectTransform canvas) => UIBuild.CanvasRect(canvas, pauseButton.Rect);
         public void ClickResume() => resume.Button.onClick.Invoke();
         public void ClickQuit() => quit.Button.onClick.Invoke();
-        public void ClickHints() => hints.Button.onClick.Invoke();
-        public string HintsText => hints.Label.text;
+        public void ClickHints() => pauseSettings.Hints.Button.onClick.Invoke();
+        public string HintsText => pauseSettings.Hints.Label.text;
+        public void ClickPauseLanguage() => pauseSettings.Language.Button.onClick.Invoke();
+        public string PauseLanguageText => pauseSettings.Language.Label.text;
         /// <summary>Moves the slider like a drag would (onValueChanged fires).</summary>
-        public void SetVolumeSlider(float v) => volume.value = v;
-        public float VolumeSliderValue => volume.value;
+        public void SetVolumeSlider(float v) => pauseSettings.Volume.value = v;
+        public float VolumeSliderValue => pauseSettings.Volume.value;
+
+        // title OPTIONS card
+        public bool OptionsVisible => optionsCard.gameObject.activeInHierarchy;
+        public void ClickOptionsLanguage() => optionsSettings.Language.Button.onClick.Invoke();
+        public void ClickOptionsHints() => optionsSettings.Hints.Button.onClick.Invoke();
+        public void ClickOptionsBack() => optionsBack.Button.onClick.Invoke();
+        public void CloseOptionsLikeEsc() => SetOptions(false);
+        /// <summary>Moves the OPTIONS slider like a drag would.</summary>
+        public void SetOptionsVolume(float v) => optionsSettings.Volume.value = v;
+        public float OptionsVolumeValue => optionsSettings.Volume.value;
+        public string OptionsText => string.Join(" | ", optionsTitle.text, optionsSettings.Language.Label.text,
+            optionsSettings.Hints.Label.text, optionsBack.Label.text);
+        public Rect OptionsCardRect(RectTransform canvas) => OptionsVisible ? UIBuild.CanvasRect(canvas, optionsCard) : default;
+        /// <summary>First OPTIONS label wider than its button / row (null = all fit).</summary>
+        public string OptionsOverflow()
+        {
+            foreach (var t in new[] { optionsSettings.Language.Label, optionsSettings.Hints.Label, optionsBack.Label, optionsTitle })
+            {
+                float w = t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity).x;
+                if (w > t.rectTransform.rect.width + 0.5f) return "'" + t.text + "' " + w.ToString("0") + " > " + t.rectTransform.rect.width.ToString("0");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Every active button under <paramref name="canvas"/> whose label is the language toggle's (either language)
+        /// outside the pause card and the title's OPTIONS card: space-joined names, empty when none.
+        /// </summary>
+        public string LanguageTogglesOutsideMenus(RectTransform canvas)
+        {
+            var sb = new System.Text.StringBuilder();
+            foreach (var b in canvas.GetComponentsInChildren<Button>(false))
+            {
+                if (b.transform.IsChildOf(pauseRoot) || b.transform.IsChildOf(optionsCard)) continue;
+                foreach (var label in b.GetComponentsInChildren<TMP_Text>(false))
+                {
+                    string t = label.text;
+                    if (t == UIStrings.Language.En || t == UIStrings.Language.Ko) { sb.Append(b.name).Append(' '); break; }
+                }
+            }
+            return sb.ToString().Trim();
+        }
     }
 }

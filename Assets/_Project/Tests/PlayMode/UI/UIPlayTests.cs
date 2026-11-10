@@ -245,19 +245,32 @@ namespace FloorF.Tests.PlayMode.UI
         }
 
         [UnityTest]
-        public IEnumerator LanguageToggle_FlipsAndBack()
+        public IEnumerator LanguageToggle_PauseCard_FlipsAndBack_NoHudToggle()
         {
             yield return UITestDriver.LoadMain();
             var ui = UITestDriver.UI();
             Assert.IsFalse(ui.Korean, "English by default");
-            ui.ClickLanguage();
+            Assert.AreEqual("", ui.LanguageTogglesOutsideMenus(), "no language toggle on the intro card / HUD");
+            yield return UITestDriver.ClickStart();
+            yield return null;
+            Assert.AreEqual("", ui.LanguageTogglesOutsideMenus(), "no language toggle on the running HUD");
+            var pause = ui.PauseButtonRect;
+            Assert.AreEqual(ui.CanvasSize.x - 24f, pause.xMax, 1f, "pause button in the bottom-right corner (the toggle's old spot)");
+            ui.ClickPauseButton();
+            yield return null;
+            Assert.IsTrue(ui.PauseVisible);
+            Assert.AreEqual("EN | ko", ui.PauseLanguageText);
+            ui.ClickPauseLanguage();
             yield return null;
             Assert.IsTrue(ui.Korean);
-            StringAssert.Contains("일차", ui.FlowTitle, "intro re-rendered from titleKo");
-            ui.ClickLanguage();
+            Assert.AreEqual("en | 한국어", ui.PauseLanguageText);
+            StringAssert.Contains("일차", ui.HudDayText, "HUD re-rendered");
+            ui.ClickPauseLanguage();
             yield return null;
             Assert.IsFalse(ui.Korean);
-            StringAssert.Contains("Day 1", ui.FlowTitle);
+            StringAssert.Contains("DAY 1", ui.HudDayText);
+            ui.ClickResume();
+            yield return null;
         }
         [UnityTest]
         public IEnumerator Font_IsUiFont_ForAllTexts()
@@ -268,7 +281,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.Greater(ui.TextCount, 20, "UI has texts");
             Assert.IsNull(ui.FirstOffGridOrForeignText(), "every text: Mulmaru or Galmuri11 Bold, 12px-grid size, no auto-size");
             yield return UITestDriver.ClickStart();
-            ui.ClickLanguage();
+            ui.ClickPauseLanguage();
             yield return UITestDriver.Frames(2);
             Assert.IsNull(ui.FirstOffGridOrForeignText(), "still the UI fonts after the Korean toggle");
             GameServices.Get<IGameSettings>().UseKorean = false;
@@ -285,7 +298,7 @@ namespace FloorF.Tests.PlayMode.UI
             int changed = 0;
             using (GameServices.Events.Subscribe<SettingsChanged>(e => changed++))
             {
-                ui.ClickLanguage();
+                ui.ClickPauseLanguage();
                 yield return null;
                 Assert.IsTrue(settings.UseKorean, "toggle writes IGameSettings.UseKorean");
                 Assert.AreEqual(1, changed, "one SettingsChanged");
@@ -486,13 +499,21 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(0, ui.VisibleBubbleCount, "no number chips over the demo");
             Assert.IsTrue(ui.TitleVisible);
 
-            ui.ClickTitleLanguage();
+            StringAssert.Contains("OPTIONS", ui.TitleText, "OPTIONS in the language toggle's old slot");
+            ui.ClickTitleOptions();
             yield return null;
-            Assert.IsTrue(ui.Korean, "title language toggle");
+            Assert.IsTrue(ui.OptionsVisible, "OPTIONS card");
+            ui.ClickOptionsLanguage();
+            yield return null;
+            Assert.IsTrue(ui.Korean, "language from the title's OPTIONS card");
             StringAssert.Contains("시작", ui.TitleText);
             StringAssert.Contains("크레딧", ui.TitleText);
-            ui.ClickTitleLanguage();
+            StringAssert.Contains("설정", ui.TitleText);
+            ui.ClickOptionsLanguage();
             yield return null;
+            ui.ClickOptionsBack();
+            yield return null;
+            Assert.IsFalse(ui.OptionsVisible);
             Assert.IsFalse(ui.Korean);
 
             ui.ClickTitleStart();
