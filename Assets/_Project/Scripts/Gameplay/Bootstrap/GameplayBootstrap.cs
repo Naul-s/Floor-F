@@ -109,6 +109,9 @@ namespace FloorF.Gameplay
 
         void Awake()
         {
+            // WebGL: keep rendering while the frame has no focus (an embedding page's fullscreen button takes it):
+            // otherwise the resized canvas stays black until a click. A running day still pauses (PauseForFocusLoss).
+            Application.runInBackground = true;
             try
             {
                 data = GameDataResources.Load();
@@ -197,6 +200,13 @@ namespace FloorF.Gameplay
         /// happens on the title, outside Running, when already paused, or while a Day 0 coach mark holds the day (it is
         /// frozen anyway, and the menu pause would release the hold). Returns true when it paused.
         /// </summary>
+        /// <summary>
+        /// WebGL page (WebGLTemplates/FloorF/index.html, SendMessage): the player left fullscreen - with Esc, which the
+        /// browser takes for itself - so show the pause menu, same rules as losing focus.
+        /// </summary>
+        [UnityEngine.Scripting.Preserve]
+        public void WebPause() => PauseForFocusLoss();
+
         internal bool PauseForFocusLoss() => ShouldPauseOnFocusLoss(session) && session.SetPaused(true);
 
         internal static bool ShouldPauseOnFocusLoss(GameSession s)

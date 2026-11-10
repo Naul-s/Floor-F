@@ -26,7 +26,9 @@ namespace FloorF.Gameplay
             if (session == null || !session.HasStarted) return;
             var kb = Keyboard.current;
             if (kb == null) return;
-            if (kb.escapeKey.wasPressedThisFrame) Press(KeyPress.Escape);
+            // P = pause too: in browser fullscreen Esc belongs to the browser (it leaves fullscreen)
+            if (kb.escapeKey.wasPressedThisFrame || (kb.pKey.wasPressedThisFrame && !kb.shiftKey.isPressed && !kb.ctrlKey.isPressed))
+                Press(KeyPress.Escape);
             if (kb.wKey.wasPressedThisFrame) Press(KeyPress.W);
             else if (kb.upArrowKey.wasPressedThisFrame) Press(KeyPress.UpArrow);
             if (kb.sKey.wasPressedThisFrame) Press(KeyPress.S);

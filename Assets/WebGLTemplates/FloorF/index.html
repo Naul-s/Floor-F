@@ -41,6 +41,56 @@
         }
       });
 
+      // ---- sound + focus inside an embedding page (itch.io iframe)
+      // Browsers start audio only after a click/key INSIDE this frame, and keys only reach the frame that has focus.
+      // Remember every AudioContext Unity creates: resume on the first gesture, silence while the tab is hidden.
+      var audioCtxs = [];
+      ["AudioContext", "webkitAudioContext"].forEach(function (n) {
+        var C = window[n];
+        if (!C) return;
+        var W = function (o) { var c = o === undefined ? new C() : new C(o); audioCtxs.push(c); return c; };
+        W.prototype = C.prototype;
+        window[n] = W;
+      });
+      function resumeAudio() {
+        if (document.hidden) return;
+        audioCtxs.forEach(function (c) { if (c.state === "suspended") { try { c.resume(); } catch (e) {} } });
+      }
+      function grabFocus() {
+        try { window.focus(); canvas.focus({ preventScroll: true }); } catch (e) {}
+      }
+      ["pointerdown", "keydown", "touchstart"].forEach(function (t) {
+        window.addEventListener(t, function () { resumeAudio(); if (document.activeElement !== canvas) grabFocus(); }, true);
+      });
+      window.addEventListener("focus", function () { grabFocus(); resumeAudio(); });
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) audioCtxs.forEach(function (c) { if (c.state === "running") { try { c.suspend(); } catch (e) {} } });
+        else resumeAudio();
+      });
+
+      // ---- fullscreen. Esc always leaves fullscreen first (browser rule, a page cannot stop it), so leaving
+      // fullscreen pauses the game: one Esc = out of fullscreen AND the pause menu. Where the browser allows it
+      // (Keyboard Lock, Chrome/Edge) Esc is kept for the game instead and fullscreen stays.
+      var unity = null;
+      function isBig() { return window.innerWidth >= screen.width - 2 && window.innerHeight >= screen.height - 2; }
+      var wasFull = false;
+      function fullscreenCheck() {
+        var full = !!(document.fullscreenElement || document.webkitFullscreenElement) || isBig();
+        if (full && !wasFull) {
+          grabFocus();
+          try { if (navigator.keyboard && navigator.keyboard.lock) navigator.keyboard.lock(["Escape"]).catch(function () {}); } catch (e) {}
+        }
+        if (!full && wasFull) {
+          try { if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock(); } catch (e) {}
+          // a little later: if this browser also delivered the Esc key, the game has paused itself already
+          setTimeout(function () { if (unity) { try { unity.SendMessage("[Gameplay]", "WebPause"); } catch (e) {} } grabFocus(); }, 200);
+        }
+        wasFull = full;
+      }
+      document.addEventListener("fullscreenchange", fullscreenCheck);
+      document.addEventListener("webkitfullscreenchange", fullscreenCheck);
+      window.addEventListener("resize", function () { setTimeout(fullscreenCheck, 50); });
+
       // ---- 5x7 bitmap font (rows top -> bottom, "#" = pixel)
       var FONT = {
         "F": ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],
@@ -257,7 +307,13 @@
         }).then(function (unityInstance) {
           loaded = true;
           target = 8;
-          document.querySelector("#fullscreen").onclick = function () { unityInstance.SetFullscreen(1); };
+          unity = unityInstance;
+          document.querySelector("#fullscreen").onclick = function () {
+            var full = !!(document.fullscreenElement || document.webkitFullscreenElement);
+            unityInstance.SetFullscreen(full ? 0 : 1);
+            grabFocus();
+          };
+          grabFocus();
         }).catch(function (message) {
           showBanner(message, "error");
         });
