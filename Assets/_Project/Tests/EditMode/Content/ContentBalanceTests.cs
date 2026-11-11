@@ -32,7 +32,7 @@ namespace FloorF.Tests.EditMode.Content
         static readonly string[] NumberWords = { "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
 
         /// <summary>Expansion traits that gameplay may not implement yet - keep them out of the core-loop days.</summary>
-        static readonly string[] ExpansionTraits = { GuestTraits.Gambler, GuestTraits.Honest };
+        static readonly string[] ExpansionTraits = { GuestTraits.Honest };
         const int FirstExpansionDay = 4;
 
         GameData data;
@@ -287,23 +287,24 @@ namespace FloorF.Tests.EditMode.Content
                 }
         }
 
+        /// <summary>
+        /// The gambler is a plain guest who loves 7 (the old "boards only at 7 riders" rule is gone): he heads for the casino,
+        /// and some scheduled ride of his is a lucky 7 floors - the lobby -> casino straight ride, or one turn away.
+        /// </summary>
         [Test]
-        public void Gambler_CanFindSevenRiders()
+        public void Gambler_LovesSeven_AndCanRideIt()
         {
-            foreach (var d in data.Days)
-                foreach (var s in d.spawns.Where(x => Guest(x).HasTrait(GuestTraits.Gambler)))
-                {
-                    var g = Guest(s);
-                    int target = g.lucky.Where(n => n >= 1 && n <= data.Capacity).DefaultIfEmpty(0).Max();
-                    Assert.Greater(target, 0, s.guest + ": needs a lucky number that fits in the car");
-                    // Others who spawn on the same floor and are still waiting at some moment of the gambler's wait.
-                    float gEnd = WaitEnd(s, g, d);
-                    int others = d.spawns.Where(o => !ReferenceEquals(o, s) && o.floor == s.floor
-                                                     && o.time < gEnd && WaitEnd(o, Guest(o), d) > s.time)
-                                         .Sum(o => Guest(o).partySize);
-                    Assert.GreaterOrEqual(others + g.partySize, target,
-                        "day " + d.day + ": the gambler can never ride with " + target);
-                }
+            var g = data.GetGuest(new GuestArchetypeId("gambler"));
+            CollectionAssert.Contains(g.lucky, 7, "lucky seven");
+            Assert.IsFalse(g.HasTrait(GuestTraits.Gambler), "no boarding gimmick any more");
+            CollectionAssert.AreEqual(new[] { "casino" }, g.destinations);
+            Assert.IsFalse(g.lines.Any(l => l.text.IndexOf("only ride", StringComparison.OrdinalIgnoreCase) >= 0
+                                            || l.text.IndexOf("seven of us", StringComparison.OrdinalIgnoreCase) >= 0),
+                "no line promises the old head-count rule");
+            var rides = data.Days.SelectMany(d => d.spawns).Where(s => s.guest == g.id).ToArray();
+            Assert.IsNotEmpty(rides, "the gambler is scheduled");
+            Assert.IsTrue(rides.All(s => DestinationNumber(s) > 0), "his casino trips are scripted");
+            Assert.IsTrue(rides.Any(s => OneTurnDistances(s.floor, DestinationNumber(s)).Contains(7)), "a lucky 7-floor ride is possible");
         }
 
         // ------------------------------------------------------------ text

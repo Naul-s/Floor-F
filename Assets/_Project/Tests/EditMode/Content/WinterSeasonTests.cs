@@ -161,7 +161,7 @@ namespace FloorF.Tests.EditMode.Content
             Assert.That(n.snow, Is.GreaterThan(0f).And.LessThan(0.5f), "first flurries");
             StringAssert.Contains("jackpot", n.intro);
             StringAssert.Contains("잭팟", n.introKo); // 잭팟
-            Assert.GreaterOrEqual(n.spawns.Count(s => data.GetGuest(s.Guest).HasTrait(GuestTraits.Gambler)), 2, "a gambler's night");
+            Assert.GreaterOrEqual(n.spawns.Count(s => s.guest == "gambler"), 2, "a gambler's night");
 
             var r = data.Rules;
             Assert.Greater(r.lotteryTipMultiplier, 1f, "a jackpot pays more");

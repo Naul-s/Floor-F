@@ -23,8 +23,11 @@ namespace FloorF.Tests.EditMode.Content
         /// <summary>Playing for luck must beat ignoring it by a clear gap (on average).</summary>
         const int SkillGap = 20;
 
-        /// <summary>Of the 6 seeds, how many luck-blind runs with the greedy shopper may still end Prosperous ("mostly Modest").</summary>
-        const int MaxProsperousGreedyBlind = 1;
+        /// <summary>
+        /// Of the 6 seeds, how many luck-blind runs with the greedy shopper may still end Prosperous: a careless driver who
+        /// shops perfectly prospers about half the time (feel target), never without the shop's help.
+        /// </summary>
+        const int MaxProsperousGreedyBlind = 3;
 
         GameData data;
 
