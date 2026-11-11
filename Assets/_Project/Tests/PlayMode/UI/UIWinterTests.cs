@@ -169,6 +169,72 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreNotEqual(DayPhase.Ending, GameServices.Get<IDayQuery>().Phase, "PLAY AGAIN -> a new run (" + real + ")");
         }
 
+        // ------------------------------------------------------------------ ending: scene first, card later
+
+        /// <summary>Steps <paramref name="seconds"/> of 0.1 s frames (UIClock follows captureDeltaTime).</summary>
+        static IEnumerator Step(float seconds)
+        {
+            Time.captureDeltaTime = 0.1f;
+            for (int i = 0; i < Mathf.RoundToInt(seconds / 0.1f); i++) yield return null;
+            Time.captureDeltaTime = 0f;
+        }
+
+        [UnityTest]
+        public IEnumerator Capture_EndingBeat_SceneFirst_ThenCard_KeySkips()
+        {
+            yield return Boot(false);
+            UIFeatures.EndingBeat = true;
+            var ui = UITestDriver.UI();
+            yield return UITestDriver.ClickStart();
+            UITestDriver.RunToEnding(UITestDriver.Session());
+            // the run ends as a Christmas miracle (Rendering flies Santa's sleigh past the moon)
+            var xmas = Day(x => x.christmas);
+            var day = new WinterDay(GameServices.Get<IDayQuery>(), xmas.day, Data.DisplayDayNumber(new DayId(xmas.day))) { ForcedEnding = EndingKind.WinterMiracle };
+            var flowFake = new FakeSeasonFlow { CanExtendSeason = true }; // a pressed key must not take the main button
+            ui.OverrideServicesForTests(day: day);
+            ui.OverrideSeasonForTests(new FakeSeason { IsSeasonExtended = true, IsExtendedDay = true, IsChristmas = true, LuckyForAll = 12, SnowAmount = 1f }, flowFake);
+            GameServices.Events.Publish(new EndingReached(EndingKind.WinterMiracle, day.CurrentDay, 92, 300));
+            yield return null;
+
+            Assert.IsTrue(ui.EndingBeatActive, "the ending scene plays alone first");
+            Assert.IsFalse(ui.FlowCardUp);
+            Assert.AreEqual(false, ui.FlowEnterEnabled, "Gameplay's Enter waits too");
+            yield return Step(0.5f);
+            Assert.IsTrue(ui.EndingBeatActive, "t = 0.5 s: still the scene");
+            Assert.IsFalse(ui.FlowCardUp, "t = 0.5 s: no card");
+            Assert.Less(ui.HudAlpha, 0.05f, "no HUD over the scene");
+            yield return Step(3.0f); // the sleigh's first flight (1.5 s in, 7 s long) is crossing the moon now
+            Assert.IsTrue(ui.EndingBeatActive, "the miracle waits " + FlowScreensView.MiracleBeat + " s");
+            yield return Day0Driver.Shot("ui_ending_beat_miracle_sleigh", true);
+            yield return Step(FlowScreensView.MiracleBeat - 3.5f - 0.3f);
+            Assert.IsTrue(ui.EndingBeatActive, "just before the end of the beat");
+            yield return Step(0.3f + FlowScreensView.CardFadeIn + 0.2f);
+            Assert.IsFalse(ui.EndingBeatActive);
+            Assert.IsTrue(ui.FlowCardUp, "after the beat the card is up");
+            StringAssert.Contains("A CHRISTMAS MIRACLE", ui.FlowTitle);
+            Assert.AreEqual(0, flowFake.Extends);
+
+            // the next ending: a key during the beat only brings the card (no button, no restart)
+            day.ForcedPhase = DayPhase.Summary;
+            yield return null;
+            day.ForcedPhase = null;
+            day.ForcedEnding = EndingKind.SilentNight;
+            yield return null;
+            Assert.IsTrue(ui.EndingBeatActive, "a new ending: a new beat");
+            Assert.AreEqual(FlowScreensView.EndingBeat, FlowScreensView.BeatFor(EndingKind.SilentNight));
+            yield return Step(0.3f);
+            ui.InjectPress(enter: true);
+            yield return null;
+            Assert.IsFalse(ui.EndingBeatActive, "the key skipped the beat");
+            Assert.AreEqual(0, flowFake.Extends, "...and did not keep the hotel open");
+            Assert.AreEqual(DayPhase.Ending, GameServices.Get<IDayQuery>().Phase, "...nor restart");
+            ui.InjectPress(pointer: true, canvasPoint: ui.CanvasSize * 0.5f);
+            yield return Step(FlowScreensView.CardFadeIn + 0.2f);
+            Assert.IsTrue(ui.FlowCardUp);
+            Assert.AreEqual(0, flowFake.Extends, "a click during the fade-in hits no button either");
+            Assert.IsTrue(ui.FlowOwnsEnter, "now the offer takes Enter (after its arm delay)");
+        }
+
         // ------------------------------------------------------------------ winter / Christmas intro cards, HUD
 
         [UnityTest]
