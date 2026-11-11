@@ -64,10 +64,13 @@ namespace FloorF.Tests.EditMode.Content
         /// A fresh pilot each day (a human starts each day fresh too); reaction delay 0-0.5 s from the seed.
         /// </summary>
         RunResult Run(int seed, ShopPolicy shop, int lastDay = int.MaxValue, AutoPilotStrategy strategy = AutoPilotStrategy.LuckBlind,
-            SortedDictionary<string, int> ledger = null, Action<EventBus> onBus = null, Func<StickerDef, bool> allow = null, bool knowsTomorrow = false)
+            SortedDictionary<string, int> ledger = null, Action<EventBus> onBus = null, Func<StickerDef, bool> allow = null, bool knowsTomorrow = false,
+            bool mysteryDue = false)
         {
             var bus = new EventBus();
             var s = new GameSession(data, bus, new Random(seed));
+            // the mystery guest never comes on a fresh record; a played record at the pity limit guarantees it tonight
+            if (mysteryDue) s.LoadRunHistory(1, data.Rules.mysteryPityRuns);
             onBus?.Invoke(bus);
             if (ledger != null)
                 bus.Subscribe<LuckChanged>(e =>
@@ -253,19 +256,20 @@ namespace FloorF.Tests.EditMode.Content
         /// <summary>
         /// 4th-floor ending, choice A: the mystery guest only ends the game at the real 4th floor while a sticker hides it.
         /// Without stickers the luck player finishes normally; with 4 -> F on floor 4 it reaches FourthFloor on the last day.
+        /// Both runs use a played record whose pity counter guarantees the (otherwise rare) mystery guest on the star night.
         /// </summary>
         [Test]
         public void FourthFloorEnding_OnlyWhenFloor4IsHidden()
         {
             foreach (var seed in Seeds)
             {
-                var plain = Run(seed, ShopPolicy.None, strategy: AutoPilotStrategy.LuckAware);
+                var plain = Run(seed, ShopPolicy.None, strategy: AutoPilotStrategy.LuckAware, mysteryDue: true);
                 TestContext.WriteLine("seed " + seed + " no stickers: " + plain);
                 Assert.AreNotEqual(EndingKind.FourthFloor, plain.Ending, "seed " + seed + ": honest 4th floor still gave the 4th-floor ending");
                 Assert.AreEqual(data.DayCount, plain.EndingDay, "seed " + seed + ": " + plain);
 
                 var trace = new List<string>();
-                var hidden = Run(seed, ShopPolicy.HideFour, strategy: AutoPilotStrategy.LuckAware, onBus: bus =>
+                var hidden = Run(seed, ShopPolicy.HideFour, strategy: AutoPilotStrategy.LuckAware, mysteryDue: true, onBus: bus =>
                 {
                     bus.Subscribe<GuestSpawned>(e => { if (e.Archetype.Value == "mystery_guest") trace.Add("mystery spawned " + e.Guest); });
                     bus.Subscribe<GuestBoarded>(e => trace.Add("boarded " + e.Guest));

@@ -52,7 +52,7 @@
     "mysteryChance": 0.3,
     "mysteryPityRuns": 3,
     "lotteryTipMultiplier": 2.0,
-    "lotteryLuckBonus": 3,
+    "lotteryLuckBonus": 1,
     "elevatorSecondsPerFloor": 0.6,
     "doorSeconds": 0.35,
     "boardSeconds": 0.4,
