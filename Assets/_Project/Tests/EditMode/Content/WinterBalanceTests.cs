@@ -121,8 +121,8 @@ namespace FloorF.Tests.EditMode.Content
             double greedy = Share(Policy.Greedy, EndingKind.WinterMiracle), blind = Share(Policy.Blind, EndingKind.WinterMiracle);
             TestContext.Out.WriteLine("WinterMiracle: Greedy " + greedy.ToString("P0") + ", Blind " + blind.ToString("P0") +
                                       "; SilentNight Blind " + Share(Policy.Blind, EndingKind.SilentNight).ToString("P0"));
-            // careful play enters the winter near the top of the meter (~99 vs ~70), so with the shared 70 line it nearly
-            // always ends in the miracle (data alone cannot push it below ~95% without breaking the careless player - see balance.md)
+            // careful play enters the winter at the top of the meter (~99 vs ~85), so even with its own higher line
+            // (rules.winterMiracleLuck) it nearly always ends in the miracle; the careless player splits
             Assert.GreaterOrEqual(greedy, 0.6, "careful play should usually earn the Christmas miracle");
             Assert.That(blind, Is.InRange(0.25, 0.75), "careless play should split between WinterMiracle and SilentNight");
             Assert.GreaterOrEqual(greedy - blind, 0.2, "playing for luck must pay in the winter too");
