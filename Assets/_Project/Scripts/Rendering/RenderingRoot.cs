@@ -34,6 +34,12 @@ namespace FloorF.Rendering
         StreetLife street;
         SkyView sky;
         WeatherView weather;
+        WinterView winter;
+        ChristmasDecor christmas;
+        LotteryView lottery;
+        ISeasonQuery season;
+        Light moonLight;
+        float appliedMood = -1f;
         readonly float[] letterLevels = new float[BuildingView.HotelText.Length];
         readonly System.Collections.Generic.Dictionary<int, GuestArchetypeId> archetypes = new System.Collections.Generic.Dictionary<int, GuestArchetypeId>();
         Transform world;
@@ -83,6 +89,9 @@ namespace FloorF.Rendering
         internal StreetLife Street => street;
         internal SkyView Sky => sky;
         internal WeatherView Weather => weather;
+        internal WinterView Winter => winter;
+        internal ChristmasDecor Christmas => christmas;
+        internal LotteryView Lottery => lottery;
         /// <summary>Wish stars freeze with the simulation: menu pause or the Day 0 coach-mark hold.</summary>
         internal bool IsSimHeld => IsPaused || eventHeld || (gameFlow != null && gameFlow.TutorialHold);
         /// <summary>Seconds of street/city time before the first frame (busy street, lights already mixed).</summary>
@@ -127,6 +136,8 @@ namespace FloorF.Rendering
             subs.Add(bus.Subscribe<WishMade>(e => { if (IsBuilt) sky.WishMade(e.Id); }));
             subs.Add(bus.Subscribe<WishStarFaded>(e => { if (IsBuilt) sky.WishFaded(e.Id); }));
             subs.Add(bus.Subscribe<ScenicViewChanged>(OnScenicViewChanged));
+            subs.Add(bus.Subscribe<LotteryDrawn>(e => { if (IsBuilt) lottery.Draw(); }));
+            subs.Add(bus.Subscribe<LotteryWon>(OnLotteryWon));
         }
 
         /// <summary>
@@ -169,7 +180,12 @@ namespace FloorF.Rendering
             if (dayQuery == null) GameServices.TryGet(out dayQuery);
             if (menuFlow == null) GameServices.TryGet(out menuFlow);
             if (gameFlow == null) GameServices.TryGet(out gameFlow);
+            // the season service may register late (or be replaced): cheap, look it up every frame
+            GameServices.TryGet(out season);
         }
+
+        /// <summary>Season as presentation sees it: nothing on the title (its attract demo is an ordinary night).</summary>
+        ISeasonQuery SeasonNow => dayQuery != null && dayQuery.Phase == DayPhase.Title ? null : season;
 
         /// <summary>Night mood: dim moonlight from the scene's directional light, flat dark ambient.</summary>
         void SetupScene()
@@ -187,6 +203,7 @@ namespace FloorF.Rendering
                 l.intensity = RenderingStyle.MoonIntensity;
                 l.shadows = LightShadows.Hard;
                 l.transform.rotation = Quaternion.Euler(38f, -28f, 0f);
+                if (moonLight == null) moonLight = l;
             }
         }
 
@@ -223,10 +240,24 @@ namespace FloorF.Rendering
             sky.Build();
             weather = new WeatherView(world, assets, palette, layout, RenderingStyle.CitySeed);
             weather.Build();
+            var lobby = LobbyFloor();
+            winter = new WinterView(world, assets, layout, building, facade, RenderingStyle.CitySeed);
+            winter.Build();
+            christmas = new ChristmasDecor(world, assets, layout, building, facade, winter.Atlas, lobby, RenderingStyle.CitySeed);
+            lottery = new LotteryView(world, assets, layout, building, lobby);
+            ending.Winter = winter;
+            ending.Christmas = christmas;
             TickWeather(StreetPrewarmSeconds);
             sky.Tick(StreetPrewarmSeconds, 0f, rig.Current, IsStarNightNow);
             TickExterior(0f);
             PrewarmZoomLevels(frame);
+        }
+
+        FloorIndex LobbyFloor()
+        {
+            for (int i = 0; i < layout.FloorCount; i++)
+                if (DestinationOf(new FloorIndex(i)).Value == "lobby") return new FloorIndex(i);
+            return new FloorIndex(0);
         }
 
         /// <summary>
@@ -296,7 +327,30 @@ namespace FloorF.Rendering
             weather.Tick(time, rig.Current, IsRainyNow);
             sky.Overcast = weather.Raining;
             var cam = pipeline.WorldCamera;
-            if (cam != null && cam.backgroundColor != weather.SkyColor) cam.backgroundColor = weather.SkyColor;
+            var skyColor = weather.Raining || winter == null ? weather.SkyColor : WinterView.MoodSky(winter.Mood);
+            if (cam != null && cam.backgroundColor != skyColor) cam.backgroundColor = skyColor;
+        }
+
+        /// <summary>Winter season: snow, cover, Christmas dressing, lottery, cold mood (ambient + moonlight).</summary>
+        void TickSeason(float time, float jdt)
+        {
+            var s = SeasonNow;
+            winter.Tick(time, jdt, rig.Current, s, weather.Raining);
+            christmas.Tick(time, s != null && s.IsChristmas, rig.Current.Grid);
+            lottery.Tick(jdt, juiceTime, s);
+            ApplyMood(winter.Mood);
+        }
+
+        void ApplyMood(float mood)
+        {
+            if (Mathf.Abs(mood - appliedMood) < 0.002f) return;
+            appliedMood = mood;
+            var ambient = WinterView.MoodAmbient(mood);
+            RenderSettings.ambientLight = ambient;
+            var sh = new SphericalHarmonicsL2();
+            sh.AddAmbientLight(ambient);
+            RenderSettings.ambientProbe = sh;
+            if (moonLight != null) moonLight.color = WinterView.MoodMoon(mood);
         }
 
         /// <summary>Day 7 "star night" (never on the title, whose attract demo is an ordinary night).</summary>
@@ -366,6 +420,7 @@ namespace FloorF.Rendering
             assets.ApplyPatternGrid(grid.PixelsPerUnit);
             street.Tick(adt, grid);
             TickWeather(ambientTime + StreetPrewarmSeconds);
+            TickSeason(ambientTime + StreetPrewarmSeconds, jdt);
             sky.Tick(ambientTime + StreetPrewarmSeconds, IsSimHeld ? 0f : jdt, rig.Current, IsStarNightNow);
             TickExterior(ambientTime);
         }
@@ -444,6 +499,17 @@ namespace FloorF.Rendering
                     at = world.TransformPoint(layout.GetFloorAnchor(e.Floor).ToVector3() + new Vector3(0f, layout.FloorHeight * 0.6f, 0f));
                 fx.Burst(at, RenderingStyle.LuckyFlash, 14);
             }
+        }
+
+        /// <summary>Lottery jackpot: a shower of gold coins where the guest stepped out, a soft gold glow on that floor.</summary>
+        void OnLotteryWon(LotteryWon e)
+        {
+            if (!IsBuilt) return;
+            if (!guests.TryGetHead(e.Guest, out var at))
+                at = world.TransformPoint(layout.GetFloorAnchor(e.Floor).ToVector3() + new Vector3(0f, layout.FloorHeight * 0.6f, 0f));
+            fx.Burst(at, LotteryView.Gold, 16, 3.8f, 0.2f);
+            fx.Burst(at + Vector3.up * 0.2f, new Color(1f, 0.95f, 0.65f), 8, 2.6f, 0.13f);
+            lighting.Flash(e.Floor, LotteryView.Gold, 0.9f, 0.6f);
         }
 
         void OnGuestSpawned(GuestSpawned e)

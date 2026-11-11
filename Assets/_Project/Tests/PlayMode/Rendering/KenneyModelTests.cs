@@ -98,7 +98,8 @@ namespace FloorF.Tests.PlayMode.Rendering
                         Debug.LogWarning("[KenneyModelTests] " + def.id + " (" + def.accessory + ") not in the Kenney catalog - rebuild it");
                         continue;
                     }
-                    Assert.IsTrue(characters.Add(entry.Character), def.id + " uses a character of its own");
+                    // Santa deliberately reuses the nonno's bald, bearded man (beard whitened, red suit) - 12 characters, 14 archetypes
+                    Assert.IsTrue(characters.Add(entry.Character) || def.accessory == "santa_hat", def.id + " uses a character of its own");
                     var vivid = GuestFigure.Vivid(CoreUnityExtensions.ParseColor(def.color));
                     Assert.AreEqual(vivid.r, entry.Tint.r, 0.02f, def.id + " tint = guests.json colour");
                     Assert.AreEqual(vivid.g, entry.Tint.g, 0.02f, def.id + " tint g");
