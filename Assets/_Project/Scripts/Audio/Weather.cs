@@ -16,6 +16,41 @@ namespace FloorF.Audio
         public static float MinStrikeSpacing(in ThunderSettings s) => s.MinGap - (s.DelayMax - s.DelayMin);
     }
 
+    /// <summary>Winter season (ISeasonQuery): snow-day wind and the Christmas Eve bell layer.</summary>
+    static class WinterRules
+    {
+        /// <summary>Wind level at the lightest snow (x the full level at SnowAmount 1).</summary>
+        public const float WindFloor = 0.55f;
+
+        /// <summary>The winter wind follows the rain's screen rule: a snowy day (SnowAmount &gt; 0) on Intro/Running/Summary.</summary>
+        public static bool WindAudible(float snow, DayPhase phase) => WeatherRules.RainAudible(snow > 0f, phase);
+
+        /// <summary>
+        /// Wind gain for the day's snow: 0 without snow, then <see cref="WindFloor"/> .. 1 rising with SnowAmount (a light
+        /// flurry is a soft breeze, Christmas Eve's full snow ~3 dB more).
+        /// </summary>
+        public static float WindLevel(float snow) => snow <= 0f ? 0f : Mathf.Lerp(WindFloor, 1f, Mathf.Clamp01(snow));
+
+        /// <summary>
+        /// Christmas Eve: sleigh bells ride on the elevator song while that day is on screen (Intro/Running/Summary) -
+        /// only on that song (the shop, title and endings keep their own music).
+        /// </summary>
+        public static bool ChristmasBellsAudible(bool christmas, DayPhase phase, MusicTrack track)
+            => christmas && track == MusicTrack.Elevator && WeatherRules.RainAudible(true, phase);
+
+        /// <summary>
+        /// Seconds the bell layer must jump to be back on the song's grid (0 = in sync within <paramref name="tolerance"/>):
+        /// target = song time mod bar, compared on the circle (just before / after the bar line is close, not a bar off).
+        /// </summary>
+        public static float BellsResync(float songTime, float layerTime, float bar, float tolerance)
+        {
+            if (bar <= 0f) return 0f;
+            float target = Mathf.Repeat(songTime, bar);
+            float d = Mathf.Repeat(target - layerTime + bar * 0.5f, bar) - bar * 0.5f;
+            return Mathf.Abs(d) > tolerance ? d : 0f;
+        }
+    }
+
     /// <summary>The rain bed's fade: linear in over FadeIn s while wanted, out over FadeOut s otherwise.</summary>
     sealed class RainBed
     {

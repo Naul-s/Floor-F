@@ -70,6 +70,18 @@ namespace FloorF.Audio
         Reveal = 25,
         /// <summary>ScenicViewChanged(On = false, Establishing = true): soft whoosh as the day's establishing shot zooms back in.</summary>
         ScenicWhoosh = 26,
+
+        // Winter season (days 8-10): procedural rows in WinterBank, synthesized at runtime (not in the asset).
+        /// <summary>Santa (archetype "santa") spawns / boards: a sleigh-bell shake.</summary>
+        SleighBells = 27,
+        /// <summary>Carolers (archetype "carolers") board: a handbell run (one per party).</summary>
+        CarolChime = 28,
+        /// <summary>LotteryDrawn: short drum roll, then a ding as the winning number is revealed.</summary>
+        LotteryDraw = 29,
+        /// <summary>LotteryWon: jackpot coin shower (flashier than the tip that follows, ~1.6 s).</summary>
+        LotteryJackpot = 30,
+        /// <summary>SeasonExtended: winter stinger (sleigh bells + warm chord).</summary>
+        WinterStart = 31,
     }
 
     public enum MusicTrack
@@ -84,6 +96,10 @@ namespace FloorF.Audio
         ShopLoop = 2,
         /// <summary>danlucaz mystery loop (4th-floor / haunted endings).</summary>
         Mystery = 3,
+        /// <summary>WinterMiracle ending: warm tower bells + celesta over C-Am-F-G (procedural, WinterBank).</summary>
+        WinterBells = 4,
+        /// <summary>SilentNight ending: "Silent Night" on a quiet music box (procedural, WinterBank).</summary>
+        MusicBox = 5,
     }
 
     /// <summary>One row of the sound table: clip variants (random pick), optional layer, volume, pitch range, spam guard.</summary>
@@ -214,6 +230,11 @@ namespace FloorF.Audio
             foreach (var t in tracks) if (t != null && t.track == track) return t;
             return null;
         }
+
+        /// <summary>The asset row, else the procedural winter row (<see cref="WinterBank"/>, synthesized on first use).</summary>
+        public CueDef FindAny(AudioCue cue) => Find(cue) ?? WinterBank.Find(cue);
+
+        public TrackDef FindAny(MusicTrack track) => Find(track) ?? WinterBank.Find(track);
 
         public static AudioLibrary Load() => Resources.Load<AudioLibrary>(ResourcePath);
     }

@@ -24,18 +24,18 @@ namespace FloorF.Tests.EditMode.Audio
             Assert.IsNotEmpty(AudioEventMap.Mapped);
             foreach (var m in AudioEventMap.Mapped)
             {
-                var def = lib.Find(m.Cue);
+                var def = lib.FindAny(m.Cue);
                 Assert.IsNotNull(def, m + ": cue row");
                 Assert.IsNotEmpty(def.clips, m + ": clips");
                 Assert.IsTrue(def.clips.All(c => c != null), m + ": no empty clip slot");
                 Assert.Greater(def.volume, 0f, m + ": volume");
                 Assert.LessOrEqual(def.volume, 1f, m + ": volume");
             }
-            // every cue in the enum (incl. reserved ones) has a row, so wiring a new event is one line of code
+            // every cue in the enum (incl. reserved ones) has a row - in the asset or procedural (WinterBank) - so wiring a new event is one line of code
             foreach (AudioCue cue in Enum.GetValues(typeof(AudioCue)))
             {
                 if (cue == AudioCue.None) continue;
-                var def = lib.Find(cue);
+                var def = lib.FindAny(cue);
                 Assert.IsNotNull(def, cue + " row");
                 Assert.IsTrue(def.clips.Length > 0 && def.clips.All(c => c != null), cue + " clips");
             }
@@ -43,7 +43,7 @@ namespace FloorF.Tests.EditMode.Audio
             foreach (MusicTrack t in Enum.GetValues(typeof(MusicTrack)))
             {
                 if (t == MusicTrack.None) continue;
-                Assert.IsNotNull(lib.Find(t)?.clip, t + " music clip");
+                Assert.IsNotNull(lib.FindAny(t)?.clip, t + " music clip");
             }
             Assert.AreEqual(-12f, lib.pauseDuckDb, 0.01f, "pause duck -12 dB");
             Assert.AreEqual(-6f, lib.holdDuckDb, 0.01f, "coach-mark hold duck -6 dB");
