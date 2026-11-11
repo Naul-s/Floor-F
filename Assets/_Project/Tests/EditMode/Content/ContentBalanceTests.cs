@@ -131,9 +131,12 @@ namespace FloorF.Tests.EditMode.Content
                     Assert.LessOrEqual(s.time, d.durationSeconds - 10f, "day " + d.day + " " + s.guest + " spawns too late");
                 }
             }
-            // 7 real days (5 days were capped at 15 min): the clock-out worst case may run ~17 min; early day ends make real runs shorter
+            // Base run = 7 real days (5 days were capped at 15 min): the clock-out worst case may run ~17 min; early day ends
+            // make real runs shorter. The winter season (days 8-10, only after ExtendSeason) adds about 6-7 minutes on top.
             const float shopBudget = 30f;
-            Assert.LessOrEqual(total + shopBudget * (data.DayCount - 1), 17f * 60f, "full run must stay under 17 minutes");
+            float baseTotal = data.Days.Where(d => !data.IsExtendedDay(d.Id)).Sum(d => d.durationSeconds);
+            Assert.LessOrEqual(baseTotal + shopBudget * (data.DayCount - 1), 17f * 60f, "the base run must stay under 17 minutes");
+            Assert.LessOrEqual(total + shopBudget * (data.AllDayCount - 1), 24f * 60f, "base run + winter season must stay under 24 minutes");
         }
 
         [Test]
@@ -259,10 +262,13 @@ namespace FloorF.Tests.EditMode.Content
                 var tutorialIds = data.GetDay(new DayId(n)).spawns.Select(s => s.guest).Distinct();
                 Assert.IsTrue(tutorialIds.All(seen.Contains), "tutorial day " + n + " should only use guests Day 1 has");
             }
-            for (int n = first + 1; n <= data.DayCount; n++)
+            for (int n = first + 1; n <= data.AllDayCount; n++)
             {
-                var ids = data.GetDay(new DayId(n)).spawns.Select(s => s.guest).Distinct().ToArray();
-                Assert.IsTrue(ids.Any(id => !seen.Contains(id)), "day " + n + " brings no new guest (one new concept per day)");
+                var day = data.GetDay(new DayId(n));
+                var ids = day.spawns.Select(s => s.guest).Distinct().ToArray();
+                // winter season: a special-night rule (the lottery) is that day's new concept too
+                bool newRule = data.IsExtendedDay(day.Id) && (day.lottery || day.christmas || day.luckyForAll > 0);
+                Assert.IsTrue(newRule || ids.Any(id => !seen.Contains(id)), "day " + n + " brings no new guest (one new concept per day)");
                 seen.UnionWith(ids);
             }
             foreach (var g in data.Guests)
@@ -390,12 +396,22 @@ namespace FloorF.Tests.EditMode.Content
 
         /// <summary>
         /// Rule 3 verdict for <paramref name="distance"/> floors on day <paramref name="d"/> (Friday: 13 is unlucky for all;
-        /// star night: 7 is lucky for all).
+        /// star night: 7 is lucky for all; DayDef.luckyForAll, Christmas Eve's 12, likewise).
         /// </summary>
-        static LuckVerdict JudgeDistance(DayDef d, LuckProfile p, int distance)
+        internal static LuckVerdict JudgeDistance(DayDef d, LuckProfile p, int distance)
         {
             if (d.starNight) p = StarNightRules.Apply(p);
+            if (d.luckyForAll > 0) p = LuckyForAll(p, d.luckyForAll);
             return d.friday13 && distance == StoryRules.FridayDistance ? LuckVerdict.Unlucky : p.Judge(distance);
+        }
+
+        /// <summary><paramref name="own"/> with <paramref name="number"/> Lucky (a guest's own unlucky copy loses), like the star night's 7.</summary>
+        internal static LuckProfile LuckyForAll(LuckProfile own, int number)
+        {
+            own = own ?? LuckProfile.None;
+            var lucky = new List<int>(own.Lucky) { number };
+            var unlucky = own.Unlucky.Where(n => n != number).ToList();
+            return new LuckProfile(NumberSet.From(lucky), NumberSet.From(unlucky));
         }
 
         /// <summary>Ride lengths reachable with at most one turn: start -> x -> destination (x = destination: direct).</summary>
@@ -531,14 +547,19 @@ namespace FloorF.Tests.EditMode.Content
             Assert.IsFalse(f.introKo.Contains("\uB9C8\uC9C0\uB9C9"), "Friday is not the last night any more (ko)");
         }
 
-        /// <summary>Day 7 = the last day = the star night: lucky 7 for all, 4-5 wish stars, the 4th-floor guest.</summary>
+        /// <summary>
+        /// Day 7 = the last day of the base run = the star night: lucky 7 for all, 4-5 wish stars, the (rare) 4th-floor guest.
+        /// Its shop only opens when the season is extended (ISeasonFlow.ExtendSeason) and gets Singles' Day ready.
+        /// </summary>
         [Test]
-        public void StarNight_IsTheLastDay_AndSaysSo()
+        public void StarNight_IsTheLastBaseDay_AndSaysSo()
         {
             var nights = data.Days.Where(d => d.starNight).ToArray();
             Assert.AreEqual(1, nights.Length, "one star night");
             var n = nights[0];
-            Assert.AreEqual(data.DayCount, n.day, "the last day");
+            Assert.AreEqual(data.DayCount, n.day, "the last day of the base run");
+            Assert.IsTrue(data.IsLastDay(n.Id));
+            Assert.IsFalse(n.extended);
             Assert.AreEqual(7, data.DisplayDayNumber(n.Id), "Day 7");
             Assert.IsFalse(n.tutorial);
             Assert.IsFalse(n.friday13);
@@ -547,8 +568,20 @@ namespace FloorF.Tests.EditMode.Content
             foreach (var t in new[] { n.title, n.titleKo, n.intro, n.introKo }) StringAssert.Contains("7", t);
             StringAssert.Contains("wish", n.intro);
             StringAssert.Contains("\uC18C\uC6D0", n.introKo);
-            Assert.IsEmpty(n.shopStickers, "no shop after the last day");
+            if (data.HasExtendedDays)
+            {
+                Assert.IsNotEmpty(n.shopStickers, "the shop after the star night opens the winter season");
+                CollectionAssert.Contains(n.shopStickers, "any_to_11", "Singles' Day (day 8) needs its 11 on sale the night before");
+            }
+            else Assert.IsEmpty(n.shopStickers, "no shop after the last day");
             Assert.IsTrue(n.spawns.Any(s => s.guest == "mystery_guest"), "the night of the 4th-floor guest");
+            // the mystery guest is rare now: the hint lives in mysteryIntro (shown only when it comes), not in the intro
+            Assert.IsFalse(string.IsNullOrWhiteSpace(n.mysteryIntro), "mysteryIntro");
+            Assert.IsFalse(string.IsNullOrWhiteSpace(n.mysteryIntroKo), "mysteryIntroKo");
+            Assert.IsFalse(n.intro.Contains(n.mysteryIntro), "the plain intro must not promise the mystery guest");
+            Assert.IsFalse(n.introKo.Contains(n.mysteryIntroKo), "the plain intro must not promise the mystery guest (ko)");
+            Assert.IsTrue(data.Days.Where(d => d != n).All(d => string.IsNullOrEmpty(d.mysteryIntro) && string.IsNullOrEmpty(d.mysteryIntroKo)),
+                "only the mystery guest's night has a mystery intro");
 
             var r = data.Rules;
             Assert.That(r.wishStarSeconds, Is.InRange(2f, 5f), "a wish window a person can hit");
@@ -597,8 +630,9 @@ namespace FloorF.Tests.EditMode.Content
         {
             var mystery = data.Guests.Single(g => g.HasTrait(GuestTraits.Mystery));
             Assert.IsTrue(mystery.hideNumbers);
-            for (int n = 1; n < data.DayCount; n++)
-                Assert.IsFalse(data.GetDay(new DayId(n)).spawns.Any(s => s.guest == mystery.id), "mystery guest before the last day");
+            for (int n = 1; n <= data.AllDayCount; n++)
+                if (n != data.DayCount)
+                    Assert.IsFalse(data.GetDay(new DayId(n)).spawns.Any(s => s.guest == mystery.id), "mystery guest on day " + n + " (only the base run's last day)");
             Assert.IsTrue(ContainsNumber(mystery.FindLine(GuestLineTriggers.Spawn).text, 4), "spawn line must ask for the 4th floor");
         }
 

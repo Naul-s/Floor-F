@@ -145,7 +145,10 @@ namespace FloorF.Tests.EditMode.Content
         {
             var beforeLast = data.GetDay(new DayId(data.DayCount - 1));
             CollectionAssert.Contains(beforeLast.shopStickers, FourToF, "the shop before the last day must offer 4 -> F");
-            Assert.IsEmpty(data.GetDay(new DayId(data.DayCount)).shopStickers, "no shop after the last day");
+            Assert.IsEmpty(data.GetDay(new DayId(data.AllDayCount)).shopStickers, "no shop after the last day of the season");
+            if (data.HasExtendedDays)
+                for (int n = data.DayCount; n < data.AllDayCount; n++) // the winter-season shops keep the staple too
+                    CollectionAssert.Contains(data.GetDay(new DayId(n)).shopStickers, FourToF, "season shop after day " + n);
             var s = data.Stickers.Single(x => x.id == FourToF);
             Assert.AreEqual("4", s.from.Trim());
             Assert.IsTrue(s.CanApplyTo(data.GetFloor(StoryRules.RealFourthFloor).InitialLabel), "4 -> F must fit the real 4th floor");
