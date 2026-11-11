@@ -81,7 +81,7 @@ namespace FloorF.Rendering
             if (id.IsNone || proxies.ContainsKey(id)) return;
             Describe(data, archetype, out var color, out var accessory);
             // couples (partySize 2) alternate their two characters by id
-            var fig = GuestFigure.Build(root, assets, "Guest " + id.Value + " " + archetype.Value, color, accessory, assets.Kenney, Mathf.Abs(id.Value) % 2);
+            var fig = GuestFigure.Build(root, assets, "Guest " + id.Value + " " + archetype.Value, color, accessory, assets.Kenney, Mathf.Abs(id.Value) % 2, id.Value);
             var p = new Proxy
             {
                 Id = id, Figure = fig, SpawnFloor = floor, SpawnSlot = Mathf.Max(0, slot), SeenFrame = frame,
@@ -124,7 +124,7 @@ namespace FloorF.Rendering
             {
                 var def = defs[i];
                 var fig = GuestFigure.Build(root, assets, "Lineup " + floor.PhysicalNumber + " " + def.id,
-                    CoreUnityExtensions.ParseColor(def.color), def.accessory, assets.Kenney, 0);
+                    CoreUnityExtensions.ParseColor(def.color), def.accessory, assets.Kenney, 0, i);
                 fig.Root.localPosition = layout.GetWaitingSlot(floor, i).ToVector3();
                 extras.Add(new Extra { Figure = fig, Mood = mood, Seed = i * 0.37f + floor.Value * 0.11f });
                 result.Add(fig);

@@ -64,6 +64,45 @@ namespace FloorF.Rendering
         const float LineZ = 1.6f, LineH = 0.95f, TowerZ = 0.5f, LegH = 0.6f, BarrelH = 1.15f, HutZ = 0.4f, HutH = 1.3f;
         readonly List<Vector3> pigeonSpots = new List<Vector3>();
 
+        // ---- anchors for seasonal dressing (WinterView / ChristmasDecor): valid after Build
+        /// <summary>Roof deck height (top of the cornice).</summary>
+        public float RoofY => roof;
+        /// <summary>Building top (roof slab) = floor count x floor height.</summary>
+        public float TopY => H;
+        public float FrontZ => front;
+        /// <summary>Pilaster front face depth.</summary>
+        public float PilasterZ => pz;
+        /// <summary>Left pilaster outer edge / right pilaster outer edge.</summary>
+        public float PilasterLeft => pilL0;
+        public float PilasterRight => pilR1;
+        /// <summary>Cornice extent (x) - the parapet runs between these.</summary>
+        public float CorniceLeft => cx0;
+        public float CorniceRight => cx1;
+        /// <summary>Inner edge of the left low parapet step (beside the HOTEL sign); mirrored around the shaft on the right.</summary>
+        public float StepInX => stepIn;
+        public float StepOutX => stepIn - 0.9f;
+        public float ParapetTop => roof + 0.42f;
+        public float StepTop => roof + 0.24f;
+        public float PierTop => roof + 0.72f;
+        public float ParapetZ => front - 0.45f;
+        public float ParapetBackZ => front - 0.2f;
+        public float TowerLeft => towerX0;
+        public float TowerRight => towerX1;
+        public float TowerTop => roof + LegH + BarrelH + 0.39f;
+        public float HutLeft => hutX0;
+        public float HutRight => hutX1;
+        public float HutTop => roof + HutH + 0.12f;
+        public float AnnexLeft => annex0;
+        public float AnnexRight => annex1;
+        /// <summary>Annex cornice top (trim) and the annex front depth.</summary>
+        public float AnnexTop => annexTop + 0.25f;
+        public float AnnexZ => annexZ;
+        /// <summary>Entrance canopy: x range, top height, front (curb side) depth.</summary>
+        public float CanopyLeft { get; private set; }
+        public float CanopyRight { get; private set; }
+        public float CanopyTop { get; private set; }
+        public float CanopyFrontZ { get; private set; }
+
         public HotelFacade(Transform parent, RenderAssets assets, IWorldLayout layout, BuildingView building, PaletteAtlas atlas, LivingLights lights)
         {
             this.assets = assets;
@@ -282,6 +321,7 @@ namespace FloorF.Rendering
             var awningLight = assets.Lit(AwningLight);
             float cz0 = RenderingStyle.CurbZ + 0.3f, cy = g + 2.45f;
             lit.BoxMinMax(new Vector3(dx0 - 0.6f, cy, cz0), new Vector3(dx1 + 0.6f, cy + 0.18f, ez), awning);
+            CanopyLeft = dx0 - 0.6f; CanopyRight = dx1 + 0.6f; CanopyTop = cy + 0.18f; CanopyFrontZ = cz0;
             int stripes = Mathf.Max(3, Mathf.RoundToInt((dx1 - dx0 + 1.2f) / 0.4f));
             float sw = (dx1 - dx0 + 1.2f) / stripes;
             for (int i = 0; i < stripes; i++)

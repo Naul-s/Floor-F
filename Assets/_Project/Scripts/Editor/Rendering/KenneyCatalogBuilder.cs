@@ -52,6 +52,7 @@ namespace FloorF.EditorTools
             ("hood", 0, "character-male-a", "#2B2B2B"),            // darkened, hooded, glowing eyes
             ("collar", 0, "character-male-c", "#4B2C6F"),          // priest: dark cassock tile (+ white collar at runtime)
             ("flat_cap", 0, "character-male-b", "#D9A441"),        // nonno: bald + beard, beard greyed (+ cap, cane at runtime)
+            ("santa_hat", 0, "character-male-b", "#C0392B"),       // Santa: the bearded man again, beard white, red suit (+ hat, belt at runtime)
         };
 
         /// <summary>How an archetype's atlas tile is dressed beyond the shirt tint.</summary>
@@ -64,6 +65,7 @@ namespace FloorF.EditorTools
                 case "hood": return Dress.Mystery;
                 case "collar": return Dress.Cassock;
                 case "flat_cap": return Dress.GreyHair;
+                case "santa_hat": return Dress.GreyHair;
                 default: return Dress.Plain;
             }
         }

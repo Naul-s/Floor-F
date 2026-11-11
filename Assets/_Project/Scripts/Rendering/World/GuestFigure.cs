@@ -33,6 +33,9 @@ namespace FloorF.Rendering
                 case "hood": return new GuestSilhouette(1.86f, 0.66f, 0.48f, 0.50f, 0.30f, cloak: true);   // looming robe
                 case "collar": return new GuestSilhouette(1.60f, 0.52f, 0.40f, 0.42f, 0.30f, cloak: true); // priest: cassock
                 case "flat_cap": return new GuestSilhouette(1.28f, 0.62f, 0.46f, 0.44f, 0.30f);            // short, stout nonno
+                case "backpack": return new GuestSilhouette(1.56f, 0.56f, 0.42f, 0.42f, 0.36f);            // solo traveller, big pack
+                case "santa_hat": return new GuestSilhouette(1.50f, 0.74f, 0.54f, 0.46f, 0.24f);           // round Santa
+                case "scarf": return new GuestSilhouette(1.38f, 0.56f, 0.42f, 0.42f, 0.30f);               // carolers
                 default:
                 {
                     // unknown (new) archetype: stable proportions of its own from the accessory key
@@ -190,8 +193,15 @@ namespace FloorF.Rendering
             return Color.HSVToRGB(h, s, v);
         }
 
+        /// <summary>Caroler scarf colours (picked per guest id by <c>look</c>, so a party of three reads apart).</summary>
+        public static readonly Color[] ScarfColors =
+        {
+            new Color(0.82f, 0.16f, 0.16f), new Color(0.94f, 0.92f, 0.86f), new Color(0.20f, 0.52f, 0.28f),
+        };
+
+        /// <param name="look">Per-guest variation (guest id): caroler scarf colour.</param>
         public static GuestFigure Build(Transform parent, RenderAssets assets, string name, Color rawColor, string accessory,
-            KenneyCatalog catalog = null, int variant = 0)
+            KenneyCatalog catalog = null, int variant = 0, int look = 0)
         {
             var model = catalog != null ? catalog.FindGuest(accessory ?? "", variant) : null;
             bool fallback = false;
@@ -202,7 +212,7 @@ namespace FloorF.Rendering
             }
             if (model != null)
             {
-                var built = BuildModel(parent, assets, name, rawColor, accessory ?? "", catalog, model);
+                var built = BuildModel(parent, assets, name, rawColor, accessory ?? "", catalog, model, look);
                 built.IsFallbackModel = fallback && built.IsModel;
                 return built;
             }
@@ -356,6 +366,46 @@ namespace FloorF.Rendering
                     f.HeadTop = top + 0.09f;
                     break;
                 }
+                case "backpack":
+                {
+                    // solo traveller: a tall pack on the back with a rolled mat on top, straps, a knit beanie
+                    var pack = assets.Lit(new Color(0.26f, 0.42f, 0.30f));
+                    assets.Box(v, "Backpack", new Vector3(0f, bodyY0 + bodyH * 0.5f, D * 0.5f + 0.14f), new Vector3(W * 0.86f, bodyH * 1.05f, 0.28f), pack);
+                    assets.Box(v, "Bedroll", new Vector3(0f, bodyY0 + bodyH + 0.1f, D * 0.5f + 0.14f), new Vector3(W * 1.1f, 0.18f, 0.2f), assets.Lit(new Color(0.30f, 0.52f, 0.86f)));
+                    var strap = assets.Lit(new Color(0.16f, 0.18f, 0.16f));
+                    assets.Box(v, "Strap L", new Vector3(-W * 0.26f, bodyY0 + bodyH * 0.6f, front - 0.02f), new Vector3(0.07f, bodyH * 0.8f, 0.03f), strap, false);
+                    assets.Box(v, "Strap R", new Vector3(W * 0.26f, bodyY0 + bodyH * 0.6f, front - 0.02f), new Vector3(0.07f, bodyH * 0.8f, 0.03f), strap, false);
+                    assets.Box(v, "Beanie", new Vector3(0f, top + 0.04f, 0f), new Vector3(head * 1.08f, 0.16f, head * 1.0f), assets.Lit(new Color(0.88f, 0.48f, 0.18f)));
+                    f.HeadTop = top + 0.12f;
+                    break;
+                }
+                case "santa_hat":
+                {
+                    // Santa: red hat with a white brim and pompom, a big white beard, black belt with a gold buckle
+                    var red = assets.Lit(new Color(0.78f, 0.12f, 0.12f));
+                    var white = assets.Lit(new Color(0.96f, 0.96f, 0.94f));
+                    assets.Box(v, "Hat Brim", new Vector3(0f, top + 0.02f, 0f), new Vector3(head * 1.18f, 0.1f, head * 1.08f), white);
+                    assets.Box(v, "Hat", new Vector3(0.02f, top + 0.16f, 0.02f), new Vector3(head * 0.82f, 0.2f, head * 0.78f), red);
+                    assets.Box(v, "Hat Tip", new Vector3(head * 0.32f, top + 0.24f, 0.04f), new Vector3(head * 0.42f, 0.12f, head * 0.4f), red);
+                    assets.Box(v, "Pompom", new Vector3(head * 0.6f, top + 0.18f, 0.04f), new Vector3(0.12f, 0.12f, 0.12f), white);
+                    assets.Box(v, "Beard", new Vector3(0f, headY - head * 0.32f, -head * 0.42f), new Vector3(head * 0.92f, head * 0.62f, 0.12f), white);
+                    assets.Box(v, "Belt", new Vector3(0f, bodyY0 + bodyH * 0.3f, 0f), new Vector3(W * 1.02f, 0.1f, D * 1.02f), assets.Lit(new Color(0.08f, 0.07f, 0.07f)));
+                    assets.Box(v, "Buckle", new Vector3(0f, bodyY0 + bodyH * 0.3f, front - 0.02f), new Vector3(0.12f, 0.1f, 0.02f), assets.Unlit(new Color(1f, 0.82f, 0.25f)), false);
+                    f.HeadTop = top + 0.3f;
+                    break;
+                }
+                case "scarf":
+                {
+                    // caroler: knitted scarf with a hanging end, a woolly hat, a songbook held up in both hands
+                    var scarf = assets.Lit(ScarfColors[Mathf.Abs(look) % ScarfColors.Length]);
+                    assets.Box(v, "Scarf", new Vector3(0f, bodyY0 + bodyH - 0.06f, 0f), new Vector3(W * 0.9f, 0.13f, D * 1.08f), scarf);
+                    assets.Box(v, "Scarf End", new Vector3(W * 0.22f, bodyY0 + bodyH * 0.62f, front - 0.03f), new Vector3(0.12f, bodyH * 0.5f, 0.04f), scarf, false);
+                    assets.Box(v, "Woolly Hat", new Vector3(0f, top + 0.05f, 0f), new Vector3(head * 1.06f, 0.16f, head * 1.0f), assets.Lit(new Color(0.94f, 0.92f, 0.86f)));
+                    assets.Box(v, "Songbook", new Vector3(0f, bodyY0 + bodyH * 0.55f, front - 0.14f), new Vector3(W * 0.62f, 0.26f, 0.05f), assets.Lit(new Color(0.48f, 0.10f, 0.12f)));
+                    assets.Box(v, "Pages", new Vector3(0f, bodyY0 + bodyH * 0.55f + 0.01f, front - 0.17f), new Vector3(W * 0.5f, 0.2f, 0.02f), assets.Lit(new Color(0.95f, 0.92f, 0.82f)), false);
+                    f.HeadTop = top + 0.13f;
+                    break;
+                }
             }
             return f;
         }
@@ -364,7 +414,7 @@ namespace FloorF.Rendering
         public static float ModelHeight(in GuestSilhouette s) => s.Height * 0.9f;
 
         static GuestFigure BuildModel(Transform parent, RenderAssets assets, string name, Color rawColor, string accessory,
-            KenneyCatalog catalog, KenneyCatalog.GuestModel entry)
+            KenneyCatalog catalog, KenneyCatalog.GuestModel entry, int look)
         {
             var f = new GuestFigure { Accessory = accessory, ModelEntry = entry, idle = catalog.Idle, walk = catalog.Walk };
             var s = GuestSilhouette.For(accessory);
@@ -399,7 +449,7 @@ namespace FloorF.Rendering
             if (head == null || torso == null || f.ArmL == null || f.ArmR == null)
             {
                 Object.Destroy(root.gameObject);
-                return Build(parent, assets, name, rawColor, accessory);
+                return Build(parent, assets, name, rawColor, accessory, null, 0, look);
             }
             f.armRestL = f.ArmL.localRotation;
             f.armRestR = f.ArmR.localRotation;
@@ -525,6 +575,51 @@ namespace FloorF.Rendering
                     float caneTop = Mathf.Max(0.2f, handR.y);
                     Part(f.ArmR, "Cane", new Vector3(handR.x + 0.06f, caneTop * 0.5f, -0.06f), new Vector3(0.09f, caneTop, 0.09f), assets.Lit(new Color(0.32f, 0.19f, 0.10f)));
                     f.HeadTop = hTop + 0.1f;
+                    break;
+                }
+                case "backpack":
+                {
+                    // solo traveller: tall pack on the back (behind the torso), rolled mat on top, straps, knit beanie
+                    float backZ = hCz + hd * 0.42f;
+                    Part(torso, "Backpack", new Vector3(0f, chestY - 0.04f, backZ + 0.12f), new Vector3(bodyW * 0.9f, 0.5f, 0.26f), assets.Lit(new Color(0.26f, 0.42f, 0.30f)));
+                    Part(torso, "Bedroll", new Vector3(0f, chestY + 0.26f, backZ + 0.12f), new Vector3(bodyW * 1.15f, 0.16f, 0.18f), assets.Lit(new Color(0.30f, 0.52f, 0.86f)));
+                    var strap = assets.Lit(new Color(0.16f, 0.18f, 0.16f));
+                    Part(torso, "Strap L", new Vector3(-bodyW * 0.24f, chestY, chestZ - 0.03f), new Vector3(0.06f, 0.3f, 0.03f), strap);
+                    Part(torso, "Strap R", new Vector3(bodyW * 0.24f, chestY, chestZ - 0.03f), new Vector3(0.06f, 0.3f, 0.03f), strap);
+                    var knit = assets.Lit(new Color(0.88f, 0.48f, 0.18f));
+                    Part(head, "Beanie", new Vector3(0f, hTop - 0.02f, hCz), new Vector3(hw * 2.14f, 0.16f, hd * 1.0f), knit);
+                    Part(head, "Beanie Bobble", new Vector3(0f, hTop + 0.1f, hCz), new Vector3(0.1f, 0.08f, 0.1f), knit);
+                    f.HeadTop = hTop + 0.16f;
+                    break;
+                }
+                case "santa_hat":
+                {
+                    // Santa: red hat (white brim, flopping tip, pompom), big white beard, black belt + gold buckle
+                    var red = assets.Lit(new Color(0.78f, 0.12f, 0.12f));
+                    var white = assets.Lit(new Color(0.96f, 0.96f, 0.94f));
+                    Part(head, "Hat Brim", new Vector3(0f, hTop - 0.02f, hCz), new Vector3(hw * 2.2f, 0.1f, hd * 1.06f), white);
+                    Part(head, "Hat", new Vector3(0.02f, hTop + 0.12f, hCz + 0.02f), new Vector3(hw * 1.6f, 0.2f, hd * 0.78f), red);
+                    Part(head, "Hat Tip", new Vector3(hw * 0.7f, hTop + 0.2f, hCz + 0.04f), new Vector3(hw * 0.9f, 0.12f, hd * 0.4f), red);
+                    Part(head, "Pompom", new Vector3(hw * 1.25f, hTop + 0.14f, hCz + 0.04f), new Vector3(0.13f, 0.13f, 0.13f), white);
+                    Part(head, "Beard", new Vector3(0f, hCy - hh * 0.36f, hFront - 0.05f), new Vector3(hw * 1.5f, hh * 0.38f, 0.1f), white);
+                    Part(head, "Moustache", new Vector3(0f, hCy - hh * 0.1f, hFront - 0.09f), new Vector3(hw * 1.2f, 0.07f, 0.03f), white);
+                    Part(torso, "Belt", new Vector3(0f, chestY - 0.18f, chestZ - 0.03f), new Vector3(bodyW * 0.95f, 0.09f, 0.03f), assets.Lit(new Color(0.08f, 0.07f, 0.07f)));
+                    Part(torso, "Buckle", new Vector3(0f, chestY - 0.18f, chestZ - 0.05f), new Vector3(0.1f, 0.09f, 0.02f), assets.Unlit(new Color(1f, 0.82f, 0.25f)));
+                    f.HeadTop = hTop + 0.28f;
+                    break;
+                }
+                case "scarf":
+                {
+                    // caroler: knitted scarf (colour per guest), its end hanging down, woolly hat, songbook held up
+                    var scarf = assets.Lit(ScarfColors[Mathf.Abs(look) % ScarfColors.Length]);
+                    float neckY = Mathf.Max(shoulderL.y + 0.02f, chestY + 0.14f);
+                    Part(torso, "Scarf", new Vector3(0f, neckY, hCz), new Vector3(bodyW * 0.62f, 0.12f, hd * 0.75f), scarf);
+                    Part(torso, "Scarf End", new Vector3(bodyW * 0.16f, chestY - 0.02f, chestZ - 0.05f), new Vector3(0.1f, 0.26f, 0.03f), scarf);
+                    Part(head, "Woolly Hat", new Vector3(0f, hTop - 0.02f, hCz), new Vector3(hw * 2.12f, 0.17f, hd * 1.0f), assets.Lit(new Color(0.94f, 0.92f, 0.86f)));
+                    var book = assets.Lit(new Color(0.48f, 0.10f, 0.12f));
+                    Part(torso, "Songbook", new Vector3(0f, chestY - 0.06f, chestZ - 0.16f), new Vector3(bodyW * 0.62f, 0.24f, 0.05f), book);
+                    Part(torso, "Pages", new Vector3(0f, chestY - 0.05f, chestZ - 0.19f), new Vector3(bodyW * 0.5f, 0.19f, 0.02f), assets.Lit(new Color(0.95f, 0.92f, 0.82f)));
+                    f.HeadTop = hTop + 0.15f;
                     break;
                 }
                 default:
