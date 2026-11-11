@@ -329,13 +329,21 @@ namespace FloorF.UI
         /// click effect), the scenic view / establishing shot (skip, exit, V), H = rule box; every other pointer press
         /// gets the click effect (+ Tap unless it lands on something clickable: buttons play their own sound).
         /// </summary>
+        /// <summary>Seconds the ending card's season offer is visible before Enter may take it.</summary>
+        internal const float OfferEnterDelay = 0.8f;
+        float offerEnterArmedAt = -1f;
+
         void HandlePresses(UIPress press)
         {
             bool attractUsed = menu.HandleAttractPress(press);
             bool used = attractUsed;
             if (scenic.Tick(UIClock.UnscaledDt, used ? default : press)) used = true;
             if (!used && press.H && ctx.Phase == DayPhase.Running && !OnTitle && !ctx.Paused) hud.ToggleRules();
-            if (!used && press.Enter && flow.OwnsEnter && !ctx.Paused) { flow.Click(); used = true; }
+            // the offer only takes Enter once it has been on screen a moment: the Enter that closed the summary (same
+            // frame, Gameplay runs first) or a mashed one must not skip the ending straight into the winter shop
+            if (!flow.OwnsEnter) offerEnterArmedAt = -1f;
+            else if (offerEnterArmedAt < 0f) offerEnterArmedAt = Time.unscaledTime + OfferEnterDelay;
+            if (!used && press.Enter && flow.OwnsEnter && !ctx.Paused && Time.unscaledTime >= offerEnterArmedAt) { flow.Click(); used = true; }
             if (press.Pointer && !attractUsed) OnPointerPress(press.Screen);
         }
 

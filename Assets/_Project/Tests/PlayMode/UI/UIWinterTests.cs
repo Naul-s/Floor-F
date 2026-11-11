@@ -141,7 +141,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsNull(UIFonts.MissingGlyph(Plain(ui.SeasonOfferText) + ui.FlowActionText + ui.PlayAgainText));
             yield return Day0Driver.Shot("ui_winter_keep_open" + (ko ? "_ko" : ""), true);
 
-            // Enter = keep the hotel open (once)
+            // Enter = keep the hotel open (once) - only after the offer has been on screen a moment
+            yield return new UnityEngine.WaitForSecondsRealtime(UIRoot.OfferEnterDelay + 0.1f);
             ui.InjectPress(enter: true);
             yield return null;
             yield return null;
