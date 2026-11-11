@@ -181,6 +181,7 @@ namespace FloorF.Core
             if (!(r.streakTipBonusPerStep >= 0f)) e.Add("hotel.rules: streakTipBonusPerStep must be >= 0");
             if (!(r.streakMaxTipMultiplier >= 1f)) e.Add("hotel.rules: streakMaxTipMultiplier must be >= 1");
             if (r.prosperousEndingLuck < 0 || r.prosperousEndingLuck > r.maxLuck) e.Add("hotel.rules: prosperousEndingLuck must be in 0..maxLuck");
+            if (r.winterMiracleLuck < 0 || r.winterMiracleLuck > r.maxLuck) e.Add("hotel.rules: winterMiracleLuck must be in 0..maxLuck (0 = prosperousEndingLuck)");
             if (r.elevatorSecondsPerFloor <= 0) e.Add("hotel.rules: elevatorSecondsPerFloor must be > 0");
             if (r.doorSeconds < 0) e.Add("hotel.rules: doorSeconds must be >= 0");
             if (r.startTips < 0) e.Add("hotel.rules: startTips must be >= 0");

@@ -77,7 +77,7 @@ namespace FloorF.Core
         bool TryReachWinterEnding()
         {
             if (!data.IsLastSeasonDay(day)) return false;
-            ReachEnding(Score.Luck >= rules.prosperousEndingLuck ? EndingKind.WinterMiracle : EndingKind.SilentNight);
+            ReachEnding(Score.Luck >= rules.WinterMiracleLuck ? EndingKind.WinterMiracle : EndingKind.SilentNight);
             return true;
         }
 

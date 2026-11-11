@@ -382,14 +382,14 @@ namespace FloorF.UI
         /// Locked-slot hint: the Luck endings state their rule (<paramref name="lastDay"/> = PlayableDayCount,
         /// <paramref name="prosperousLuck"/> = rules.prosperousEndingLuck), the hidden one only whispers.
         /// </summary>
-        public static string EndingHint(EndingKind kind, bool ko, int lastDay, int prosperousLuck)
+        public static string EndingHint(EndingKind kind, bool ko, int lastDay, int prosperousLuck, int winterLuck = 0)
         {
             switch (kind)
             {
                 case EndingKind.Prosperous: return KoreanParticles.Format(UIStrings.EndHintProsperous.Get(ko), lastDay, prosperousLuck);
                 case EndingKind.Modest: return KoreanParticles.Format(UIStrings.EndHintModest.Get(ko), lastDay, prosperousLuck);
                 case EndingKind.Haunted: return UIStrings.EndHintHaunted.Get(ko);
-                case EndingKind.WinterMiracle: return KoreanParticles.Format(UIStrings.EndHintMiracle.Get(ko), lastDay, prosperousLuck);
+                case EndingKind.WinterMiracle: return KoreanParticles.Format(UIStrings.EndHintMiracle.Get(ko), lastDay, winterLuck > 0 ? winterLuck : prosperousLuck);
                 case EndingKind.SilentNight: return UIStrings.EndHintSilent.Get(ko);
                 default: return UIStrings.EndHintFourth.Get(ko);
             }

@@ -112,6 +112,10 @@ namespace FloorF.Core
         // endings
         /// <summary>Luck at the end of the last day needed for the Prosperous ending (else Modest).</summary>
         public int prosperousEndingLuck = 70;
+        /// <summary>Luck at the end of the last winter-season day for WinterMiracle (else SilentNight). 0 = prosperousEndingLuck.</summary>
+        public int winterMiracleLuck;
+        /// <summary>Effective WinterMiracle line: <see cref="winterMiracleLuck"/>, or prosperousEndingLuck when 0.</summary>
+        public int WinterMiracleLuck => winterMiracleLuck > 0 ? winterMiracleLuck : prosperousEndingLuck;
 
         // hidden 4th-floor ending: the mystery guest is rare and never on the first run
         /// <summary>Chance (0..1) the mystery guest comes on its night once the player has finished at least one run.</summary>

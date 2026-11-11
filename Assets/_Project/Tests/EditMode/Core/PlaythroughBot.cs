@@ -273,8 +273,8 @@ namespace FloorF.Tests.EditMode.Core
                 Check(e.Ending != EndingKind.Haunted || e.FinalLuck == 0, "haunted with luck " + e.FinalLuck);
                 Check(e.Ending != EndingKind.Prosperous || e.FinalLuck >= rules.prosperousEndingLuck, "prosperous below the line");
                 Check(e.Ending != EndingKind.Modest || (e.FinalLuck > 0 && e.FinalLuck < rules.prosperousEndingLuck), "modest outside its range " + e.FinalLuck);
-                Check(e.Ending != EndingKind.WinterMiracle || e.FinalLuck >= rules.prosperousEndingLuck, "winter miracle below the line");
-                Check(e.Ending != EndingKind.SilentNight || (e.FinalLuck > 0 && e.FinalLuck < rules.prosperousEndingLuck), "silent night outside its range " + e.FinalLuck);
+                Check(e.Ending != EndingKind.WinterMiracle || e.FinalLuck >= rules.WinterMiracleLuck, "winter miracle below the line");
+                Check(e.Ending != EndingKind.SilentNight || (e.FinalLuck > 0 && e.FinalLuck < rules.WinterMiracleLuck), "silent night outside its range " + e.FinalLuck);
                 bool winter = e.Ending == EndingKind.WinterMiracle || e.Ending == EndingKind.SilentNight;
                 Check(!winter || (S.IsSeasonExtended && data.IsLastSeasonDay(e.Day)), "winter ending outside the season's last day");
                 Check(!S.IsSeasonExtended || e.Ending != EndingKind.Prosperous && e.Ending != EndingKind.Modest, "base ending during the season");

@@ -167,7 +167,7 @@ namespace FloorF.UI
                 UIBuild.Set(s.Name, UIStrings.EndingLocked);
                 s.Name.fontSize = 36f;
                 s.Name.color = hidden ? HiddenLockedEdge : UIStyle.InkDim;
-                UIBuild.Set(s.Line, UIFormat.EndingHint(s.Kind, ko, lastDay, prosperous));
+                UIBuild.Set(s.Line, UIFormat.EndingHint(s.Kind, ko, lastDay, prosperous, ctx.Data != null ? ctx.Data.Rules.WinterMiracleLuck : 0));
                 s.Line.color = hidden ? HiddenBadge.Ink : UIStyle.InkDim;
                 UIBuild.Set(s.Seen, "");
             }
