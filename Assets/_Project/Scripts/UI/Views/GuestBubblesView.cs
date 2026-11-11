@@ -208,6 +208,10 @@ namespace FloorF.UI
             var car = UIContext.ToVector3(ctx.Locator.CarPosition);
             if (!ctx.WorldToCanvas(car + new Vector3(-halfCar, 0.1f, 0f), out anchor)) return false;
             if (ctx.CenterColumn(ColumnMargin, out float colMin, out _)) anchor.x = Mathf.Min(anchor.x, colMin);
+            // never below the 2nd floor's slab: on the ground floor the grid would cover the lobby and the street shops
+            if (ctx.Layout != null && ctx.Layout.FloorCount > 1 &&
+                ctx.WorldToCanvas(UIContext.ToVector3(ctx.Layout.GetFloorAnchor(new FloorIndex(1))) + new Vector3(-halfCar, 0.1f, 0f), out var low))
+                anchor.y = Mathf.Max(anchor.y, low.y);
             anchor.y = Mathf.Min(anchor.y, canvasHeight - 8f - rows * (RiderChipH + Spacing));
             return true;
         }

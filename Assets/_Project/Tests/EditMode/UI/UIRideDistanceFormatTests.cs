@@ -88,8 +88,9 @@ namespace FloorF.Tests.EditMode.UI
             Assert.AreEqual("x1.5", m);
             Assert.AreEqual("FRIDAY 13TH · bad luck x1.5", string.Format(UIStrings.Friday13Badge.En, m));
             Assert.AreEqual("13일의 금요일 · 불운 x1.5", string.Format(UIStrings.Friday13Badge.Ko, m));
-            StringAssert.Contains("1.5x", KoreanParticles.Format(UIStrings.Friday13Intro.En, "1.5"));
-            StringAssert.Contains("1.5배", KoreanParticles.Format(UIStrings.Friday13Intro.Ko, "1.5"));
+            StringAssert.Contains("1.5x", KoreanParticles.Format(UIStrings.Friday13Intro.En, "1.5", "13"));
+            StringAssert.Contains("1.5배", KoreanParticles.Format(UIStrings.Friday13Intro.Ko, "1.5", "13"));
+            StringAssert.Contains("13", KoreanParticles.Format(UIStrings.Friday13Intro.Ko, "1.5", "13"));
             StringAssert.Contains("13", UIStrings.RuleFriday13.Ko);
             StringAssert.Contains("움직인 층수", UIStrings.RuleDistance.Ko);
         }

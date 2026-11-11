@@ -295,8 +295,9 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(DayPhase.Intro, ui.VisibleFlowScreen);
             Assert.IsTrue(ui.FlowFridayLook, "red/black Friday card");
             Assert.AreEqual(ko && !string.IsNullOrEmpty(def.titleKo) ? def.titleKo : def.title, ui.FlowTitle, "headline from the data title");
-            StringAssert.Contains(ko ? "1.5배" : "1.5x", Plain(ui.FlowExtra), "the penalty multiplier");
-            StringAssert.Contains("13", Plain(ui.FlowExtra));
+            StringAssert.Contains(ko ? "1.5배" : "1.5x", Plain(ui.FlowToday), "the penalty multiplier");
+            StringAssert.Contains("13", Plain(ui.FlowToday));
+            StringAssert.StartsWith(ko ? "오늘:" : "TODAY:", Plain(ui.FlowToday));
             AssertCardFits(ui, "friday intro");
             yield return Day0Driver.Shot("ui_friday13_intro" + (ko ? "_ko" : ""), true);
 

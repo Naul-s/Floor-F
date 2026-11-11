@@ -46,6 +46,9 @@ namespace FloorF.UI
         /// <summary>The same settings rows on the pause card and on the title's OPTIONS card.</summary>
         readonly SettingsRows pauseSettings, optionsSettings;
         readonly EndingsCardView endingsCard;
+        /// <summary>Brass plate right of the ENDINGS button: the best run so far (EndingRecord.BestLuck / BestTips).</summary>
+        readonly RectTransform bestPlate;
+        readonly TextMeshProUGUI bestText;
         bool titleShown, pauseShown, creditsOpen, endingsOpen, optionsOpen;
 
         readonly System.Func<bool> suppressPause;
@@ -88,6 +91,16 @@ namespace FloorF.UI
             UIBuild.Heading(start.Label);
             titleEndings = MenuButton("Endings", stack, ButtonSize, -(StartSize.y + StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
                 () => { ctx.Sound(UiSoundKind.Click); SetEndings(true); });
+            // best record: a small brass plate hanging off the ENDINGS button's right edge (fades / slides with it)
+            bestPlate = UIBuild.Framed("BestPlate", titleEndings.Rect, new Color(0.035f, 0.03f, 0.06f, 0.92f), UIStyle.CardEdge, 1f).rectTransform;
+            bestPlate.anchorMin = bestPlate.anchorMax = new Vector2(1f, 0.5f);
+            bestPlate.pivot = new Vector2(0f, 0.5f);
+            bestPlate.anchoredPosition = new Vector2(BestGap, 0f);
+            bestPlate.sizeDelta = new Vector2(160f, BestH);
+            bestText = UIBuild.Text("Text", bestPlate, "", 12f, UIStyle.Lucky, TextAlignmentOptions.Center);
+            UIBuild.Stretch(bestText.rectTransform);
+            bestText.textWrappingMode = TextWrappingModes.NoWrap;
+            bestPlate.gameObject.SetActive(false);
             titleCredits = MenuButton("Credits", stack, ButtonSize, -(StartSize.y + ButtonSize.y + 2f * StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
                 () => { ctx.Sound(UiSoundKind.Click); SetCredits(true); });
             titleOptions = MenuButton("Options", stack, ButtonSize, -(StartSize.y + 2f * ButtonSize.y + 3f * StackGap), 24f, UIStyle.Btn, UIStyle.CardEdge, 2f,
@@ -376,6 +389,7 @@ namespace FloorF.UI
             UIBuild.Fit(titleEndings.Label, 24f);
             UIBuild.Fit(titleCredits.Label, 24f);
             UIBuild.Fit(titleOptions.Label, 24f);
+            RefreshBest();
             UIBuild.Set(creditsTitle, ctx.S(UIStrings.CreditsTitle));
             UIBuild.Set(musicHead, ctx.S(UIStrings.CreditsMusicHead));
             UIBuild.Set(music, UIStrings.CreditsMusicCcBy);
@@ -609,6 +623,24 @@ namespace FloorF.UI
             : p == TitlePart.Start ? start.Rect : p == TitlePart.Credits ? titleCredits.Rect : p == TitlePart.Endings ? titleEndings.Rect : titleOptions.Rect;
         UIBuild.ButtonParts PartButton(TitlePart p) => p == TitlePart.Start ? start : p == TitlePart.Credits ? titleCredits
             : p == TitlePart.Endings ? titleEndings : titleOptions;
+
+        public const float BestGap = 10f, BestH = 24f;
+
+        /// <summary>"BEST  LUCK 72 · $340" beside ENDINGS once a run has finished; hidden before.</summary>
+        void RefreshBest()
+        {
+            var r = ctx.Endings != null ? ctx.Endings.Record : null;
+            bool show = r != null && r.HasBest;
+            bestPlate.gameObject.SetActive(show);
+            if (!show) return;
+            UIBuild.Set(bestText, UIFormat.BestRecord(Mathf.Max(0, r.BestLuck), Mathf.Max(0, r.BestTips), ctx.Korean));
+            float w = bestText.GetPreferredValues(bestText.text, float.PositiveInfinity, float.PositiveInfinity).x;
+            bestPlate.sizeDelta = new Vector2(Mathf.Ceil(w) + 20f, BestH);
+        }
+
+        public bool BestVisible => bestPlate.gameObject.activeInHierarchy;
+        public string BestText => bestText.text;
+        public Rect BestRect(RectTransform canvas) => BestVisible ? UIBuild.CanvasRect(canvas, bestPlate) : default;
 
         public EndingsCardView EndingsCard => endingsCard;
         public bool EndingsVisible => endingsCard.Visible;

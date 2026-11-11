@@ -69,7 +69,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsFalse(ui.FlowHiddenLook);
             Assert.AreEqual(1, ui.Endings.Unlocked, "the real ending was recorded");
             Assert.AreEqual(1, ui.Endings.Record.Times(real));
-            Assert.AreEqual(((int)real) + ":1", store.Value, "saved");
+            Assert.AreEqual(((int)real) + ":1,L:50,T:0", store.Value, "saved, with the best run (Luck 50, nothing earned)");
             string unlock = Plain(ui.EndingUnlockText);
             Assert.AreEqual(ko ? "엔딩 1/4 해금   새 엔딩!" : "Endings 1/4 unlocked   NEW!", unlock);
 
@@ -128,7 +128,7 @@ namespace FloorF.Tests.PlayMode.UI
             // the attract demo plays behind the title for a while: nothing more is counted
             yield return UITestDriver.Until(() => false, 60);
             Assert.AreEqual(1, ui.Endings.Unlocked);
-            Assert.AreEqual(((int)real) + ":1", store.Value);
+            StringAssert.StartsWith(((int)real) + ":1,", store.Value);
             // a second run to the same ending counts it twice, unlocks nothing new
             ui.ClickTitleStart();
             yield return UITestDriver.Frames(2);

@@ -7,9 +7,10 @@ using UnityEngine.UI;
 namespace FloorF.UI
 {
     /// <summary>
-    /// Modal cards for the day flow (GDD 3): Intro (title, intro text, how-to on tutorial days, START -> IGameFlow.BeginDay),
-    /// Summary (DaySummary, CONTINUE -> ContinueFromSummary; real days get a stamped S/A/B/C grade, UIFormat.DayGrade),
-    /// Ending (EndingKind text, PLAY AGAIN -> RestartGame).
+    /// Modal cards for the day flow (GDD 3): Intro (title, flavour text, the coloured "TODAY:" twist line (DayTwist), how-to
+    /// recap on Day 1, START -> IGameFlow.BeginDay), Summary (DaySummary, CONTINUE -> ContinueFromSummary; real days get a
+    /// stamped S/A/B/C grade, UIFormat.DayGrade, and a hint line explaining it, SummaryHint), Ending (EndingKind text, the
+    /// run's grade stamps (RunJourney) and totals, the best record, PLAY AGAIN -> RestartGame).
     /// The Shop is <see cref="ShopView"/> (side card, the panel stays clickable).
     /// </summary>
     sealed class FlowScreensView
@@ -31,7 +32,19 @@ namespace FloorF.UI
             new Vector3(0f, 1f, 36f), new Vector3(1f, 1f, 36f), new Vector3(0f, 0f, 24f), new Vector3(1f, 0f, 24f),
             new Vector3(0.18f, 1f, 24f), new Vector3(0.82f, 0f, 24f),
         };
-        readonly TextMeshProUGUI title, body, extra, unlockLine;
+        readonly TextMeshProUGUI title, body, today, extra, hint, unlockLine;
+        /// <summary>Ending card: one small grade stamp per real day (RunJourney), "-" for a day not reached.</summary>
+        readonly RectTransform journey;
+        readonly JourneyStamp[] journeyStamps = new JourneyStamp[MaxJourneyDays];
+        public const int MaxJourneyDays = 10;
+        public const float JourneyCell = 48f, JourneyGap = 20f, JourneyDayH = 24f;
+
+        sealed class JourneyStamp
+        {
+            public RectTransform Root;
+            public TextMeshProUGUI Letter, Day;
+            public Image[] Ring;
+        }
         /// <summary>4th-floor ending: "HIDDEN ENDING" ribbon straddling the card's top edge.</summary>
         readonly HiddenBadge hiddenBadge;
         /// <summary>4th-floor ending card: violet edge on near-black violet, a violet-black dim (the quote's colour).</summary>
@@ -72,8 +85,15 @@ namespace FloorF.UI
 
             title = UIBuild.Heading(UIBuild.Text("Title", card, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true));
             body = UIBuild.Text("Body", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
+            // intro: "TODAY: <the day's twist>" in the card's accent colour (+ the quiet rain line)
+            today = UIBuild.Text("Today", card, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center);
+            today.gameObject.SetActive(false);
+            journey = BuildJourney();
             extra = UIBuild.Text("Extra", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left);
             extra.lineSpacing = 4f;
+            // summary: the grade's hint line; ending: the best record
+            hint = UIBuild.Text("Hint", card, "", 24f, UIStyle.Ink, TextAlignmentOptions.Center);
+            hint.gameObject.SetActive(false);
             // ending card only: "Endings 3/4 unlocked" (+ NEW!) above the buttons (24px: at 12px Mulmaru the NEW! was lost)
             unlockLine = UIBuild.Text("Unlocks", card, "", 24f, UIStyle.InkDim, TextAlignmentOptions.Center);
             unlockLine.gameObject.SetActive(false);
@@ -139,6 +159,37 @@ namespace FloorF.UI
             hiddenBadge.Show(false);
 
             dim.gameObject.SetActive(false);
+        }
+
+        /// <summary>Row of small tilted stamps (letter in a ring) with the day number under each.</summary>
+        RectTransform BuildJourney()
+        {
+            var row = UIBuild.Rect("Journey", card);
+            row.gameObject.AddComponent<LayoutElement>().preferredHeight = JourneyCell + 4f + JourneyDayH;
+            var h = row.gameObject.AddComponent<HorizontalLayoutGroup>();
+            h.spacing = JourneyGap;
+            h.childAlignment = TextAnchor.MiddleCenter;
+            h.childControlWidth = h.childControlHeight = false;
+            h.childForceExpandWidth = h.childForceExpandHeight = false;
+            for (int i = 0; i < MaxJourneyDays; i++)
+            {
+                var cell = UIBuild.Rect("Day" + (i + 1), row);
+                cell.sizeDelta = new Vector2(JourneyCell, JourneyCell + 4f + JourneyDayH);
+                var face = UIBuild.Rect("Stamp", cell);
+                UIBuild.Place(face, new Vector2(0.5f, 1f), Vector2.zero, new Vector2(JourneyCell, JourneyCell));
+                face.localRotation = Quaternion.Euler(0f, 0f, i % 2 == 0 ? -5f : 4f); // a stamped look; the gap keeps tilted corners apart
+                UIBuild.Stretch(UIBuild.Box("Plate", face, new Color(0f, 0f, 0f, 0.35f)).rectTransform);
+                var ring = UIBuild.Outline("Ring", face, UIStyle.Lucky, 3f, 0f);
+                var letter = UIBuild.Heading(UIBuild.Text("Letter", face, "", 36f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true));
+                UIBuild.Stretch(letter.rectTransform);
+                letter.textWrappingMode = TextWrappingModes.NoWrap;
+                var day = UIBuild.Text("Number", cell, "", 24f, UIStyle.InkDim, TextAlignmentOptions.Center);
+                UIBuild.Place(day.rectTransform, new Vector2(0.5f, 0f), Vector2.zero, new Vector2(JourneyCell + JourneyGap, JourneyDayH));
+                day.textWrappingMode = TextWrappingModes.NoWrap;
+                journeyStamps[i] = new JourneyStamp { Root = cell, Letter = letter, Day = day, Ring = ring.GetComponentsInChildren<Image>() };
+            }
+            row.gameObject.SetActive(false);
+            return row;
         }
 
         // ------------------------------------------------------------------ decoration (outside the layout, no raycasts)
@@ -378,10 +429,13 @@ namespace FloorF.UI
             bool ko = ctx.Korean;
             bool intro = phase == DayPhase.Intro && !ctx.Day.IsTutorial;
             bool hidden = phase == DayPhase.Ending && EndingRecord.IsHidden(ctx.Day.Ending);
-            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight, hidden, intro && ctx.TryGetDay(out var today) && IsWeddingDay(today));
+            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight, hidden, intro && ctx.TryGetDay(out var todayDef) && IsWeddingDay(todayDef));
             hiddenBadge.Show(hidden);
             if (hidden) { hiddenBadge.SetText(ctx.S(UIStrings.HiddenEnding)); hiddenBadge.Alpha = 1f; }
             unlockLine.gameObject.SetActive(phase == DayPhase.Ending && ctx.Endings != null);
+            today.gameObject.SetActive(false);
+            hint.gameObject.SetActive(false);
+            journey.gameObject.SetActive(false);
             title.color = fridayCard ? UIStyle.Unlucky : starCard ? StarTitle : UIStyle.Lucky;
             extra.alignment = TextAlignmentOptions.Left; // the Friday-only intro line centres it (FillIntro)
             toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
@@ -403,7 +457,8 @@ namespace FloorF.UI
         {
             string t = "", intro = "";
             bool tutorial = ctx.Day.IsTutorial;
-            if (ctx.TryGetDay(out var d))
+            ctx.TryGetDay(out var d);
+            if (d != null)
             {
                 t = ko && !string.IsNullOrEmpty(d.titleKo) ? d.titleKo : d.title;
                 intro = ko && !string.IsNullOrEmpty(d.introKo) ? d.introKo : d.intro;
@@ -412,40 +467,24 @@ namespace FloorF.UI
             title.text = starCard ? UIFonts.Star + "  " + t + "  " + UIFonts.Star : t;
             body.text = intro;
             body.gameObject.SetActive(!string.IsNullOrEmpty(intro));
+            // the day's twist, plainly, in the card's accent colour (every day has one); the rain line under it
+            string line = DayTwist.Line(d, ctx.Data, ko) ?? "";
+            if (!tutorial && ctx.Day.IsRainy)
+                line += (line.Length > 0 ? "\n" : "") + "<color=" + RainHex + ">" + ctx.S(UIStrings.RainIntro) + "</color>"; // presentation only
+            today.text = line;
+            today.gameObject.SetActive(line.Length > 0);
             // Day 0 teaches step by step in the game itself; the real Day 1 gets the list as a recap (hints on)
             bool howTo = !tutorial && ctx.Settings != null && ctx.Settings.ShowTutorialHints && ctx.Day.DisplayDay == 1;
-            bool rain = !tutorial && ctx.Day.IsRainy;
-            extra.gameObject.SetActive(howTo || fridayCard || starCard || rain);
-            extra.text = "";
-            if (howTo)
-                extra.text = "<b><color=#C9A15A>" + ctx.S(UIStrings.HowToTitle) + "</color></b>\n" +
-                             string.Format(ctx.S(UIStrings.HowTo), UIFormat.LuckyHex, UIFormat.UnluckyHex);
-            if (fridayCard)
-            {
-                float m = ctx.Data != null ? ctx.Data.Rules.friday13PenaltyMultiplier : 1.5f;
-                extra.text += (howTo ? "\n\n" : "") + "<color=" + UIFormat.UnluckyHex + ">" +
-                              ctx.F(UIStrings.Friday13Intro, UIFormat.Multiplier(m).Substring(1)) + "</color>";
-                if (!howTo) extra.alignment = TextAlignmentOptions.Center;
-            }
-            if (starCard)
-            {
-                int bonus = ctx.Data != null ? ctx.Data.Rules.wishLuckBonus : 4;
-                extra.text += (howTo ? "\n\n" : "") + "<color=" + StarInkHex + ">" + ctx.F(UIStrings.StarNightIntro, bonus) + "</color>";
-                if (!howTo) extra.alignment = TextAlignmentOptions.Center;
-            }
-            if (rain)
-            {
-                // presentation only (rain + distant lightning): a quiet line under whatever the day says
-                extra.text += (extra.text.Length > 0 ? "\n" : "") + "<color=" + RainHex + ">" + ctx.S(UIStrings.RainIntro) + "</color>";
-                if (!howTo) extra.alignment = TextAlignmentOptions.Center;
-            }
+            extra.gameObject.SetActive(howTo);
+            extra.text = howTo
+                ? "<b><color=#C9A15A>" + ctx.S(UIStrings.HowToTitle) + "</color></b>\n" + string.Format(ctx.S(UIStrings.HowTo), UIFormat.LuckyHex, UIFormat.UnluckyHex)
+                : "";
             action.Label.text = ctx.S(UIStrings.Start);
         }
 
         public const string RainHex = "#8FB8E8";
 
         public static readonly Color StarTitle = UIStyle.Hex("#FFF1B0");
-        const string StarInkHex = "#DCD4FF";
 
         /// <summary>Card colours for the event day (Friday the 13th wins over star night; neither = the normal card),
         /// or the hidden 4th-floor ending.</summary>
@@ -501,7 +540,14 @@ namespace FloorF.UI
                 Row(ctx.S(UIStrings.BestStreak), (s.BestStreak > 0 ? "<color=" + UIFormat.LuckyHex + ">x" : "<color=#F4EEDC>x") + N(s.BestStreak) + "</color>");
             string expired = ExpiredNote(ExpiredLabels, ExpiredCharms, ko);
             if (expired != null) extra.text += "\n\n<color=" + UIFormat.ShieldHex + ">" + expired + "</color>";
-            if (!tutorial) FillStamp(UIFormat.DayGrade(s));
+            if (!tutorial)
+            {
+                string grade = UIFormat.DayGrade(s);
+                FillStamp(grade);
+                // one line under the numbers: what earned / cost the grade
+                hint.text = "<color=" + GradeHex(grade) + ">" + SummaryHint.Text(s, ko) + "</color>";
+                hint.gameObject.SetActive(true);
+            }
             if (tutorial)
             {
                 int lastDay = ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount;
@@ -542,10 +588,18 @@ namespace FloorF.UI
             int tips = ctx.Score != null ? ctx.Score.Tips : 0;
             float luck01 = max > 0 ? (float)luck / max : 0f;
             string luckHex = luck01 < 0.25f ? UIFormat.UnluckyHex : luck01 >= 0.6f ? UIFormat.LuckyHex : "#F4EEDC";
+            var j = ctx.Journey;
+            bool recap = j != null && j.Count > 0;
             extra.text =
                 Row(ctx.S(UIStrings.EndDayReached), N(ctx.Day.DisplayDay) + " / " + N(ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount)) + "\n" +
                 Row(ctx.S(UIStrings.EndFinalLuck), "<color=" + luckHex + ">" + N(luck) + "</color> / " + N(max)) + "\n" +
-                Row(ctx.S(UIStrings.EndTips), "<color=#5BE37D>$" + N(tips) + "</color>");
+                (recap
+                    ? Row(ctx.S(UIStrings.TipsEarned), "<color=#5BE37D>$" + N(j.TipsEarned) + "</color>") + "\n" +
+                      Row(ctx.S(UIStrings.Delivered), N(j.Delivered)) + "\n" +
+                      Row(ctx.S(UIStrings.BestStreak), (j.BestStreak > 0 ? "<color=" + UIFormat.LuckyHex + ">x" : "<color=#F4EEDC>x") + N(j.BestStreak) + "</color>")
+                    : Row(ctx.S(UIStrings.EndTips), "<color=#5BE37D>$" + N(tips) + "</color>"));
+            FillJourney();
+            FillBest();
             if (ctx.Endings != null)
             {
                 string line = ctx.F(UIStrings.EndingsUnlocked, ctx.Endings.Unlocked, EndingCollection.Total);
@@ -556,6 +610,40 @@ namespace FloorF.UI
             action.Label.text = ctx.S(UIStrings.PlayAgain);
         }
 
+        /// <summary>One stamp per real day: its grade in the summary stamp's colour, "-" (dim) for a day not reached.</summary>
+        void FillJourney()
+        {
+            int days = Mathf.Min(MaxJourneyDays, ctx.Day.PlayableDayCount);
+            var j = ctx.Journey;
+            bool show = days > 0 && j != null && j.Count > 0;
+            journey.gameObject.SetActive(show);
+            if (!show) return;
+            for (int i = 0; i < MaxJourneyDays; i++)
+            {
+                var st = journeyStamps[i];
+                st.Root.gameObject.SetActive(i < days);
+                if (i >= days) continue;
+                string g = j.GradeOf(i + 1);
+                var c = g != null ? GradeColor(g) : UIStyle.InkDim;
+                st.Letter.text = g ?? "-";
+                st.Letter.color = c;
+                foreach (var e in st.Ring) e.color = g != null ? c : new Color(c.r, c.g, c.b, 0.3f);
+                st.Day.text = N(i + 1);
+            }
+        }
+
+        /// <summary>Best run so far (saved with the endings): small, with NEW BEST! when this run beat it.</summary>
+        void FillBest()
+        {
+            var e = ctx.Endings;
+            bool show = e != null && e.Record.HasBest;
+            hint.gameObject.SetActive(show);
+            if (!show) return;
+            string line = "<color=#F4EEDC99>" + ctx.F(UIStrings.EndBest, N(Mathf.Max(0, e.Record.BestLuck)), N(Mathf.Max(0, e.Record.BestTips))) + "</color>";
+            if (e.NewBestLuck || e.NewBestTips) line += "   <color=" + UIFormat.LuckyHex + ">" + ctx.S(UIStrings.NewBest) + "</color>";
+            hint.text = line;
+        }
+
         void FillStamp(string grade)
         {
             var c = GradeColor(grade);
@@ -563,6 +651,9 @@ namespace FloorF.UI
             stampLetter.color = c;
             foreach (var e in stampEdges) e.color = c;
         }
+
+        public static string GradeHex(string grade) =>
+            grade == "S" ? UIFormat.LuckyHex : grade == "A" ? "#5BE37D" : grade == "B" ? "#F4EEDC" : UIFormat.UnluckyHex;
 
         public static Color GradeColor(string grade) =>
             grade == "S" ? UIStyle.Lucky : grade == "A" ? UIStyle.Good : grade == "B" ? UIStyle.Ink : UIStyle.Unlucky;
@@ -605,5 +696,45 @@ namespace FloorF.UI
         public string TitleText => title.text;
         public string BodyText => body.text;
         public string ExtraText => extra.gameObject.activeSelf ? extra.text : null;
+        public string TodayText => dim.gameObject.activeSelf && today.gameObject.activeSelf ? today.text : null;
+        public string HintText => dim.gameObject.activeSelf && hint.gameObject.activeSelf ? hint.text : null;
+        /// <summary>Ending card stamps as "1:S 2:A 3:- ..." (null while hidden).</summary>
+        public string JourneyText
+        {
+            get
+            {
+                if (!dim.gameObject.activeSelf || !journey.gameObject.activeSelf) return null;
+                var sb = new System.Text.StringBuilder();
+                foreach (var st in journeyStamps)
+                {
+                    if (!st.Root.gameObject.activeSelf) continue;
+                    if (sb.Length > 0) sb.Append(' ');
+                    sb.Append(st.Day.text).Append(':').Append(st.Letter.text);
+                }
+                return sb.ToString();
+            }
+        }
+        public string BestText => HintText;
+        public Rect JourneyRect(RectTransform canvas) => journey.gameObject.activeInHierarchy ? UIBuild.CanvasRect(canvas, journey) : default;
+
+        /// <summary>First visible card text that overflows (or a one-line text wider than its rect), or the card leaving
+        /// the canvas; null when everything fits.</summary>
+        public string Overflow()
+        {
+            if (!dim.gameObject.activeSelf) return null;
+            foreach (var t in card.GetComponentsInChildren<TMP_Text>(false))
+            {
+                if (!t.isActiveAndEnabled || t.transform.IsChildOf(stamp)) continue; // the big grade letter overhangs its plate by design
+                t.ForceMeshUpdate();
+                if (t.isTextOverflowing) return t.name + " overflows: " + t.text;
+                if (t.textWrappingMode == TextWrappingModes.NoWrap && t.preferredWidth > t.rectTransform.rect.width + 1f && t.transform.parent != card)
+                    return t.name + " too wide: " + t.preferredWidth.ToString("0") + " > " + t.rectTransform.rect.width.ToString("0") + " (" + t.text + ")";
+            }
+            var canvas = (RectTransform)dim.parent;
+            var c = UIBuild.CanvasRect(canvas, card);
+            var size = canvas.rect.size;
+            if (c.yMin < 0f || c.yMax > size.y || c.xMin < 0f || c.xMax > size.x) return "card " + c + " leaves the canvas " + size;
+            return null;
+        }
     }
 }

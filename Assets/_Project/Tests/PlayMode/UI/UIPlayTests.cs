@@ -398,7 +398,7 @@ namespace FloorF.Tests.PlayMode.UI
         // the old day-1 prompt tests became the Day 0 lesson tests: UIDay0Tests / UIDay0CaptureTests
 
         /// <summary>Canvas x-range covered by Rendering's floor-sign plates ("Sign n" objects).</summary>
-        static bool SignColumn(UIRoot ui, out float minX, out float maxX)
+        internal static bool SignColumn(UIRoot ui, out float minX, out float maxX)
         {
             minX = float.MaxValue; maxX = float.MinValue;
             int n = GameServices.Get<IBuildingQuery>().FloorCount, found = 0;

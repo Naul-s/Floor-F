@@ -182,7 +182,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(ui.FlowStarLook, "deep blue / violet star card");
             StringAssert.Contains(ko && !string.IsNullOrEmpty(def.titleKo) ? def.titleKo : def.title, ui.FlowTitle);
             StringAssert.Contains("★", ui.FlowTitle, "between stars");
-            StringAssert.Contains("+" + data.Rules.wishLuckBonus, Plain(ui.FlowExtra), "the wish bonus");
+            StringAssert.Contains("+" + data.Rules.wishLuckBonus, Plain(ui.FlowToday), "the wish bonus");
             AssertCardFits(ui, "star night intro");
             yield return Day0Driver.Shot("ui_starnight_intro" + (ko ? "_ko" : ""), true);
 

@@ -23,6 +23,8 @@ namespace FloorF.UI
         public IWorldLayout Layout;
         /// <summary>Endings seen across sessions (UI-only record, PlayerPrefs). Set by UIRoot.Start.</summary>
         public EndingCollection Endings;
+        /// <summary>This run's graded real days (ending card recap). Fed by UIRoot from DayEnded, cleared on GameStarted.</summary>
+        public readonly RunJourney Journey = new RunJourney();
         IMenuFlow menu;
 
         /// <summary>Title + pause (Gameplay). Resolved lazily: null until Gameplay registers it.</summary>
