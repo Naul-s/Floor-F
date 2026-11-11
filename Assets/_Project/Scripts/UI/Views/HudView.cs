@@ -181,7 +181,7 @@ namespace FloorF.UI
             var hollyAt = UIBuild.Rect("HollyCorner", seasonBadge);
             UIBuild.Place(hollyAt, new Vector2(0f, 1f), new Vector2(2f, 2f), Vector2.zero);
             hollyAt.pivot = new Vector2(0.5f, 0.5f);
-            seasonHolly = WinterDeco.HollySprig("Holly", hollyAt, Vector2.zero, 48f);
+            seasonHolly = WinterDeco.HollySprig("Holly", hollyAt, Vector2.zero, 2);
             seasonBadge.gameObject.SetActive(false);
 
             snowCaps = new[] { new SnowCap(dayBox, 11), new SnowCap(luckBox, 23), new SnowCap(tipsBox, 37, 5f) };

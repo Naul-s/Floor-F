@@ -8,15 +8,17 @@ using UnityEngine.UI;
 namespace FloorF.UI
 {
     /// <summary>
-    /// Lottery night draw (LotteryDrawn): a plate at the top centre where a lottery ball rolls in, its number ticking
+    /// Lottery night draw (LotteryDrawn): a slim strip at the top centre, in the sky ABOVE the building (never over the
+    /// top floors or the HOTEL sign), where a lottery ball rolls in, its number ticking
     /// through the numbers on the floor buttons (slowing down), stops on the winning number with a little bounce, then
     /// "WINNING NUMBER 7" pulses gently (1.5 Hz scale, no flashing) and the plate fades. The HUD badge keeps the number
     /// afterwards; the panel rings the matching button in gold. Never a raycast target, frozen while paused.
     /// </summary>
     sealed class LotteryView
     {
-        public const float RollTime = 1.6f, RevealTime = 2.4f, FadeTime = 0.4f, Life = RollTime + RevealTime + FadeTime;
-        const float PlateW = 340f, PlateH = 176f, Ball = 84f, RollIn = 120f;
+        public const float RollTime = 1.2f, RevealTime = 2.0f, FadeTime = 0.4f, Life = RollTime + RevealTime + FadeTime;
+        public const float PlateW = 320f, PlateH = 60f, Top = 12f;
+        const float Ball = 52f, RollIn = 24f, TextX = 10f + Ball + 10f;
         public static readonly Color Plate = new Color(0.07f, 0.05f, 0.01f, 0.94f), BallInk = UIStyle.Hex("#1B1508");
 
         readonly UIContext ctx;
@@ -31,17 +33,17 @@ namespace FloorF.UI
         {
             this.ctx = ctx;
             root = UIBuild.Framed("LotteryDraw", canvas, Plate, UIStyle.Lucky, 3f).rectTransform;
-            UIBuild.Place(root, new Vector2(0.5f, 1f), new Vector2(0f, -16f), new Vector2(PlateW, PlateH));
+            UIBuild.Place(root, new Vector2(0.5f, 1f), new Vector2(0f, -Top), new Vector2(PlateW, PlateH));
             group = root.gameObject.AddComponent<CanvasGroup>();
             group.blocksRaycasts = false;
             group.interactable = false;
             caption = UIBuild.Text("Caption", root, "", 24f, UIStyle.CardEdge, TextAlignmentOptions.Center);
-            UIBuild.Place(caption.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(PlateW - 16f, 28f));
+            UIBuild.Place(caption.rectTransform, new Vector2(0f, 0.5f), new Vector2(TextX, 0f), new Vector2(PlateW - TextX - 10f, 30f));
             caption.textWrappingMode = TextWrappingModes.NoWrap;
 
             // the ball: gold ring, white face, dark number (a point-filtered disc: chunky pixel edge like the game)
             var holder = UIBuild.Rect("BallHolder", root);
-            UIBuild.Place(holder, new Vector2(0.5f, 1f), new Vector2(0f, -36f), new Vector2(Ball, Ball));
+            UIBuild.Place(holder, new Vector2(0f, 0.5f), new Vector2(10f, 0f), new Vector2(Ball, Ball));
             ball = UIBuild.Rect("Ball", holder);
             UIBuild.Stretch(ball);
             var ring = UIBuild.Box("Ring", ball, UIStyle.Lucky);
@@ -49,19 +51,19 @@ namespace FloorF.UI
             UIBuild.Stretch(ring.rectTransform);
             var face = UIBuild.Box("Face", ball, new Color(0.98f, 0.96f, 0.9f, 1f));
             face.sprite = Disc;
-            UIBuild.Stretch(face.rectTransform, 6f);
+            UIBuild.Stretch(face.rectTransform, 4f);
             var shine = UIBuild.Box("Shine", ball, new Color(1f, 1f, 1f, 0.9f));
             shine.sprite = Disc;
-            UIBuild.Place(shine.rectTransform, new Vector2(0.28f, 0.74f), Vector2.zero, new Vector2(14f, 14f));
+            UIBuild.Place(shine.rectTransform, new Vector2(0.28f, 0.74f), Vector2.zero, new Vector2(8f, 8f));
             shine.rectTransform.pivot = new Vector2(0.5f, 0.5f);
             number = UIBuild.Heading(UIBuild.Text("Number", ball, "", 36f, BallInk, TextAlignmentOptions.Center, bold: true));
             UIBuild.Stretch(number.rectTransform);
             number.textWrappingMode = TextWrappingModes.NoWrap;
 
             result = UIBuild.Text("Result", root, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(result.rectTransform, new Vector2(0.5f, 0f), new Vector2(0f, 10f), new Vector2(PlateW - 16f, 30f));
+            UIBuild.Place(result.rectTransform, new Vector2(0f, 0.5f), new Vector2(TextX, 0f), new Vector2(PlateW - TextX - 10f, 30f));
             result.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            result.rectTransform.anchoredPosition = new Vector2(0f, 25f);
+            result.rectTransform.anchoredPosition = new Vector2(TextX + (PlateW - TextX - 10f) * 0.5f, 0f);
             result.textWrappingMode = TextWrappingModes.NoWrap;
             root.gameObject.SetActive(false);
         }
@@ -145,10 +147,11 @@ namespace FloorF.UI
             float k = Mathf.Clamp01(age / RollTime);
             float ease = 1f - (1f - k) * (1f - k) * (1f - k);
             float x = Mathf.Lerp(-RollIn, 0f, ease);
-            float hop = !rolling && age < RollTime + 0.3f ? 8f * Mathf.Sin((age - RollTime) / 0.3f * Mathf.PI) : 0f;
+            float hop = !rolling && age < RollTime + 0.3f ? 3f * Mathf.Sin((age - RollTime) / 0.3f * Mathf.PI) : 0f;
             ball.anchoredPosition = new Vector2(Mathf.Round(x), Mathf.Round(hop));
             ball.localRotation = Quaternion.Euler(0f, 0f, rolling ? -x / (Ball * 0.5f) * Mathf.Rad2Deg * 0.35f : 0f);
             result.gameObject.SetActive(!rolling);
+            caption.gameObject.SetActive(rolling); // one line: "LOTTERY DRAW 1/2" while it rolls, then the result
             if (!rolling)
             {
                 float pulse = 1f + 0.05f * Mathf.Sin((age - RollTime) * Mathf.PI * 2f * 1.5f); // 1.5 Hz, scale only

@@ -224,7 +224,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(ui.EndingsSlotBadgeVisible(5), "the hidden slot wears its badge");
             Assert.AreEqual(ko ? "히든 엔딩" : "HIDDEN ENDING", ui.EndingsSlotBadgeText(5));
             for (int i = 0; i < 5; i++) Assert.IsFalse(ui.EndingsSlotBadgeVisible(i), "only the hidden slot has a badge");
-            StringAssert.Contains(ko ? "첫 방문엔 볼 수 없어요" : "Not on your first stay.", fourth, "rare: never on a first run");
+            StringAssert.Contains(ko ? "어떤 밤엔 누군가 없는 층을 찾습니다…" : "Some nights, someone asks for a floor that isn't there…", fourth);
+            StringAssert.DoesNotContain(ko ? "첫 방문" : "first stay", fourth, "hidden: it only whispers, never explains");
             StringAssert.DoesNotContain(ko ? "4층" : "4TH FLOOR", fourth, "locked: the name stays hidden too");
             StringAssert.DoesNotContain(ko ? "운 " : "Luck", fourth, "no rule for the hidden one");
 

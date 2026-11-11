@@ -50,7 +50,9 @@ namespace FloorF.UI
         /// <summary>4th-floor ending card: violet edge on near-black violet, a violet-black dim (the quote's colour).</summary>
         public static readonly Color HiddenFill = new Color(0.03f, 0.015f, 0.055f, 0.97f), HiddenDim = new Color(0.02f, 0f, 0.05f, 0.76f);
         bool hiddenCard;
-        readonly UIBuild.ButtonParts action, again, toTitle, skip;
+        readonly UIBuild.ButtonParts action, again, toTitle, skip, view;
+        /// <summary>Set by UIRoot: the scenic view (V) - the ending card's eye button hides the card to watch the scene.</summary>
+        public System.Func<bool> OnView;
         readonly VerticalLayoutGroup layout;
         /// <summary>Ending card, ISeasonFlow.CanExtendSeason: "Winter season: 3 more nights" + the teaser, over the buttons.</summary>
         readonly TextMeshProUGUI offer;
@@ -168,6 +170,21 @@ namespace FloorF.UI
 
             BuildDecoration();
 
+            // ending card: a small eye button in the top-right corner (V) - hide the card and watch the ending scene
+            view = UIBuild.Button("ViewScene", card, "V", 12f, UIStyle.Btn, () => ctx.Sound(OnView != null && OnView()));
+            view.Rect.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            UIBuild.Place(view.Rect, new Vector2(1f, 1f), new Vector2(-14f, -14f), new Vector2(ViewSize, ViewSize));
+            UIBuild.Outline("Frame", view.Rect, UIStyle.PanelEdge, 1f, 0f);
+            var eye = new GameObject("Eye", typeof(RectTransform)).AddComponent<RawImage>();
+            eye.raycastTarget = false;
+            eye.transform.SetParent(view.Rect, false);
+            eye.texture = ScenicView.PixelTexture(ScenicView.Eye, UIStyle.Ink);
+            UIBuild.Place(eye.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0f, 3f), new Vector2(ScenicView.Eye[0].Length * 2f, ScenicView.Eye.Length * 2f));
+            view.Label.color = UIStyle.InkDim;
+            view.Label.alignment = TextAlignmentOptions.BottomRight;
+            UIBuild.Stretch(view.Label.rectTransform, 2f);
+            view.Rect.gameObject.SetActive(false);
+
             hiddenBadge = new HiddenBadge("HiddenBadge", card, 24f, 18f, BadgeHeight);
             hiddenBadge.Root.anchorMin = hiddenBadge.Root.anchorMax = new Vector2(0.5f, 1f);
             hiddenBadge.Root.pivot = new Vector2(0.5f, 0.5f);
@@ -222,6 +239,8 @@ namespace FloorF.UI
 
         Image[] innerFrame, studs, rules;
         Image ruleGem;
+        /// <summary>The ornamental rule sits in the middle of the title-to-body gap (the gap shrinks on the offer card).</summary>
+        RectTransform ruleRect;
         RectTransform ruleRings, weddingDeco, starDots;
         bool weddingCard;
 
@@ -247,7 +266,7 @@ namespace FloorF.UI
             }
 
             // rule under the title, in the gap before the next line (child of the title: it follows a wrapped title down)
-            var rule = UIBuild.Rect("Rule", title.transform);
+            var rule = ruleRect = UIBuild.Rect("Rule", title.transform);
             rule.anchorMin = rule.anchorMax = new Vector2(0.5f, 0f);
             rule.pivot = new Vector2(0.5f, 0.5f);
             rule.anchoredPosition = new Vector2(0f, -8f);
@@ -366,7 +385,7 @@ namespace FloorF.UI
                 var anchor = UIBuild.Rect("Spot" + i, hollyDeco);
                 UIBuild.Place(anchor, spots[i], Vector2.zero, Vector2.zero);
                 anchor.pivot = new Vector2(0.5f, 0.5f);
-                WinterDeco.HollySprig("Holly", anchor, Vector2.zero, 60f);
+                WinterDeco.HollySprig("Holly", anchor, Vector2.zero, 3);
             }
             hollyDeco.gameObject.SetActive(false);
 
@@ -386,14 +405,11 @@ namespace FloorF.UI
             snowfall.gameObject.SetActive(false);
         }
 
-        /// <summary>Corner flakes turn slowly (one turn in ~40 s); the falling snow drifts down and sways (no flashing).</summary>
+        /// <summary>The corner flakes stay still; the falling snow drifts down and sways (no flashing).</summary>
         void TickWinter()
         {
             if (!dim.gameObject.activeSelf) return;
             float t = Time.unscaledTime;
-            if (winterDeco.gameObject.activeSelf)
-                for (int i = 0; i < cornerFlakes.Length; i++)
-                    cornerFlakes[i].localRotation = Quaternion.Euler(0f, 0f, (i % 2 == 0 ? 9f : -9f) * t);
             if (snowfall.gameObject.activeSelf)
             {
                 var size = card.rect.size;
@@ -502,6 +518,9 @@ namespace FloorF.UI
         public bool SkipVisible => dim.gameObject.activeSelf && skip.Rect.gameObject.activeSelf;
         public void ClickTitle() => toTitle.Button.onClick.Invoke();
         public void ClickAgain() => again.Button.onClick.Invoke();
+        public void ClickView() => view.Button.onClick.Invoke();
+        public bool ViewButtonVisible => dim.gameObject.activeSelf && view.Rect.gameObject.activeSelf;
+        public Rect ViewButtonRect(RectTransform canvas) => UIBuild.CanvasRect(canvas, view.Rect);
         public bool AgainVisible => dim.gameObject.activeSelf && again.Rect.gameObject.activeSelf;
         public string AgainText => again.Label.text;
         public string OfferText => dim.gameObject.activeSelf && offer.gameObject.activeSelf ? offer.text : null;
@@ -583,6 +602,7 @@ namespace FloorF.UI
             offer.gameObject.SetActive(canExtend);
             again.Rect.gameObject.SetActive(canExtend);
             layout.spacing = canExtend ? 10f : 16f;
+            ruleRect.anchoredPosition = new Vector2(0f, -Mathf.Round(layout.spacing * 0.5f));
             if (!canExtend) action.Background.color = UIStyle.Action;
             unlockLine.gameObject.SetActive(phase == DayPhase.Ending && ctx.Endings != null);
             today.gameObject.SetActive(false);
@@ -591,6 +611,7 @@ namespace FloorF.UI
             title.color = fridayCard ? UIStyle.Unlucky : starCard ? StarTitle : winterCard ? WinterDeco.Ice : UIStyle.Lucky;
             extra.alignment = TextAlignmentOptions.Left; // the Friday-only intro line centres it (FillIntro)
             toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
+            view.Rect.gameObject.SetActive(phase == DayPhase.Ending && OnView != null && ctx.Menu != null);
             toTitle.Label.text = ctx.S(UIStrings.ToTitle);
             bool canSkip = phase == DayPhase.Intro && ctx.Day.IsTutorial && ctx.Flow != null;
             skip.Rect.gameObject.SetActive(canSkip);
@@ -668,7 +689,7 @@ namespace FloorF.UI
             SetDecoration(cardEdge.color, friday, star, wedding);
         }
 
-        public const float BadgeHeight = 36f;
+        public const float BadgeHeight = 36f, ViewSize = 36f;
         static readonly Color ChristmasRibbonInk = UIStyle.Hex("#FFE3C2");
 
         /// <summary>Star-night card: the edge stars twinkle slowly (~0.3-0.9 Hz, alpha 0.44..1 - no flashing).</summary>
