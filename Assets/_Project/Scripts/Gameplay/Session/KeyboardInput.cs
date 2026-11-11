@@ -27,7 +27,7 @@ namespace FloorF.Gameplay
             var kb = Keyboard.current;
             if (kb == null) return;
             // P = pause too: in browser fullscreen Esc belongs to the browser (it leaves fullscreen)
-            if (kb.escapeKey.wasPressedThisFrame || (kb.pKey.wasPressedThisFrame && !kb.shiftKey.isPressed && !kb.ctrlKey.isPressed))
+            if (IsPauseKey(kb.escapeKey.wasPressedThisFrame, kb.pKey.wasPressedThisFrame, kb.shiftKey.isPressed, kb.ctrlKey.isPressed, kb.altKey.isPressed))
                 Press(KeyPress.Escape);
             if (kb.wKey.wasPressedThisFrame) Press(KeyPress.W);
             else if (kb.upArrowKey.wasPressedThisFrame) Press(KeyPress.UpArrow);
@@ -39,7 +39,14 @@ namespace FloorF.Gameplay
             else if (enter && kb.numpadEnterKey.wasPressedThisFrame) Press(KeyPress.NumpadEnter);
         }
 
-        void Press(KeyPress key)
-            => PlayerCommands.Apply(PlayerCommands.IntentForKey(key), session.Elevator, session, session.Building, session, session, session);
+        /// <summary>
+        /// Esc, or a plain P (fullscreen browsers keep Esc). Shift+P is the debug "Prosperous ending" cheat, Ctrl/Alt+P are
+        /// browser shortcuts (print...): none of them toggles the pause.
+        /// </summary>
+        internal static bool IsPauseKey(bool esc, bool p, bool shift, bool ctrl, bool alt) => esc || (p && !shift && !ctrl && !alt);
+
+        /// <summary>One key press, already mapped (PlayMode tests call this: the test assembly has no Input System reference).</summary>
+        internal bool Press(KeyPress key)
+            => session != null && session.HasStarted && PlayerCommands.Apply(PlayerCommands.IntentForKey(key), session.Elevator, session, session.Building, session, session, session);
     }
 }

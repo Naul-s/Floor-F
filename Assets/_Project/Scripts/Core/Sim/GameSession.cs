@@ -168,7 +168,7 @@ namespace FloorF.Core
             ReleaseTutorialHold();
             if (started)
             {
-                FadeAllWishStars();
+                ResetWishStars();
                 DropAllGuests();
                 Building.ResetLabels();
                 Score.ResetForNewGame();

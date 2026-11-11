@@ -146,6 +146,13 @@ namespace FloorF.Core
             }
         }
 
+        /// <summary>Abandoned run (restart / title): stars fade and today's wish count is the new run's (0).</summary>
+        void ResetWishStars()
+        {
+            FadeAllWishStars();
+            wishesMadeToday = 0;
+        }
+
         /// <summary>Day end / abandoned run: every star still up fades; the ones still to come are dropped.</summary>
         void FadeAllWishStars()
         {
