@@ -139,9 +139,9 @@ namespace FloorF.Tests.EditMode.Content
                    " / Haunted " + Pct(B(EndingKind.Haunted), n) + (haunted.Count > 0 ? " (day " + string.Join(",", haunted) + ")" : "") +
                    " | winter (" + ext.Count + "): Miracle " + Pct(W(EndingKind.WinterMiracle), ext.Count) + " / SilentNight " +
                    Pct(W(EndingKind.SilentNight), ext.Count) + " / Haunted " + Pct(W(EndingKind.Haunted), ext.Count) +
-                   " | day-" + data.PlayableDayCount + " luck >= 70/75/80/85/90: " + string.Join(" ", new[] { 70, 75, 80, 85, 90 }.Select(x =>
+                   " | day-" + data.PlayableDayCount + " luck >= 70/75/80/85/90/95: " + string.Join(" ", new[] { 70, 75, 80, 85, 90, 95 }.Select(x =>
                        Pct(list.Count(r => r.LuckAfter.TryGetValue(data.PlayableDayCount, out int l) && l >= x), n))) +
-                   " | final >= 80/85/90: " + string.Join(" ", new[] { 80, 85, 90 }.Select(x =>
+                   " | final >= 80/85/90/95: " + string.Join(" ", new[] { 80, 85, 90, 95 }.Select(x =>
                        Pct(ext.Count(r => r.LuckAfter.TryGetValue(data.SeasonPlayableDayCount, out int l) && l >= x), ext.Count)));
         }
 
