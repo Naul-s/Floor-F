@@ -609,7 +609,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.AreEqual(DayPhase.Ending, ui.VisibleFlowScreen, "ending card");
             Assert.IsFalse(string.IsNullOrEmpty(ui.FlowTitle));
             Assert.IsTrue(ui.EndingTitleButtonVisible, "TITLE button next to PLAY AGAIN");
-            StringAssert.Contains("PLAY AGAIN", ui.FlowActionText);
+            // with the winter season on offer PLAY AGAIN is its own button (the main one keeps the hotel open)
+            StringAssert.Contains("PLAY AGAIN", ui.PlayAgainVisible ? ui.PlayAgainText : ui.FlowActionText);
             ui.ClickEndingTitle();
             Assert.AreEqual(DayPhase.Title, day.Phase, "TITLE -> ReturnToTitle");
             yield return null;

@@ -14,7 +14,7 @@ namespace FloorF.UI
     /// </summary>
     sealed class HudView
     {
-        const float MeterW = 344f, ClockW = 118f, PracticeW = 150f;
+        const float MeterW = 344f, ClockW = 104f, PracticeW = 150f, DayW = 124f;
         /// <summary>Streak slot under the tips box; the rule box sits under it (ends <see cref="RulesBottom"/> px from the top).</summary>
         public const float StreakTop = 148f, StreakH = 38f, RulesTop = 192f, RulesH = 132f, RulesBottom = RulesTop + RulesH;
         /// <summary>Friday the 13th: the rule box gets one more (red) line and the badge sits under it.</summary>
@@ -24,10 +24,21 @@ namespace FloorF.UI
         const float BrokenLife = 1.6f, PopLife = 0.35f;
         readonly UIContext ctx;
         readonly TextMeshProUGUI dayText, clockText, luckCaption, luckValue, luckDelta, tipsCaption, tipsValue, tipsDelta;
-        readonly TextMeshProUGUI rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleLegend, fridayText, starText;
-        readonly RectTransform luckFill, luckGhost, rulesBox, dayBox, luckBox, tipsBox, streakBox, fridayBadge, starBadge;
-        readonly Image rulesEdge, rulesFill, fridayEdge, starEdge;
+        readonly TextMeshProUGUI rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleSeason, ruleLegend, fridayText, starText, seasonText;
+        readonly RectTransform luckFill, luckGhost, rulesBox, dayBox, luckBox, tipsBox, streakBox, fridayBadge, starBadge, seasonBadge, seasonHolly;
+        readonly Image rulesEdge, rulesFill, fridayEdge, starEdge, seasonEdge, seasonFill;
         bool friday, starNight;
+        /// <summary>Winter-season event of the day: lottery night or a number lucky for all (Christmas Eve). One at a time.</summary>
+        enum SeasonEvent { None, Lottery, LuckyForAll }
+        SeasonEvent seasonEvent;
+        int seasonNumber = -1, jackpots;
+        /// <summary>Lottery badge: gold on dark gold. Christmas badge: holly green edge, deep green box, pale ink.</summary>
+        public static readonly Color LotteryEdge = UIStyle.Lucky, LotteryFill = new Color(0.09f, 0.065f, 0.01f, 1f);
+        public static readonly Color ChristmasInk = UIStyle.Hex("#FFF1D6");
+        /// <summary>Set by UIRoot: the draw reveal is rolling (the badge says "drawing soon..." until it stops).</summary>
+        public System.Func<bool> LotteryRolling;
+        /// <summary>Snow piled on the day box, the luck box and the tips box on snowy days (ISeasonQuery.SnowAmount).</summary>
+        readonly SnowCap[] snowCaps;
         /// <summary>Star night: pale starlight ink, violet edge, deep-blue box.</summary>
         public static readonly Color StarInk = UIStyle.Hex("#DCD4FF"), StarEdge = UIStyle.Hex("#8C6CFF"), StarBoxFill = new Color(0.03f, 0.03f, 0.11f, 1f);
         /// <summary>Friday line ink: a lighter red that reads on the dark box (UIStyle.Unlucky is the edge).</summary>
@@ -51,7 +62,8 @@ namespace FloorF.UI
             dayBox = UIBuild.Framed("DayBox", canvas, UIStyle.Box, UIStyle.CardEdge, 2f).rectTransform;
             UIBuild.Place(dayBox, new Vector2(0f, 1f), new Vector2(24f, -16f), new Vector2(ElevatorPanelView.Width, 64f));
             dayText = UIBuild.Text("Day", dayBox, "", 24f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
-            UIBuild.Place(dayText.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(104f, 40f));
+            UIBuild.Place(dayText.rectTransform, new Vector2(0f, 0.5f), new Vector2(14f, 0f), new Vector2(DayW, 40f));
+            dayText.textWrappingMode = TextWrappingModes.NoWrap; // "DAY 10/10" (winter season) on one line
             clockText = UIBuild.Text("Clock", dayBox, "", 36f, UIStyle.Ink, TextAlignmentOptions.Right, bold: true);
             UIBuild.Place(clockText.rectTransform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f), new Vector2(ClockW, 48f));
 
@@ -112,6 +124,9 @@ namespace FloorF.UI
             ruleStar = UIBuild.Text("StarNight", rulesBox, "", 12f, StarInk, TextAlignmentOptions.Left);
             UIBuild.Place(ruleStar.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -102f), new Vector2(MeterW + 10f, 22f));
             ruleStar.gameObject.SetActive(false);
+            ruleSeason = UIBuild.Text("SeasonRule", rulesBox, "", 12f, UIStyle.Lucky, TextAlignmentOptions.Left);
+            UIBuild.Place(ruleSeason.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -102f), new Vector2(MeterW + 10f, 22f));
+            ruleSeason.gameObject.SetActive(false);
             ruleLegend = UIBuild.Text("Legend", rulesBox, "", 12f, UIStyle.Ink, TextAlignmentOptions.Left, bold: true);
             UIBuild.Place(ruleLegend.rectTransform, new Vector2(0f, 1f), new Vector2(14f, -102f), new Vector2(MeterW, 24f));
             // collapse handle in the title row (H toggles too) and the "?" tab the box folds into
@@ -154,6 +169,22 @@ namespace FloorF.UI
             UIBuild.Stretch(starText.rectTransform, 3f);
             starText.textWrappingMode = TextWrappingModes.NoWrap;
             starBadge.gameObject.SetActive(false);
+
+            // winter-season badge (same slot): lottery night (winning number, jackpots) / Christmas Eve (12 lucky for all)
+            seasonEdge = UIBuild.Framed("SeasonBadge", canvas, LotteryFill, LotteryEdge, 3f);
+            seasonBadge = seasonEdge.rectTransform;
+            seasonFill = seasonBadge.GetChild(0).GetComponent<Image>();
+            UIBuild.Place(seasonBadge, new Vector2(1f, 1f), new Vector2(-24f, -(RulesBottom + Friday13LineH + BadgeGap)), new Vector2(MeterW + 32f, StarBadgeH));
+            seasonText = UIBuild.Text("Text", seasonBadge, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
+            UIBuild.Stretch(seasonText.rectTransform, 3f);
+            seasonText.textWrappingMode = TextWrappingModes.NoWrap;
+            var hollyAt = UIBuild.Rect("HollyCorner", seasonBadge);
+            UIBuild.Place(hollyAt, new Vector2(0f, 1f), new Vector2(2f, 2f), Vector2.zero);
+            hollyAt.pivot = new Vector2(0.5f, 0.5f);
+            seasonHolly = WinterDeco.HollySprig("Holly", hollyAt, Vector2.zero, 48f);
+            seasonBadge.gameObject.SetActive(false);
+
+            snowCaps = new[] { new SnowCap(dayBox, 11), new SnowCap(luckBox, 23), new SnowCap(tipsBox, 37, 5f) };
 
             RefreshLanguage();
         }
@@ -218,6 +249,7 @@ namespace FloorF.UI
             var p = new Vector2(-24f, -(RulesHeadBottom(open) + BadgeGap));
             if (fridayBadge.anchoredPosition != p) fridayBadge.anchoredPosition = p;
             if (starBadge.anchoredPosition != p) starBadge.anchoredPosition = p;
+            if (seasonBadge.anchoredPosition != p) seasonBadge.anchoredPosition = p;
         }
 
         /// <summary>Px from the canvas top under the rule box (open) or its folded tab, both starting at <see cref="RulesTop"/>.</summary>
@@ -236,21 +268,42 @@ namespace FloorF.UI
         /// Event-day look: Friday the 13th = red rule-box edge + its extra line, star night = violet edge + its line;
         /// the day's badge sits under the box (Running only). The two never share a day (Friday wins if data says both).
         /// </summary>
-        void SetEventDay(bool fri, bool star, bool running)
+        void SetEventDay(bool fri, bool star, bool running) => SetEventDay(fri, star, SeasonEvent.None, 0, running);
+
+        void SetEventDay(bool fri, bool star, SeasonEvent season, int number, bool running)
         {
             if (fri) star = false;
-            if (fri != friday || star != starNight)
+            if (fri || star) season = SeasonEvent.None;
+            if (season != seasonEvent || (season == SeasonEvent.LuckyForAll && number != seasonNumber))
+            {
+                seasonEvent = season;
+                seasonNumber = number;
+                ruleSeason.color = season == SeasonEvent.Lottery ? UIStyle.Lucky : WinterDeco.Ice;
+                ShowSeasonRule();
+            }
+            if (fri != friday || star != starNight || seasonLook != season)
             {
                 friday = fri;
                 starNight = star;
-                bool extra = fri || star;
+                seasonLook = season;
+                bool extra = fri || star || season != SeasonEvent.None;
                 ruleFriday.gameObject.SetActive(fri);
                 ruleStar.gameObject.SetActive(star);
+                ruleSeason.gameObject.SetActive(season != SeasonEvent.None);
                 ruleLegend.rectTransform.anchoredPosition = new Vector2(14f, extra ? -102f - Friday13LineH : -102f);
                 rulesBox.sizeDelta = new Vector2(MeterW + 32f, extra ? RulesH + Friday13LineH : RulesH);
-                rulesEdge.color = fri ? UIStyle.Unlucky : star ? StarEdge : RulesEdgeColor;
-                rulesFill.color = fri ? FridayBoxFill : star ? StarBoxFill : RulesFill; // the edge sits behind the fill: no wash
+                rulesEdge.color = fri ? UIStyle.Unlucky : star ? StarEdge : season == SeasonEvent.Lottery ? LotteryEdge
+                    : season == SeasonEvent.LuckyForAll ? WinterDeco.ChristmasEdge : RulesEdgeColor;
+                rulesFill.color = fri ? FridayBoxFill : star ? StarBoxFill : season == SeasonEvent.Lottery ? LotteryFill
+                    : season == SeasonEvent.LuckyForAll ? WinterDeco.ChristmasFill : RulesFill; // the edge sits behind the fill: no wash
+                seasonEdge.color = season == SeasonEvent.Lottery ? LotteryEdge : WinterDeco.Holly;
+                seasonFill.color = season == SeasonEvent.Lottery ? LotteryFill : WinterDeco.ChristmasFill;
+                seasonText.color = season == SeasonEvent.Lottery ? UIStyle.Lucky : ChristmasInk;
+                seasonHolly.gameObject.SetActive(season == SeasonEvent.LuckyForAll);
             }
+            bool seasonOn = season != SeasonEvent.None && running;
+            if (seasonBadge.gameObject.activeSelf != seasonOn) seasonBadge.gameObject.SetActive(seasonOn);
+            if (seasonOn) UIBuild.Set(seasonText, SeasonBadgeText());
             bool badge = fri && running;
             if (fridayBadge.gameObject.activeSelf != badge) fridayBadge.gameObject.SetActive(badge);
             if (badge)
@@ -268,6 +321,37 @@ namespace FloorF.UI
                 starEdge.color = Color.Lerp(StarEdge, StarInk, k * 0.6f);
             }
         }
+
+        SeasonEvent seasonLook = (SeasonEvent)(-1);
+
+        void ShowSeasonRule()
+        {
+            string n = seasonNumber.ToString(CultureInfo.InvariantCulture);
+            UIBuild.Set(ruleSeason, seasonEvent == SeasonEvent.Lottery ? ctx.S(UIStrings.RuleLottery)
+                : seasonEvent == SeasonEvent.LuckyForAll ? ctx.F(UIStrings.RuleLuckyForAll, n) : "");
+        }
+
+        /// <summary>
+        /// Lottery: "LOTTERY NIGHT" (+ "  ★2" once guests hit the jackpot) over "WINNING NUMBER 7" ("drawing soon..." until
+        /// the first draw stops rolling). Christmas Eve: "CHRISTMAS EVE" over "12 lucky for all".
+        /// </summary>
+        string SeasonBadgeText()
+        {
+            if (seasonEvent == SeasonEvent.LuckyForAll)
+                return StarBadgeLines(ctx.F(UIStrings.ChristmasBadge, seasonNumber.ToString(CultureInfo.InvariantCulture)));
+            string head = ctx.S(UIStrings.LotteryNight);
+            if (jackpots > 0) head += "  " + UIFonts.Star + jackpots.ToString(CultureInfo.InvariantCulture);
+            int number = ctx.LotteryNumber;
+            bool rolling = LotteryRolling != null && LotteryRolling();
+            string line = number > 0 && !rolling
+                ? ctx.F(UIStrings.WinningNumber, "<color=#FFFFFF>" + number.ToString(CultureInfo.InvariantCulture) + "</color>")
+                : "<color=#F4EEDCAA>" + ctx.S(UIStrings.LotteryWaiting) + "</color>";
+            return head + "\n" + line;
+        }
+
+        /// <summary>LotteryWon: one more jackpot tonight (the badge counts them). A new day / run starts at 0.</summary>
+        public void OnLotteryWon() => jackpots++;
+        public void ResetJackpots() => jackpots = 0;
 
         static void Bar(RectTransform rt)
         {
@@ -298,6 +382,7 @@ namespace FloorF.UI
             fridayText.text = ctx.F(UIStrings.Friday13Badge, UIFormat.Multiplier(Friday13Multiplier));
             UIBuild.Fit(fridayText, 24f);
             UIBuild.Set(ruleStar, ctx.S(UIStrings.RuleStarNight));
+            ShowSeasonRule();
             starText.text = StarBadgeLines(ctx.S(UIStrings.StarNightBadge));
             starText.fontSize = 24f;
             ShowStreakText();
@@ -455,7 +540,11 @@ namespace FloorF.UI
             Fade(luckDelta, ref luckDeltaTimer, dt);
             Fade(tipsDelta, ref tipsDeltaTimer, dt);
             bool rules = phase == DayPhase.Running;
-            SetEventDay(ctx.Day.IsFriday13 && !ctx.Day.IsTutorial, ctx.Day.IsStarNight && !ctx.Day.IsTutorial, rules);
+            var season = ctx.IsLotteryNight ? SeasonEvent.Lottery : ctx.Season != null && ctx.Season.LuckyForAll > 0 && !ctx.Day.IsTutorial ? SeasonEvent.LuckyForAll : SeasonEvent.None;
+            SetEventDay(ctx.Day.IsFriday13 && !ctx.Day.IsTutorial, ctx.Day.IsStarNight && !ctx.Day.IsTutorial, season,
+                season == SeasonEvent.LuckyForAll ? ctx.Season.LuckyForAll : 0, rules);
+            float snow = phase == DayPhase.Title ? 0f : ctx.Snow;
+            foreach (var cap in snowCaps) cap.SetAmount(snow);
             ApplyRules(rules);
             TickStreak(dt, rules);
         }
@@ -479,7 +568,7 @@ namespace FloorF.UI
             dayBox.gameObject.SetActive(visible);
             luckBox.gameObject.SetActive(visible);
             tipsBox.gameObject.SetActive(visible);
-            if (!visible) { rulesBox.gameObject.SetActive(false); rulesTab.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); fridayBadge.gameObject.SetActive(false); starBadge.gameObject.SetActive(false); }
+            if (!visible) { rulesBox.gameObject.SetActive(false); rulesTab.gameObject.SetActive(false); streakBox.gameObject.SetActive(false); fridayBadge.gameObject.SetActive(false); starBadge.gameObject.SetActive(false); seasonBadge.gameObject.SetActive(false); }
         }
 
         /// <summary>
@@ -495,6 +584,7 @@ namespace FloorF.UI
                 if (rulesTab.gameObject.activeSelf) y = Mathf.Max(y, RulesTop + TabH);
                 if (fridayBadge.gameObject.activeSelf) y = Mathf.Max(y, -fridayBadge.anchoredPosition.y + BadgeH);
                 if (starBadge.gameObject.activeSelf) y = Mathf.Max(y, -starBadge.anchoredPosition.y + StarBadgeH);
+                if (seasonBadge.gameObject.activeSelf) y = Mathf.Max(y, -seasonBadge.anchoredPosition.y + StarBadgeH);
                 return y;
             }
         }
@@ -522,6 +612,18 @@ namespace FloorF.UI
         /// <summary>"A · B" -> two lines.</summary>
         public static string StarBadgeLines(string s) => s.Replace(" · ", "\n");
         public RectTransform StarBadge => starBadge;
+        public RectTransform SeasonBadge => seasonBadge;
+        public bool SeasonBadgeVisible => seasonBadge.gameObject.activeInHierarchy;
+        public string SeasonBadgeTextNow => SeasonBadgeVisible ? seasonText.text : null;
+        public bool SeasonBadgeFits
+        {
+            get
+            {
+                var p = seasonText.GetPreferredValues(seasonText.text, float.PositiveInfinity, float.PositiveInfinity);
+                return p.x <= seasonText.rectTransform.rect.width + 0.5f && p.y <= seasonText.rectTransform.rect.height + 0.5f;
+            }
+        }
+        public bool SnowCapVisible => snowCaps[0].Visible;
         public bool StarBadgeVisible => starBadge.gameObject.activeInHierarchy;
         public string StarBadgeText => StarBadgeVisible ? starText.text : null;
         public float StarBadgeFontSize => starText.fontSize;
@@ -541,7 +643,7 @@ namespace FloorF.UI
             {
                 if (!rulesBox.gameObject.activeInHierarchy) return null;
                 var sb = new System.Text.StringBuilder();
-                foreach (var t in new[] { rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleLegend })
+                foreach (var t in new[] { rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleSeason, ruleLegend })
                     if (t.gameObject.activeSelf) { if (sb.Length > 0) sb.Append('\n'); sb.Append(t.text); }
                 return sb.ToString();
             }
@@ -550,7 +652,7 @@ namespace FloorF.UI
         public string RulesOverflow()
         {
             float inner = rulesBox.rect.width - 14f - 4f;
-            foreach (var t in new[] { rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleLegend })
+            foreach (var t in new[] { rulesTitle, ruleOpen, ruleClose, ruleDistance, ruleFriday, ruleStar, ruleSeason, ruleLegend })
             {
                 if (!t.gameObject.activeSelf) continue;
                 float w = t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity).x;

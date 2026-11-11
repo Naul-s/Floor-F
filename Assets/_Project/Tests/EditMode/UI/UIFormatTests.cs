@@ -245,5 +245,21 @@ namespace FloorF.Tests.EditMode.UI
             Assert.AreEqual("x2.0", UIFormat.Multiplier(2f));
             Assert.AreEqual("x1.0", UIFormat.Multiplier(1f));
         }
+
+        [Test]
+        public void LuckyForAll_Twelve_ChristmasEve()
+        {
+            var santa = LuckProfile.Of(new[] { 25 }, new[] { 12 });
+            Assert.AreEqual("<color=#FFC83D>25</color> <color=#FFC83D>12</color>", UIFormat.Numbers(santa, false, 12), "their unlucky 12 loses");
+            Assert.AreEqual("<color=#FFC83D>25</color> <color=#FF4B4B>12</color>", UIFormat.Numbers(santa, false, 0));
+            Assert.AreEqual(12, UIFormat.LuckyForAll(false, false, 12));
+            Assert.AreEqual(7, UIFormat.LuckyForAll(false, true, 0));
+            Assert.AreEqual(0, UIFormat.LuckyForAll(true, true, 12), "never on the training shift");
+            Assert.AreEqual(LuckVerdict.Lucky, UIFormat.DistanceVerdict(santa, false, 12, false, 12));
+            Assert.AreEqual(LuckVerdict.Unlucky, UIFormat.DistanceVerdict(santa, false, 12, false, 0));
+            Assert.AreEqual(LuckVerdict.Lucky, UIFormat.OccupancyPreview(12, new[] { santa }, 1, 12));
+            // the old star-night overloads still mean 7
+            Assert.AreEqual(LuckVerdict.Lucky, UIFormat.DistanceVerdict(null, false, 7, false, true));
+        }
     }
 }

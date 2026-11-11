@@ -115,7 +115,7 @@ namespace FloorF.UI
             c = Make();
             c.Id = info.Id;
             c.Edge.color = ctx.GuestColor(info.Archetype);
-            c.Numbers.text = UIFormat.Numbers(info.Luck, info.HideNumbers, ctx.Day != null && ctx.Day.IsStarNight && !ctx.Day.IsTutorial);
+            c.Numbers.text = UIFormat.Numbers(info.Luck, info.HideNumbers, ctx.LuckyForAll);
             c.Numbers.fontSize = UIFonts.Px(24f);
             if (c.Numbers.font != null) c.Numbers.font.TryAddCharacters(c.Numbers.text);
             c.NumW = Mathf.Clamp(Mathf.Ceil(c.Numbers.GetPreferredValues(c.Numbers.text, float.PositiveInfinity, float.PositiveInfinity).x) + 1f, 14f, WaitNumMax);
@@ -184,7 +184,7 @@ namespace FloorF.UI
         void FillOdometer(Chip c, in GuestInfo info)
         {
             int floors = Mathf.Max(0, DistanceOverride.TryGetValue(info.Id.Value, out int forced) ? forced : info.FloorsTravelled);
-            var v = UIFormat.DistanceVerdict(info.Luck, info.HideNumbers, floors, ctx.Day != null && ctx.Day.IsFriday13, ctx.Day != null && ctx.Day.IsStarNight);
+            var v = UIFormat.DistanceVerdict(info.Luck, info.HideNumbers, floors, ctx.Day != null && ctx.Day.IsFriday13, ctx.LuckyForAll);
             if (floors == c.ShownFloors && v == c.OdoVerdict) return;
             c.ShownFloors = floors;
             c.OdoVerdict = v;

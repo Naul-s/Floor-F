@@ -22,26 +22,32 @@ namespace FloorF.UI
         public static string Numbers(LuckProfile luck, bool hide) => Numbers(luck, hide, false);
 
         /// <summary>Star night: a guest's own unlucky 7 loses - it shows as a lucky (gold) 7.</summary>
-        public static string Numbers(LuckProfile luck, bool hide, bool starNight)
+        public static string Numbers(LuckProfile luck, bool hide, bool starNight) => Numbers(luck, hide, starNight ? StarNightNumber : 0);
+
+        /// <summary>
+        /// <paramref name="forAll"/> = a number Lucky for every guest tonight (star night 7, Christmas Eve 12; 0 = none):
+        /// a guest's own unlucky copy loses - it shows as a lucky (gold) number. Their own lucky one is not repeated.
+        /// </summary>
+        public static string Numbers(LuckProfile luck, bool hide, int forAll)
         {
             if (hide) return "<color=" + HiddenHex + ">?</color>";
             if (luck == null) luck = LuckProfile.None;
             sb.Clear();
-            bool sevenLucky = false;
+            bool forAllShown = false;
             for (int i = 0; i < luck.Lucky.Count; i++)
             {
                 if (sb.Length > 0) sb.Append(' ');
                 sb.Append("<color=").Append(LuckyHex).Append('>').Append(N(luck.Lucky[i])).Append("</color>");
-                if (luck.Lucky[i] == StarNightNumber) sevenLucky = true;
+                if (forAll > 0 && luck.Lucky[i] == forAll) forAllShown = true;
             }
             for (int i = 0; i < luck.Unlucky.Count; i++)
             {
-                if (starNight && luck.Unlucky[i] == StarNightNumber)
+                if (forAll > 0 && luck.Unlucky[i] == forAll)
                 {
-                    if (sevenLucky) continue;
+                    if (forAllShown) continue;
                     if (sb.Length > 0) sb.Append(' ');
-                    sb.Append("<color=").Append(LuckyHex).Append('>').Append(N(StarNightNumber)).Append("</color>");
-                    sevenLucky = true;
+                    sb.Append("<color=").Append(LuckyHex).Append('>').Append(N(forAll)).Append("</color>");
+                    forAllShown = true;
                     continue;
                 }
                 if (sb.Length > 0) sb.Append(' ');
@@ -49,6 +55,13 @@ namespace FloorF.UI
             }
             return sb.Length == 0 ? "-" : sb.ToString();
         }
+
+        /// <summary>
+        /// The number Lucky for every guest today: ISeasonQuery.LuckyForAll (Christmas Eve 12) or star night's 7
+        /// (IDayQuery.IsStarNight); 0 = none. Never on the training shift.
+        /// </summary>
+        public static int LuckyForAll(bool tutorial, bool starNight, int seasonLuckyForAll) =>
+            tutorial ? 0 : seasonLuckyForAll > 0 ? seasonLuckyForAll : starNight ? StarNightNumber : 0;
 
         /// <summary>"1:05" (rounded up, never negative).</summary>
         public static string Clock(float seconds)
@@ -105,11 +118,15 @@ namespace FloorF.UI
             DistanceVerdict(luck, hideNumbers, floors, friday13, false);
 
         /// <summary>Star night (IDayQuery.IsStarNight): 7 is lucky for every guest, beating their own unlucky 7.</summary>
-        public static LuckVerdict DistanceVerdict(LuckProfile luck, bool hideNumbers, int floors, bool friday13, bool starNight)
+        public static LuckVerdict DistanceVerdict(LuckProfile luck, bool hideNumbers, int floors, bool friday13, bool starNight) =>
+            DistanceVerdict(luck, hideNumbers, floors, friday13, starNight ? StarNightNumber : 0);
+
+        /// <summary><paramref name="forAll"/>: the number lucky for everyone tonight (<see cref="LuckyForAll"/>), 0 = none.</summary>
+        public static LuckVerdict DistanceVerdict(LuckProfile luck, bool hideNumbers, int floors, bool friday13, int forAll)
         {
             if (floors <= 0) return LuckVerdict.Neutral;
             if (friday13 && floors == Friday13Number) return LuckVerdict.Unlucky;
-            if (starNight && floors == StarNightNumber) return LuckVerdict.Lucky;
+            if (forAll > 0 && floors == forAll) return LuckVerdict.Lucky;
             if (hideNumbers || luck == null) return LuckVerdict.Neutral;
             return luck.Judge(floors);
         }
@@ -118,7 +135,11 @@ namespace FloorF.UI
 
         /// <summary>Head-count preview on star night: 7 riders is lucky for everyone.</summary>
         public static LuckVerdict OccupancyPreview(int occupancy, LuckProfile[] riders, int riderCount, bool starNight) =>
-            starNight && occupancy == StarNightNumber ? LuckVerdict.Lucky : OccupancyPreview(occupancy, riders, riderCount);
+            OccupancyPreview(occupancy, riders, riderCount, starNight ? StarNightNumber : 0);
+
+        /// <summary>Head-count preview with a number lucky for everyone tonight (0 = none).</summary>
+        public static LuckVerdict OccupancyPreview(int occupancy, LuckProfile[] riders, int riderCount, int forAll) =>
+            forAll > 0 && occupancy == forAll ? LuckVerdict.Lucky : OccupancyPreview(occupancy, riders, riderCount);
 
         /// <summary>The 666 flourish: an UNLUCKY 6 (any source) from a devout guest (GuestTraits.Devout).</summary>
         public const int CurseNumber = 6;
@@ -293,6 +314,9 @@ namespace FloorF.UI
         }
 
         /// <summary>Tip multiplier as shown next to the streak: "x1.15", "x1.1", "x1.0" (two decimals at most).</summary>
+        /// <summary>Plain factor for "x2" / "x1.5" texts (no trailing ".0").</summary>
+        public static string Factor(float m) => ((float)System.Math.Round(m, 2)).ToString("0.##", CultureInfo.InvariantCulture);
+
         public static string Multiplier(float m) => "x" + ((float)System.Math.Round(m, 2)).ToString("0.0#", CultureInfo.InvariantCulture);
 
         // ------------------------------------------------------------------ day grade (real-day summary stamp)
@@ -326,6 +350,9 @@ namespace FloorF.UI
         /// <summary>Title plate: "BEST  LUCK 72  ·  $340" ("최고 기록  운 72  ·  $340").</summary>
         public static string BestRecord(int luck, int tips, bool ko) => string.Format(UIStrings.BestRecord.Get(ko), N(luck), N(tips));
 
+        /// <summary>The winter-season endings (after ISeasonFlow.ExtendSeason).</summary>
+        public static bool IsWinterEnding(EndingKind k) => k == EndingKind.WinterMiracle || k == EndingKind.SilentNight;
+
         public static void Ending(EndingKind kind, bool ko, out string title, out string text)
         {
             switch (kind)
@@ -333,6 +360,8 @@ namespace FloorF.UI
                 case EndingKind.Prosperous: title = UIStrings.EndProsperousTitle.Get(ko); text = UIStrings.EndProsperousText.Get(ko); break;
                 case EndingKind.Haunted: title = UIStrings.EndHauntedTitle.Get(ko); text = UIStrings.EndHauntedText.Get(ko); break;
                 case EndingKind.FourthFloor: title = UIStrings.EndFourthTitle.Get(ko); text = UIStrings.EndFourthText.Get(ko); break;
+                case EndingKind.WinterMiracle: title = UIStrings.EndMiracleTitle.Get(ko); text = UIStrings.EndMiracleText.Get(ko); break;
+                case EndingKind.SilentNight: title = UIStrings.EndSilentTitle.Get(ko); text = UIStrings.EndSilentText.Get(ko); break;
                 default: title = UIStrings.EndModestTitle.Get(ko); text = UIStrings.EndModestText.Get(ko); break;
             }
         }
@@ -340,12 +369,14 @@ namespace FloorF.UI
         /// <summary>Short name of an ending for the collection card ("PROSPEROUS" / "번창").</summary>
         public static string EndingName(EndingKind kind, bool ko) =>
             (kind == EndingKind.Prosperous ? UIStrings.EndNameProsperous : kind == EndingKind.Haunted ? UIStrings.EndNameHaunted
-                : kind == EndingKind.FourthFloor ? UIStrings.EndNameFourth : UIStrings.EndNameModest).Get(ko);
+                : kind == EndingKind.FourthFloor ? UIStrings.EndNameFourth : kind == EndingKind.WinterMiracle ? UIStrings.EndNameMiracle
+                : kind == EndingKind.SilentNight ? UIStrings.EndNameSilent : UIStrings.EndNameModest).Get(ko);
 
         /// <summary>One line from the ending text for an unlocked collection slot.</summary>
         public static string EndingShortLine(EndingKind kind, bool ko) =>
             (kind == EndingKind.Prosperous ? UIStrings.EndShortProsperous : kind == EndingKind.Haunted ? UIStrings.EndShortHaunted
-                : kind == EndingKind.FourthFloor ? UIStrings.EndShortFourth : UIStrings.EndShortModest).Get(ko);
+                : kind == EndingKind.FourthFloor ? UIStrings.EndShortFourth : kind == EndingKind.WinterMiracle ? UIStrings.EndShortMiracle
+                : kind == EndingKind.SilentNight ? UIStrings.EndShortSilent : UIStrings.EndShortModest).Get(ko);
 
         /// <summary>
         /// Locked-slot hint: the Luck endings state their rule (<paramref name="lastDay"/> = PlayableDayCount,
@@ -358,6 +389,8 @@ namespace FloorF.UI
                 case EndingKind.Prosperous: return KoreanParticles.Format(UIStrings.EndHintProsperous.Get(ko), lastDay, prosperousLuck);
                 case EndingKind.Modest: return KoreanParticles.Format(UIStrings.EndHintModest.Get(ko), lastDay, prosperousLuck);
                 case EndingKind.Haunted: return UIStrings.EndHintHaunted.Get(ko);
+                case EndingKind.WinterMiracle: return KoreanParticles.Format(UIStrings.EndHintMiracle.Get(ko), lastDay, prosperousLuck);
+                case EndingKind.SilentNight: return UIStrings.EndHintSilent.Get(ko);
                 default: return UIStrings.EndHintFourth.Get(ko);
             }
         }

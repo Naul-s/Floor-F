@@ -49,9 +49,40 @@ namespace FloorF.Tests.EditMode.UI
             Assert.AreEqual(DayTwist.Kind.Friday, DayTwist.Resolve(First(d => d.friday13), data));
             Assert.AreEqual(DayTwist.Kind.Wedding, DayTwist.Resolve(First(d => Has(d, "chinese_wedding_party") && !d.starNight), data));
             Assert.AreEqual(DayTwist.Kind.Star, DayTwist.Resolve(First(d => d.starNight), data));
+            // the winter season (extended days): a new guest, the lottery, a number lucky for all
+            Assert.AreEqual(DayTwist.Kind.NewGuest, DayTwist.Resolve(First(d => d.extended && !d.lottery && d.luckyForAll == 0), data), "Singles Day: the solo traveller");
+            Assert.AreEqual(DayTwist.Kind.Lottery, DayTwist.Resolve(First(d => d.lottery), data));
+            Assert.AreEqual(DayTwist.Kind.LuckyForAll, DayTwist.Resolve(First(d => d.luckyForAll > 0), data));
             // every real day says something different
             var kinds = real.Select(d => DayTwist.Resolve(d, data)).ToArray();
             Assert.AreEqual(kinds.Length, kinds.Distinct().Count(), string.Join(",", kinds));
+        }
+
+        [Test]
+        public void WinterTodayLines_StateTheRealNumbers()
+        {
+            var solo = data.GetGuest(new GuestArchetypeId("solo_traveler"));
+            var singles = First(d => d.extended && !d.lottery && d.luckyForAll == 0);
+            Assert.AreSame(solo, DayTwist.NewGuest(singles, data), "the solo traveller checks in for the first time");
+            string en = Plain(DayTwist.Line(singles, data, false));
+            StringAssert.Contains("Solo Traveller loves 1 and 11 and sulks at 2", en);
+            StringAssert.Contains("혼행족 - 1, 11을 좋아하고 2를 싫어해요", Plain(DayTwist.Line(singles, data, true)));
+
+            var lottery = First(d => d.lottery);
+            string l = Plain(DayTwist.Line(lottery, data, false));
+            StringAssert.Contains("drawn " + lottery.lotteryDraws + "x", l);
+            StringAssert.Contains("tips x" + UIFormat.Factor(data.Rules.lotteryTipMultiplier), l);
+            StringAssert.Contains("Luck +" + data.Rules.lotteryLuckBonus, l);
+            Assert.AreEqual("2", UIFormat.Factor(2f));
+            Assert.AreEqual("1.5", UIFormat.Factor(1.5f));
+            StringAssert.Contains(lottery.lotteryDraws + "번 뽑아요", Plain(DayTwist.Line(lottery, data, true)));
+
+            var xmas = First(d => d.christmas);
+            Assert.AreEqual(12, xmas.luckyForAll);
+            StringAssert.Contains("12 is LUCKY for everyone", Plain(DayTwist.Line(xmas, data, false)));
+            StringAssert.Contains("12는 누구에게나 행운", Plain(DayTwist.Line(xmas, data, true)));
+            // the mystery guest never gives itself away on a TODAY line
+            foreach (var d in data.Days) Assert.AreNotEqual("mystery_guest", DayTwist.NewGuest(d, data)?.id);
         }
 
         [Test]

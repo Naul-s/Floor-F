@@ -7,14 +7,17 @@ using UnityEngine.UI;
 namespace FloorF.UI
 {
     /// <summary>
-    /// Title -> ENDINGS card: every ending (<see cref="EndingRecord.All"/>) as a 2x2 grid of slots. Seen = its name, the
+    /// Title -> ENDINGS card: every ending (<see cref="EndingRecord.All"/>) as a 3x2 grid of slots (the base run's three on
+    /// top, the two winter endings and the hidden one below). Seen = its name, the
     /// ending's title, one line from its text and how often it was reached; not seen = "???" and a hint (the Luck endings
     /// state their rule from the data, the hidden 4th floor only whispers). The hidden slot carries the HIDDEN ENDING
     /// badge either way. Opened / closed by <see cref="MenuView"/> (BACK or Esc, like the credits).
     /// </summary>
     sealed class EndingsCardView
     {
-        public const float CardWidth = 1060f, SlotWidth = 480f, SlotHeight = 188f, SlotGap = 16f;
+        public const int Columns = 3;
+        public const float CardWidth = 1180f, SlotGap = 16f, SlotWidth = (CardWidth - 80f - (Columns - 1) * SlotGap) / Columns, SlotHeight = 232f;
+        public const float BackWidth = 320f;
         static readonly Color LockedEdge = UIStyle.Hex("#4A4D57"), LockedFill = new Color(0.035f, 0.04f, 0.055f, 0.98f);
         static readonly Color OpenFill = new Color(0.07f, 0.075f, 0.11f, 0.98f);
         static readonly Color HiddenLockedEdge = new Color(HiddenBadge.Ink.r * 0.55f, HiddenBadge.Ink.g * 0.55f, HiddenBadge.Ink.b * 0.55f, 1f);
@@ -26,6 +29,8 @@ namespace FloorF.UI
             public Image Edge, Fill;
             public TextMeshProUGUI Caption, Name, Line, Seen;
             public HiddenBadge Badge;
+            /// <summary>Winter endings: a small snowflake in the top-right corner once found.</summary>
+            public RectTransform Flake;
         }
 
         readonly UIContext ctx;
@@ -53,12 +58,13 @@ namespace FloorF.UI
             progress = UIBuild.Text("Progress", card, "", 24f, UIStyle.InkDim, TextAlignmentOptions.Center);
 
             var grid = UIBuild.Rect("Slots", card);
-            grid.gameObject.AddComponent<LayoutElement>().preferredHeight = 2f * SlotHeight + SlotGap;
+            int rows = (EndingRecord.All.Length + Columns - 1) / Columns;
+            grid.gameObject.AddComponent<LayoutElement>().preferredHeight = rows * SlotHeight + (rows - 1) * SlotGap;
             var g = grid.gameObject.AddComponent<GridLayoutGroup>();
             g.cellSize = new Vector2(SlotWidth, SlotHeight);
             g.spacing = new Vector2(SlotGap, SlotGap);
             g.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
-            g.constraintCount = 2;
+            g.constraintCount = Columns;
             g.childAlignment = TextAnchor.UpperCenter;
             slots = new Slot[EndingRecord.All.Length];
             for (int i = 0; i < slots.Length; i++) slots[i] = BuildSlot(grid, EndingRecord.All[i]);
@@ -66,7 +72,8 @@ namespace FloorF.UI
             var row = UIBuild.Rect("Row", card);
             row.gameObject.AddComponent<LayoutElement>().preferredHeight = 52f;
             var h = row.gameObject.AddComponent<HorizontalLayoutGroup>();
-            h.padding = new RectOffset(330, 330, 6, 0);
+            int side = Mathf.RoundToInt((CardWidth - 80f - BackWidth) * 0.5f);
+            h.padding = new RectOffset(side, side, 6, 0);
             h.childControlWidth = h.childControlHeight = true;
             h.childForceExpandWidth = h.childForceExpandHeight = true;
             back = UIBuild.Button("Back", row, "", 24f, UIStyle.Action, onBack);
@@ -101,6 +108,14 @@ namespace FloorF.UI
                 s.Badge.Root.anchorMin = s.Badge.Root.anchorMax = s.Badge.Root.pivot = new Vector2(1f, 1f);
                 s.Badge.Root.anchoredPosition = new Vector2(-12f, -10f);
             }
+            if (UIFormat.IsWinterEnding(kind))
+            {
+                var corner = UIBuild.Rect("FlakeCorner", s.Root);
+                corner.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+                UIBuild.Place(corner, new Vector2(1f, 1f), new Vector2(-22f, -22f), Vector2.zero);
+                corner.pivot = new Vector2(0.5f, 0.5f);
+                s.Flake = WinterDeco.Snowflake("Flake", corner, Vector2.zero, 22f, WinterDeco.Ice);
+            }
             return s;
         }
 
@@ -118,7 +133,9 @@ namespace FloorF.UI
             var record = ctx.Endings != null ? ctx.Endings.Record : new EndingRecord();
             UIBuild.Set(title, ctx.S(UIStrings.EndingsTitle));
             UIBuild.Set(progress, ctx.F(UIStrings.EndingsProgress, record.UnlockedCount, EndingRecord.Total));
-            int lastDay = ctx.Day != null ? (ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount) : 7;
+            // the base run's last day (the winter season, once extended, would read "/10")
+            int lastDay = ctx.Data != null && ctx.Data.PlayableDayCount > 0 ? ctx.Data.PlayableDayCount
+                : ctx.Day != null ? (ctx.Day.PlayableDayCount > 0 ? ctx.Day.PlayableDayCount : ctx.Day.DayCount) : 7;
             int prosperous = ctx.Data != null ? ctx.Data.Rules.prosperousEndingLuck : 70;
             foreach (var s in slots) Fill(s, record, ko, lastDay, prosperous);
             UIBuild.Set(back.Label, ctx.S(UIStrings.Back));
@@ -129,10 +146,12 @@ namespace FloorF.UI
         {
             bool open = record.IsUnlocked(s.Kind);
             bool hidden = EndingRecord.IsHidden(s.Kind);
-            s.Edge.color = hidden ? (open ? HiddenBadge.Ink : HiddenLockedEdge) : open ? UIStyle.CardEdge : LockedEdge;
-            s.Fill.color = hidden ? FlowScreensView.HiddenFill : open ? OpenFill : LockedFill;
+            bool winter = UIFormat.IsWinterEnding(s.Kind);
+            s.Edge.color = hidden ? (open ? HiddenBadge.Ink : HiddenLockedEdge) : open ? (winter ? WinterDeco.IceEdge : UIStyle.CardEdge) : LockedEdge;
+            s.Fill.color = hidden ? FlowScreensView.HiddenFill : open ? (winter ? WinterDeco.IceFill : OpenFill) : LockedFill;
             UIBuild.Set(s.Caption, hidden && !open ? UIStrings.EndingLocked : UIFormat.EndingName(s.Kind, ko));
-            s.Caption.color = hidden ? HiddenBadge.Ink : open ? UIStyle.CardEdge : UIStyle.InkDim;
+            s.Caption.color = hidden ? HiddenBadge.Ink : open ? (winter ? WinterDeco.Ice : UIStyle.CardEdge) : UIStyle.InkDim;
+            if (s.Flake != null) s.Flake.gameObject.SetActive(open);
             if (open)
             {
                 UIFormat.Ending(s.Kind, ko, out var t, out _);
@@ -161,8 +180,8 @@ namespace FloorF.UI
         }
 
         static Color NameColor(EndingKind k) =>
-            k == EndingKind.Prosperous ? UIStyle.Lucky : k == EndingKind.Haunted ? UIStyle.Unlucky
-            : k == EndingKind.FourthFloor ? UIStyle.Unlucky : UIStyle.Ink;
+            k == EndingKind.Prosperous || k == EndingKind.WinterMiracle ? UIStyle.Lucky : k == EndingKind.Haunted ? UIStyle.Unlucky
+            : k == EndingKind.FourthFloor ? UIStyle.Unlucky : k == EndingKind.SilentNight ? WinterDeco.Ice : UIStyle.Ink;
 
         /// <summary>The hidden slot's badge breathes while the card is open (only once found).</summary>
         public void Tick(float t)

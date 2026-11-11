@@ -66,13 +66,18 @@ namespace FloorF.UI
             if (last) label += "  ·  " + ctx.S(UIStrings.FinalDayBanner);
             bool star = day.IsStarNight && !day.IsFriday13;
             if (star) label = UIFonts.Star + "  " + label + "  " + UIFonts.Star;
+            bool xmas = !star && !day.IsFriday13 && ctx.IsChristmas, winter = !star && !day.IsFriday13 && !xmas && ctx.IsExtendedDay;
+            if (xmas) label += "  ·  " + ctx.S(UIStrings.MerryChristmas);
             text.text = label;
-            var edge = day.IsFriday13 ? UIStyle.Unlucky : star ? HudView.StarEdge : UIStyle.CardEdge;
+            var edge = day.IsFriday13 ? UIStyle.Unlucky : star ? HudView.StarEdge : xmas ? WinterDeco.ChristmasEdge : winter ? WinterDeco.IceEdge : UIStyle.CardEdge;
             foreach (var e in edges) e.color = edge;
-            fill.color = day.IsFriday13 ? new Color(0.07f, 0.01f, 0.015f, 0.88f) : star ? HudView.StarBoxFill : new Color(0.03f, 0.03f, 0.06f, 0.86f);
+            if (xmas) edges[1].color = WinterDeco.Holly; // red over green
+            fill.color = day.IsFriday13 ? new Color(0.07f, 0.01f, 0.015f, 0.88f) : star ? HudView.StarBoxFill
+                : xmas ? WinterDeco.ChristmasFill : winter ? WinterDeco.IceFill : new Color(0.03f, 0.03f, 0.06f, 0.86f);
             text.colorGradient = day.IsFriday13
                 ? new VertexGradient(UIStyle.Hex("#FF8A8A"), UIStyle.Hex("#FF8A8A"), UIStyle.Unlucky, UIStyle.Unlucky)
                 : star ? new VertexGradient(FlowScreensView.StarTitle, FlowScreensView.StarTitle, HudView.StarInk, HudView.StarInk)
+                : winter ? new VertexGradient(Color.white, Color.white, WinterDeco.Ice, WinterDeco.Ice)
                 : MenuView.GoldGradient;
             text.color = Color.white;
             float w = text.GetPreferredValues(label, float.PositiveInfinity, float.PositiveInfinity).x;

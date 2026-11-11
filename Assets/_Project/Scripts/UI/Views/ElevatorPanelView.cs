@@ -17,7 +17,10 @@ namespace FloorF.UI
         public const float Width = 254f;
         const float BtnW = 112f, BtnH = 66f, Gap = 8f, Pad = 11f, LabelSize = 36f, BadgeH = 26f, BadgeSize = 24f;
 
-        enum Mark { Normal, Target, Applicable, Blocked }
+        enum Mark { Normal, Target, Applicable, Blocked, Jackpot }
+
+        /// <summary>Lottery night: the button showing the winning number (ISeasonQuery.LotteryNumber) - dark gold, gold ink.</summary>
+        public static readonly Color JackpotBtn = UIStyle.Hex("#5A4512");
 
         sealed class FloorButton
         {
@@ -30,6 +33,9 @@ namespace FloorF.UI
             public DestinationBadge Badge;
             public Image[] Bevel;
             public Mark Mark = (Mark)(-1);
+            /// <summary>Gold ring while the button shows tonight's winning number (on top of any mark, the target too).</summary>
+            public RectTransform JackpotRing;
+            public Image[] JackpotBars;
         }
 
         readonly UIContext ctx;
@@ -41,9 +47,12 @@ namespace FloorF.UI
         Image[] openBevel, closeBevel;
         int doorsShownOpen = -1;
         readonly LuckProfile[] riderProfiles = new LuckProfile[16];
+        SnowCap snowCap;
 
         /// <summary>Shop hook: return true when the click was consumed (sticker placement).</summary>
         public Func<FloorIndex, bool> FloorClickInterceptor;
+        /// <summary>Set by UIRoot: the lottery ball is still rolling - the gold ring waits for the reveal.</summary>
+        public Func<bool> LotteryRolling;
         /// <summary>Shop hook: sticker currently selected (empty = none) - floors are highlighted by CanBuyAndApply.</summary>
         public StickerId SelectedSticker;
 
@@ -138,6 +147,7 @@ namespace FloorF.UI
             hint = UIBuild.Text("Hint", hintPlate, "", 12f, new Color(UIStyle.Ink.r, UIStyle.Ink.g, UIStyle.Ink.b, 0.8f), TextAlignmentOptions.Center);
             UIBuild.Stretch(hint.rectTransform);
             hint.textWrappingMode = TextWrappingModes.NoWrap;
+            snowCap = new SnowCap(root, 5);
             RefreshLabels();
             RefreshLanguage();
         }
@@ -188,6 +198,9 @@ namespace FloorF.UI
             fb.Original.textWrappingMode = TextWrappingModes.NoWrap;
             fb.Strike = UIBuild.Box("Strike", fb.OriginalPlate, OriginalStrike).rectTransform;
             fb.OriginalPlate.gameObject.SetActive(false);
+            fb.JackpotRing = UIBuild.Outline("JackpotRing", fb.Parts.Rect, UIStyle.Lucky, 3f, 2f);
+            fb.JackpotBars = fb.JackpotRing.GetComponentsInChildren<Image>();
+            fb.JackpotRing.gameObject.SetActive(false);
             return fb;
         }
 
@@ -259,6 +272,7 @@ namespace FloorF.UI
             if (!ctx.HasGame) return;
             var e = ctx.Elevator;
             var phase = ctx.Day.Phase;
+            snowCap.SetAmount(phase == DayPhase.Title ? 0f : ctx.Snow);
             bool shopMode = phase == DayPhase.Shop && ctx.Shop != null && !SelectedSticker.IsEmpty;
 
             // LED
@@ -272,6 +286,9 @@ namespace FloorF.UI
 
             // buttons
             float pulse = 0.75f + 0.25f * Mathf.Sin(time * 8f);
+            int jackpot = phase == DayPhase.Running && !(LotteryRolling != null && LotteryRolling()) ? ctx.LotteryNumber : 0;
+            string jackpotText = jackpot > 0 ? jackpot.ToString(System.Globalization.CultureInfo.InvariantCulture) : null;
+            float shimmer = 0.7f + 0.3f * Mathf.Sin(time * 3f); // ~0.5 Hz glow, never a flash
             for (int i = 0; i < buttons.Length; i++)
             {
                 var b = buttons[i];
@@ -282,13 +299,18 @@ namespace FloorF.UI
                     m = r == StickerApplyResult.Applied ? Mark.Applicable : r == StickerApplyResult.NotEnoughTips ? Mark.Normal : Mark.Blocked;
                 }
                 else m = e.HasTarget && e.TargetFloor == b.Floor && phase == DayPhase.Running ? Mark.Target : Mark.Normal;
+                bool isJackpot = !shopMode && jackpotText != null && string.Equals(b.Label.text, jackpotText, StringComparison.Ordinal);
+                if (isJackpot && m == Mark.Normal) m = Mark.Jackpot;
+                if (b.JackpotRing.gameObject.activeSelf != isJackpot) b.JackpotRing.gameObject.SetActive(isJackpot);
+                if (isJackpot) foreach (var bar in b.JackpotBars) bar.color = new Color(UIStyle.Lucky.r, UIStyle.Lucky.g, UIStyle.Lucky.b, shimmer);
 
                 if (m != b.Mark)
                 {
                     b.Mark = m;
-                    var bg = m == Mark.Target ? UIStyle.BtnTarget : m == Mark.Applicable ? UIStyle.BtnApplicable : m == Mark.Blocked ? UIStyle.BtnBlocked : UIStyle.Btn;
+                    var bg = m == Mark.Target ? UIStyle.BtnTarget : m == Mark.Applicable ? UIStyle.BtnApplicable : m == Mark.Blocked ? UIStyle.BtnBlocked
+                        : m == Mark.Jackpot ? JackpotBtn : UIStyle.Btn;
                     b.Parts.Background.color = bg;
-                    b.Label.color = m == Mark.Blocked ? UIStyle.InkDim : UIStyle.InkOn(bg);
+                    b.Label.color = m == Mark.Blocked ? UIStyle.InkDim : m == Mark.Jackpot ? UIStyle.Lucky : UIStyle.InkOn(bg);
                     b.Original.alpha = m == Mark.Blocked ? 0.55f : 1f; // on its own dark plate: readable on any button colour
                     // the lit target key is pressed in (dark on top), a blocked one is flat
                     if (m == Mark.Target) UIBuild.SetBevel(b.Bevel, UIBuild.BevelDark, UIBuild.BevelLight);
@@ -316,7 +338,7 @@ namespace FloorF.UI
             var riders = e.Riders;
             for (int i = 0; i < riders.Count && count < riderProfiles.Length; i++)
                 if (ctx.Guests != null && ctx.Guests.TryGet(riders[i], out var info) && !info.HideNumbers) riderProfiles[count++] = info.Luck;
-            var v = UIFormat.OccupancyPreview(e.Occupancy, riderProfiles, count, ctx.Day != null && ctx.Day.IsStarNight && !ctx.Day.IsTutorial);
+            var v = UIFormat.OccupancyPreview(e.Occupancy, riderProfiles, count, ctx.LuckyForAll);
             for (int i = 0; i < count; i++) riderProfiles[i] = null;
             UIBuild.Set(occupancyValue, e.Occupancy.ToString(System.Globalization.CultureInfo.InvariantCulture) + "/" + e.Capacity.ToString(System.Globalization.CultureInfo.InvariantCulture));
             occupancyValue.color = v == LuckVerdict.Lucky ? UIStyle.Lucky : v == LuckVerdict.Unlucky ? UIStyle.Unlucky : UIStyle.Ink;
@@ -333,6 +355,8 @@ namespace FloorF.UI
         public float LabelPreferredWidth(int floor) =>
             floor >= 0 && floor < buttons.Length ? buttons[floor].Label.GetPreferredValues(buttons[floor].Label.text, float.PositiveInfinity, float.PositiveInfinity).x : 0f;
         public bool IsApplicable(int floor) => floor >= 0 && floor < buttons.Length && buttons[floor].Mark == Mark.Applicable;
+        /// <summary>The button wears the lottery's gold ring (it shows tonight's winning number).</summary>
+        public bool IsJackpot(int floor) => floor >= 0 && floor < buttons.Length && buttons[floor].JackpotRing.gameObject.activeSelf;
         public void Click(int floor) { if (floor >= 0 && floor < buttons.Length) buttons[floor].Parts.Button.onClick.Invoke(); }
         public void ClickOpen() => openButton.Button.onClick.Invoke();
         public void ClickClose() => closeButton.Button.onClick.Invoke();
