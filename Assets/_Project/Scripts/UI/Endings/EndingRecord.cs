@@ -14,13 +14,18 @@ namespace FloorF.UI
     /// </summary>
     sealed class EndingRecord
     {
-        /// <summary>Every ending, in the order the collection card lists them. <see cref="EndingKind.FourthFloor"/> is the hidden one.</summary>
-        public static readonly EndingKind[] All = { EndingKind.Prosperous, EndingKind.Modest, EndingKind.Haunted, EndingKind.FourthFloor };
+        /// <summary>Every ending, in the order the collection card lists them. <see cref="EndingKind.FourthFloor"/> is the hidden one.
+        /// The winter endings (after "Keep the hotel open") come after the base run's, the hidden one last.</summary>
+        public static readonly EndingKind[] All =
+        {
+            EndingKind.Prosperous, EndingKind.Modest, EndingKind.Haunted, EndingKind.WinterMiracle, EndingKind.SilentNight, EndingKind.FourthFloor,
+        };
         public static int Total => All.Length;
         /// <summary>Counts stop here (a corrupt or absurd value never overflows).</summary>
         public const int MaxCount = 99999;
 
-        readonly int[] counts = new int[5]; // index = (int)EndingKind
+        readonly int[] counts = new int[MaxKind + 1]; // index = (int)EndingKind
+        const int MaxKind = (int)EndingKind.SilentNight;
 
         /// <summary>Best final Luck / best tips earned in one run; -1 = no run finished yet.</summary>
         public int BestLuck { get; private set; } = -1;

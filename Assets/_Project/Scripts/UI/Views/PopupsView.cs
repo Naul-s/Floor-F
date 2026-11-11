@@ -25,6 +25,9 @@ namespace FloorF.UI
             public RectTransform Rect;
             public CanvasGroup Group;
             public TextMeshProUGUI Number, Verdict, Caption, Charm;
+            public Image Back;
+            /// <summary>Lottery night jackpot (LotteryWon): gold plate, "JACKPOT x2".</summary>
+            public bool Jackpot;
             public LuckSource Source;
             public int NumberValue;
             public LuckVerdict Kind;
@@ -107,7 +110,7 @@ namespace FloorF.UI
             bool shielded = shieldLine != null && e.Verdict == LuckVerdict.Unlucky;
             foreach (var p in popups)
             {
-                if (p.Age <= MergeWindow && p.Source == e.Source && p.NumberValue == e.Number && p.Kind == e.Verdict && p.Shielded == shielded)
+                if (!p.Jackpot && p.Age <= MergeWindow && p.Source == e.Source && p.NumberValue == e.Number && p.Kind == e.Verdict && p.Shielded == shielded)
                 {
                     p.Count++;
                     p.Verdict.text = VerdictWord(e.Verdict, shielded) + "  x" + p.Count;
@@ -128,6 +131,8 @@ namespace FloorF.UI
             pop.NumberValue = e.Number;
             pop.Kind = e.Verdict;
             pop.Shielded = shielded;
+            pop.Jackpot = false;
+            pop.Back.color = PlainBack;
             pop.Count = 1;
             pop.Age = 0f;
             string label = ctx.Building != null && e.Floor.IsValidFor(ctx.Building.FloorCount) ? ctx.Building.GetLabel(e.Floor).Text : "";
@@ -158,6 +163,60 @@ namespace FloorF.UI
             LayoutSpeech();
         }
 
+        static readonly Color PlainBack = new Color(0f, 0f, 0f, 0.72f), JackpotBack = new Color(0.22f, 0.15f, 0.01f, 0.9f);
+
+        /// <summary>
+        /// LotteryWon: a gold "JACKPOT x2" popup over the car (the guest steps out right there) with the winning number
+        /// big and "tips x2 · Luck +3" under it; a party hitting it together merges into one popup (Luck adds up).
+        /// </summary>
+        public void OnLotteryWon(LotteryWon e, float tipMultiplier, int luckBonus)
+        {
+            string mult = UIFormat.Factor(tipMultiplier);
+            foreach (var p in popups)
+            {
+                if (!p.Jackpot || p.Age > MergeWindow || p.NumberValue != e.Number) continue;
+                p.Count++;
+                p.Caption.text = ctx.F(UIStrings.JackpotCaption, mult, luckBonus * p.Count);
+                LastPopupText = PopupText(p);
+                return;
+            }
+            var pop = popupPool.Count > 0 ? popupPool.Pop() : MakePopup();
+            pop.Rect.gameObject.SetActive(true);
+            pop.Source = LuckSource.Lottery;
+            pop.NumberValue = e.Number;
+            pop.Kind = LuckVerdict.Lucky;
+            pop.Shielded = false;
+            pop.Jackpot = true;
+            pop.Count = 1;
+            pop.Age = 0f;
+            pop.Back.color = JackpotBack;
+            pop.Number.text = UIFonts.Star + e.Number.ToString(System.Globalization.CultureInfo.InvariantCulture) + UIFonts.Star;
+            pop.Verdict.text = ctx.F(UIStrings.Jackpot, mult);
+            pop.Caption.text = ctx.F(UIStrings.JackpotCaption, mult, luckBonus);
+            pop.Number.color = pop.Verdict.color = UIStyle.Lucky;
+            SetCharmLine(pop, null);
+            var origin = new Vector2(layer.rect.width * 0.5f, layer.rect.height * 0.5f);
+            if (ctx.Building != null && e.Floor.IsValidFor(ctx.Building.FloorCount) && ctx.Locator != null)
+            {
+                var car = UIContext.ToVector3(ctx.Locator.CarPosition);
+                if (ctx.WorldToCanvas(car + Vector3.up * (floorHeight * 1.05f), out var pos)) origin = pos;
+            }
+            origin.y += 40f + popups.Count * 30f; // above any luck popup of the same moment
+            origin.y = Mathf.Min(origin.y, layer.rect.height - 120f);
+            float half = pop.Rect.sizeDelta.x * 1.25f * 0.5f;
+            if (ctx.SignColumn(4f, out _, out float signMax)) origin.x = Mathf.Max(origin.x, signMax + half);
+            origin.x = Mathf.Clamp(origin.x, half + 8f, layer.rect.width - half - 8f);
+            pop.Origin = origin;
+            popups.Add(pop);
+            pop.Rect.SetAsLastSibling();
+            LastPopupText = PopupText(pop);
+            LastPopupColor = UIStyle.Lucky;
+            Animate(pop);
+            LayoutSpeech();
+        }
+
+        public bool LastPopupIsJackpot => popups.Count > 0 && popups[popups.Count - 1].Jackpot;
+
         Popup MakePopup()
         {
             var p = new Popup();
@@ -168,7 +227,7 @@ namespace FloorF.UI
             p.Group = p.Rect.gameObject.AddComponent<CanvasGroup>();
             p.Group.blocksRaycasts = false;
             p.Group.interactable = false;
-            var bg = UIBuild.Box("Back", p.Rect, new Color(0f, 0f, 0f, 0.72f));
+            var bg = p.Back = UIBuild.Box("Back", p.Rect, PlainBack);
             UIBuild.Stretch(bg.rectTransform);
             p.Number = UIBuild.Heading(UIBuild.Text("Number", p.Rect, "", 48f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true));
             UIBuild.Place(p.Number.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, 2f), new Vector2(170f, 60f));

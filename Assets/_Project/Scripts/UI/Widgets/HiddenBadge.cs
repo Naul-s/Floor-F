@@ -18,16 +18,21 @@ namespace FloorF.UI
         readonly CanvasGroup group;
         readonly float padX, height;
 
-        public HiddenBadge(string name, Transform parent, float fontSize, float padX, float height)
+        readonly Image edge, fill;
+
+        /// <param name="ink">Edge + text colour (default violet <see cref="Ink"/>); the winter ribbon is ice blue.</param>
+        public HiddenBadge(string name, Transform parent, float fontSize, float padX, float height, Color? ink = null, Color? plate = null)
         {
             this.padX = padX;
             this.height = height;
-            Root = UIBuild.Framed(name, parent, Plate, Ink, 2f).rectTransform;
+            edge = UIBuild.Framed(name, parent, plate ?? Plate, ink ?? Ink, 2f);
+            fill = edge.transform.GetChild(0).GetComponent<Image>();
+            Root = edge.rectTransform;
             Root.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
             group = Root.gameObject.AddComponent<CanvasGroup>();
             group.blocksRaycasts = false;
             group.interactable = false;
-            Label = UIBuild.Text("Text", Root, "", fontSize, Ink, TextAlignmentOptions.Center);
+            Label = UIBuild.Text("Text", Root, "", fontSize, ink ?? Ink, TextAlignmentOptions.Center);
             UIBuild.Stretch(Label.rectTransform);
             Label.textWrappingMode = TextWrappingModes.NoWrap;
             Label.characterSpacing = 100f / UIFonts.Grid; // one font pixel at 12px: stays on the grid
@@ -39,6 +44,14 @@ namespace FloorF.UI
             UIBuild.Set(Label, text);
             float w = Label.GetPreferredValues(Label.text, float.PositiveInfinity, float.PositiveInfinity).x;
             Root.sizeDelta = new Vector2(Mathf.Ceil(w) + 2f * padX, height);
+        }
+
+        /// <summary>Recolours edge, text and plate (one ribbon serves several card looks).</summary>
+        public void SetColors(Color ink, Color plate)
+        {
+            edge.color = ink;
+            Label.color = ink;
+            fill.color = plate;
         }
 
         public bool Visible => Root.gameObject.activeInHierarchy;

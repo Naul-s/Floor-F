@@ -37,6 +37,57 @@ namespace FloorF.UI
             }
         }
 
+        ISeasonQuery season;
+        ISeasonFlow seasonFlow;
+        IRunHistory history;
+        /// <summary>Test hook: fakes win over GameServices (null = resolve normally).</summary>
+        internal ISeasonQuery SeasonOverride;
+        internal ISeasonFlow SeasonFlowOverride;
+        internal IRunHistory HistoryOverride;
+
+        /// <summary>Winter season / lottery / Christmas (Gameplay). Lazy: null until registered - the UI then behaves as before.</summary>
+        public ISeasonQuery Season
+        {
+            get
+            {
+                if (SeasonOverride != null) return SeasonOverride;
+                if (season == null) GameServices.TryGet(out season);
+                return season;
+            }
+        }
+
+        /// <summary>Ending card "Keep the hotel open" (Gameplay). Lazy, null until registered.</summary>
+        public ISeasonFlow SeasonFlow
+        {
+            get
+            {
+                if (SeasonFlowOverride != null) return SeasonFlowOverride;
+                if (seasonFlow == null) GameServices.TryGet(out seasonFlow);
+                return seasonFlow;
+            }
+        }
+
+        /// <summary>Finished runs (Gameplay, saved). Lazy, null until registered.</summary>
+        public IRunHistory History
+        {
+            get
+            {
+                if (HistoryOverride != null) return HistoryOverride;
+                if (history == null) GameServices.TryGet(out history);
+                return history;
+            }
+        }
+
+        bool Real => Day != null && !Day.IsTutorial;
+        public bool IsLotteryNight => Real && Season != null && Season.IsLotteryNight;
+        public int LotteryNumber => IsLotteryNight ? Season.LotteryNumber : 0;
+        public bool IsChristmas => Real && Season != null && Season.IsChristmas;
+        public bool IsExtendedDay => Real && Season != null && Season.IsExtendedDay;
+        public float Snow => Season != null ? Mathf.Clamp01(Season.SnowAmount) : 0f;
+        /// <summary>Number lucky for every guest today: Christmas Eve's (ISeasonQuery.LuckyForAll) or star night's 7; 0 = none.</summary>
+        public int LuckyForAll => Day == null ? 0 : UIFormat.LuckyForAll(Day.IsTutorial, Day.IsStarNight, Season != null ? Season.LuckyForAll : 0);
+        public bool CanExtendSeason => Phase == DayPhase.Ending && SeasonFlow != null && SeasonFlow.CanExtendSeason;
+
         public DayPhase Phase => Day != null ? Day.Phase : DayPhase.None;
         public bool Paused => Menu != null && Menu.IsPaused;
 
@@ -79,6 +130,9 @@ namespace FloorF.UI
             GameServices.TryGet(out Settings);
             GameServices.TryGet(out Layout);
             GameServices.TryGet(out menu);
+            GameServices.TryGet(out season);
+            GameServices.TryGet(out seasonFlow);
+            GameServices.TryGet(out history);
         }
 
         /// <summary>

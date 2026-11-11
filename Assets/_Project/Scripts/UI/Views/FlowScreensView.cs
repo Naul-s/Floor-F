@@ -50,7 +50,15 @@ namespace FloorF.UI
         /// <summary>4th-floor ending card: violet edge on near-black violet, a violet-black dim (the quote's colour).</summary>
         public static readonly Color HiddenFill = new Color(0.03f, 0.015f, 0.055f, 0.97f), HiddenDim = new Color(0.02f, 0f, 0.05f, 0.76f);
         bool hiddenCard;
-        readonly UIBuild.ButtonParts action, toTitle, skip;
+        readonly UIBuild.ButtonParts action, again, toTitle, skip;
+        readonly VerticalLayoutGroup layout;
+        /// <summary>Ending card, ISeasonFlow.CanExtendSeason: "Winter season: 3 more nights" + the teaser, over the buttons.</summary>
+        readonly TextMeshProUGUI offer;
+        /// <summary>Winter-season intro / summary: "WINTER SEASON" ribbon on the top edge (the hidden badge's slot).</summary>
+        readonly HiddenBadge winterRibbon;
+        bool winterCard, christmasCard, offerShown, snowShown;
+        /// <summary>KEEP THE HOTEL OPEN: winter blue, a slow glow (0.5 Hz).</summary>
+        public static readonly Color KeepOpenBtn = UIStyle.Hex("#2C6496"), KeepOpenGlow = UIStyle.Hex("#3F86C4");
         DayPhase shown = (DayPhase)(-1);
         int shownDay = -1;
         readonly RectTransform stamp;
@@ -73,7 +81,7 @@ namespace FloorF.UI
             var fill = cardFill = UIBuild.Box("Fill", card, UIStyle.Card);
             UIBuild.Stretch(fill.rectTransform, 3f);
             fill.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
-            var v = card.gameObject.AddComponent<VerticalLayoutGroup>();
+            var v = layout = card.gameObject.AddComponent<VerticalLayoutGroup>();
             v.padding = new RectOffset(36, 36, 28, 28);
             v.spacing = 16f;
             v.childAlignment = TextAnchor.UpperCenter;
@@ -97,6 +105,9 @@ namespace FloorF.UI
             // ending card only: "Endings 3/4 unlocked" (+ NEW!) above the buttons (24px: at 12px Mulmaru the NEW! was lost)
             unlockLine = UIBuild.Text("Unlocks", card, "", 24f, UIStyle.InkDim, TextAlignmentOptions.Center);
             unlockLine.gameObject.SetActive(false);
+            offer = UIBuild.Text("SeasonOffer", card, "", 24f, WinterDeco.Ice, TextAlignmentOptions.Center);
+            offer.lineSpacing = 2f;
+            offer.gameObject.SetActive(false);
             var row = UIBuild.Rect("Buttons", card);
             row.gameObject.AddComponent<LayoutElement>().preferredHeight = 58f;
             var h = row.gameObject.AddComponent<HorizontalLayoutGroup>();
@@ -106,6 +117,11 @@ namespace FloorF.UI
             action = UIBuild.Button("Action", row, "", 24f, UIStyle.Action, OnAction);
             action.Label.color = UIStyle.Ink;
             action.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 2f;
+            // ending card with the winter season on offer: PLAY AGAIN steps aside next to TITLE (Enter = keep open)
+            again = UIBuild.Button("PlayAgain", row, "", 24f, UIStyle.Btn, OnAgain);
+            again.Label.color = UIStyle.Ink;
+            again.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            again.Rect.gameObject.SetActive(false);
             toTitle = UIBuild.Button("ToTitle", row, "", 24f, UIStyle.Btn, OnTitle);
             toTitle.Label.color = UIStyle.Ink;
             toTitle.Rect.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
@@ -157,6 +173,12 @@ namespace FloorF.UI
             hiddenBadge.Root.pivot = new Vector2(0.5f, 0.5f);
             hiddenBadge.Root.anchoredPosition = Vector2.zero; // centred on the top edge
             hiddenBadge.Show(false);
+            winterRibbon = new HiddenBadge("WinterRibbon", card, 24f, 18f, BadgeHeight, WinterDeco.Ice, RibbonPlate);
+            winterRibbon.Root.anchorMin = winterRibbon.Root.anchorMax = new Vector2(0.5f, 1f);
+            winterRibbon.Root.pivot = new Vector2(0.5f, 0.5f);
+            winterRibbon.Root.anchoredPosition = Vector2.zero;
+            winterRibbon.Show(false);
+            BuildWinter();
 
             dim.gameObject.SetActive(false);
         }
@@ -312,12 +334,91 @@ namespace FloorF.UI
             return rt;
         }
 
+        // ------------------------------------------------------------------ winter season: flakes, holly, falling snow
+
+        static readonly Color RibbonPlate = new Color(0.03f, 0.06f, 0.11f, 0.98f), RibbonPlateXmas = new Color(0.26f, 0.04f, 0.04f, 0.98f);
+        public const int SnowfallFlakes = 16;
+        RectTransform winterDeco, hollyDeco, snowfall;
+        readonly RectTransform[] cornerFlakes = new RectTransform[4];
+        readonly RectTransform[] fallFlakes = new RectTransform[SnowfallFlakes];
+        readonly Vector4[] fallSeeds = new Vector4[SnowfallFlakes];
+
+        /// <summary>Snowflakes on the four corners, holly sprigs (Christmas), a few flakes drifting down behind the text.</summary>
+        void BuildWinter()
+        {
+            winterDeco = UIBuild.Stretch(UIBuild.Rect("WinterDeco", card));
+            winterDeco.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            for (int i = 0; i < 4; i++)
+            {
+                var corner = new Vector2(i % 2, i / 2);
+                var anchor = UIBuild.Rect("Corner" + i, winterDeco);
+                UIBuild.Place(anchor, corner, Vector2.zero, Vector2.zero);
+                anchor.pivot = new Vector2(0.5f, 0.5f);
+                cornerFlakes[i] = WinterDeco.Snowflake("Flake", anchor, Vector2.zero, i < 2 ? 26f : 34f, WinterDeco.Ice);
+            }
+            winterDeco.gameObject.SetActive(false);
+
+            hollyDeco = UIBuild.Stretch(UIBuild.Rect("HollyDeco", card));
+            hollyDeco.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            var spots = new[] { new Vector2(0.14f, 1f), new Vector2(0.86f, 0f) };
+            for (int i = 0; i < spots.Length; i++)
+            {
+                var anchor = UIBuild.Rect("Spot" + i, hollyDeco);
+                UIBuild.Place(anchor, spots[i], Vector2.zero, Vector2.zero);
+                anchor.pivot = new Vector2(0.5f, 0.5f);
+                WinterDeco.HollySprig("Holly", anchor, Vector2.zero, 60f);
+            }
+            hollyDeco.gameObject.SetActive(false);
+
+            snowfall = Layer("Snowfall");
+            var rng = new System.Random(1225);
+            for (int i = 0; i < SnowfallFlakes; i++)
+            {
+                float size = i % 3 == 0 ? 4f : 2f;
+                var f = UIBuild.Box("Snow" + i, snowfall, new Color(1f, 1f, 1f, i % 3 == 0 ? 0.75f : 0.5f)).rectTransform;
+                f.anchorMin = f.anchorMax = new Vector2(0f, 1f);
+                f.pivot = new Vector2(0.5f, 0.5f);
+                f.sizeDelta = new Vector2(size, size);
+                fallFlakes[i] = f;
+                // x 0..1, fall speed px/s, sway phase, start offset 0..1
+                fallSeeds[i] = new Vector4((float)rng.NextDouble(), 18f + 22f * (float)rng.NextDouble(), (float)rng.NextDouble() * 6.28f, (float)rng.NextDouble());
+            }
+            snowfall.gameObject.SetActive(false);
+        }
+
+        /// <summary>Corner flakes turn slowly (one turn in ~40 s); the falling snow drifts down and sways (no flashing).</summary>
+        void TickWinter()
+        {
+            if (!dim.gameObject.activeSelf) return;
+            float t = Time.unscaledTime;
+            if (winterDeco.gameObject.activeSelf)
+                for (int i = 0; i < cornerFlakes.Length; i++)
+                    cornerFlakes[i].localRotation = Quaternion.Euler(0f, 0f, (i % 2 == 0 ? 9f : -9f) * t);
+            if (snowfall.gameObject.activeSelf)
+            {
+                var size = card.rect.size;
+                if (size.y < 10f) return;
+                for (int i = 0; i < fallFlakes.Length; i++)
+                {
+                    var seed = fallSeeds[i];
+                    float y = Mathf.Repeat(seed.w * size.y + t * seed.y, size.y + 8f);
+                    float x = seed.x * size.x + 10f * Mathf.Sin(t * 0.8f + seed.z);
+                    fallFlakes[i].anchoredPosition = new Vector2(Mathf.Round(Mathf.Clamp(x, 6f, size.x - 6f)), -Mathf.Round(y));
+                }
+            }
+            if (offerShown)
+            {
+                float k = 0.5f + 0.5f * Mathf.Sin(t * 3.1f); // ~0.5 Hz
+                action.Background.color = Color.Lerp(KeepOpenBtn, KeepOpenGlow, k * 0.8f);
+            }
+        }
+
         /// <summary>Recolours the frame / studs / rule for the card look and shows the day theme's accents.</summary>
         void SetDecoration(Color edge, bool friday, bool star, bool wedding)
         {
             var soft = new Color(edge.r, edge.g, edge.b, 0.55f);
             foreach (var e in innerFrame) e.color = soft;
-            foreach (var s in studs) { s.color = edge; s.gameObject.SetActive(!star); } // star night: the edge stars sit there
+            foreach (var s in studs) { s.color = edge; s.gameObject.SetActive(!star && !(winterDeco != null && winterDeco.gameObject.activeSelf)); } // star night / winter: stars / flakes sit there
             var ruleInk = wedding ? WeddingInk : edge;
             foreach (var r in rules) r.color = new Color(ruleInk.r, ruleInk.g, ruleInk.b, 0.8f);
             ruleGem.color = ruleInk;
@@ -362,11 +463,24 @@ namespace FloorF.UI
             {
                 case DayPhase.Intro: ok = ctx.Flow.BeginDay(); break;
                 case DayPhase.Summary: ok = ctx.Flow.ContinueFromSummary(); break;
-                case DayPhase.Ending: ctx.Flow.RestartGame(); ok = true; break;
+                case DayPhase.Ending:
+                    // the winter season on offer: the main button keeps the hotel open (PLAY AGAIN is its own button then)
+                    if (ctx.CanExtendSeason) { ok = ctx.SeasonFlow.ExtendSeason(); break; }
+                    ctx.Flow.RestartGame(); ok = true; break;
                 default: ok = false; break;
             }
             ctx.Sound(ok ? UiSoundKind.Confirm : UiSoundKind.Error);
         }
+
+        void OnAgain()
+        {
+            if (ctx.Flow == null) { ctx.Sound(UiSoundKind.Error); return; }
+            ctx.Flow.RestartGame();
+            ctx.Sound(UiSoundKind.Confirm);
+        }
+
+        /// <summary>Ending card with the winter season on offer: Enter = KEEP THE HOTEL OPEN (UIRoot owns Enter then).</summary>
+        public bool OwnsEnter => Shown == DayPhase.Ending && offerShown && ctx.CanExtendSeason;
 
         void OnSkip()
         {
@@ -387,6 +501,18 @@ namespace FloorF.UI
         public float SkipFontSize => skip.Label.fontSize;
         public bool SkipVisible => dim.gameObject.activeSelf && skip.Rect.gameObject.activeSelf;
         public void ClickTitle() => toTitle.Button.onClick.Invoke();
+        public void ClickAgain() => again.Button.onClick.Invoke();
+        public bool AgainVisible => dim.gameObject.activeSelf && again.Rect.gameObject.activeSelf;
+        public string AgainText => again.Label.text;
+        public string OfferText => dim.gameObject.activeSelf && offer.gameObject.activeSelf ? offer.text : null;
+        public bool WinterLook => dim.gameObject.activeSelf && winterCard;
+        public bool ChristmasLook => dim.gameObject.activeSelf && christmasCard;
+        public bool WinterRibbonVisible => dim.gameObject.activeSelf && winterRibbon.Visible;
+        public string WinterRibbonText => winterRibbon.Label.text;
+        public bool SnowfallVisible => dim.gameObject.activeSelf && snowfall.gameObject.activeSelf;
+        public bool CornerFlakesVisible => dim.gameObject.activeSelf && winterDeco.gameObject.activeSelf;
+        public bool HollyVisible => dim.gameObject.activeSelf && hollyDeco.gameObject.activeSelf;
+        public Rect WinterRibbonRect(RectTransform canvas) => WinterRibbonVisible ? UIBuild.CanvasRect(canvas, winterRibbon.Root) : default;
         public bool TitleButtonVisible => dim.gameObject.activeSelf && toTitle.Rect.gameObject.activeSelf;
         public string ActionText => action.Label.text;
 
@@ -394,6 +520,7 @@ namespace FloorF.UI
         {
             TickStamp();
             TickStars();
+            TickWinter();
             if (hiddenCard && dim.gameObject.activeSelf) hiddenBadge.Tick(Time.unscaledTime);
             var phase = ctx.HasGame ? ctx.Day.Phase : DayPhase.None;
             if (SkipVisible && !(ctx.Paused) && TabPressed()) { OnSkip(); return; }
@@ -429,14 +556,39 @@ namespace FloorF.UI
             bool ko = ctx.Korean;
             bool intro = phase == DayPhase.Intro && !ctx.Day.IsTutorial;
             bool hidden = phase == DayPhase.Ending && EndingRecord.IsHidden(ctx.Day.Ending);
-            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight, hidden, intro && ctx.TryGetDay(out var todayDef) && IsWeddingDay(todayDef));
+            // winter season: extended days' intro / summary, the two winter endings; Christmas Eve (and the miracle) in red + green
+            bool daily = (phase == DayPhase.Intro || phase == DayPhase.Summary) && !ctx.Day.IsTutorial;
+            var ending = phase == DayPhase.Ending ? ctx.Day.Ending : EndingKind.None;
+            bool canExtend = phase == DayPhase.Ending && ctx.CanExtendSeason;
+            bool christmas = (daily && ctx.IsChristmas) || ending == EndingKind.WinterMiracle;
+            bool winter = !christmas && ((daily && ctx.IsExtendedDay) || ending == EndingKind.SilentNight);
+            SetCardLook(intro && ctx.Day.IsFriday13, intro && ctx.Day.IsStarNight, hidden, intro && ctx.TryGetDay(out var todayDef) && IsWeddingDay(todayDef), winter, christmas);
             hiddenBadge.Show(hidden);
             if (hidden) { hiddenBadge.SetText(ctx.S(UIStrings.HiddenEnding)); hiddenBadge.Alpha = 1f; }
+            bool ribbon = daily && (ctx.IsExtendedDay || ctx.IsChristmas) && !hidden;
+            winterRibbon.Show(ribbon);
+            if (ribbon)
+            {
+                winterRibbon.SetColors(christmasCard ? ChristmasRibbonInk : WinterDeco.Ice, christmasCard ? RibbonPlateXmas : RibbonPlate);
+                winterRibbon.SetText(ctx.S(UIStrings.WinterSeason));
+            }
+            // corner flakes on every winter look and on the "keep the hotel open" offer; falling snow on the offer,
+            // the winter endings and Christmas Eve's intro
+            bool flakes = winterCard || christmasCard || canExtend;
+            if (winterDeco.gameObject.activeSelf != flakes) { winterDeco.gameObject.SetActive(flakes); SetDecoration(cardEdge.color, fridayCard, starCard, weddingCard); }
+            hollyDeco.gameObject.SetActive(christmasCard);
+            snowShown = canExtend || UIFormat.IsWinterEnding(ending) || (christmasCard && phase == DayPhase.Intro);
+            snowfall.gameObject.SetActive(snowShown);
+            offerShown = canExtend;
+            offer.gameObject.SetActive(canExtend);
+            again.Rect.gameObject.SetActive(canExtend);
+            layout.spacing = canExtend ? 10f : 16f;
+            if (!canExtend) action.Background.color = UIStyle.Action;
             unlockLine.gameObject.SetActive(phase == DayPhase.Ending && ctx.Endings != null);
             today.gameObject.SetActive(false);
             hint.gameObject.SetActive(false);
             journey.gameObject.SetActive(false);
-            title.color = fridayCard ? UIStyle.Unlucky : starCard ? StarTitle : UIStyle.Lucky;
+            title.color = fridayCard ? UIStyle.Unlucky : starCard ? StarTitle : winterCard ? WinterDeco.Ice : UIStyle.Lucky;
             extra.alignment = TextAlignmentOptions.Left; // the Friday-only intro line centres it (FillIntro)
             toTitle.Rect.gameObject.SetActive(phase == DayPhase.Ending && ctx.Menu != null);
             toTitle.Label.text = ctx.S(UIStrings.ToTitle);
@@ -462,6 +614,10 @@ namespace FloorF.UI
             {
                 t = ko && !string.IsNullOrEmpty(d.titleKo) ? d.titleKo : d.title;
                 intro = ko && !string.IsNullOrEmpty(d.introKo) ? d.introKo : d.intro;
+                // the rare mystery guest's night (never on a first run): one more, eerie sentence
+                string mystery = ko && !string.IsNullOrEmpty(d.mysteryIntroKo) ? d.mysteryIntroKo : d.mysteryIntro;
+                if (!string.IsNullOrEmpty(mystery) && ctx.Season != null && ctx.Season.MysteryTonight)
+                    intro = (string.IsNullOrEmpty(intro) ? "" : intro + " ") + "<color=" + UIFormat.HiddenHex + ">" + mystery + "</color>";
             }
             if (string.IsNullOrEmpty(t)) t = UIFormat.DayLabel(ctx.Day.DisplayDay, ctx.Day.PlayableDayCount, tutorial, ko);
             title.text = starCard ? UIFonts.Star + "  " + t + "  " + UIFonts.Star : t;
@@ -488,24 +644,32 @@ namespace FloorF.UI
 
         /// <summary>Card colours for the event day (Friday the 13th wins over star night; neither = the normal card),
         /// or the hidden 4th-floor ending.</summary>
-        void SetCardLook(bool friday, bool star, bool hidden = false, bool wedding = false)
+        void SetCardLook(bool friday, bool star, bool hidden = false, bool wedding = false, bool winter = false, bool christmas = false)
         {
             star &= !friday;
             hidden &= !friday && !star;
-            wedding &= !friday && !star && !hidden;
-            if (friday == fridayCard && star == starCard && hidden == hiddenCard && wedding == weddingCard) return;
+            christmas &= !friday && !star && !hidden;
+            winter &= !friday && !star && !hidden && !christmas;
+            wedding &= !friday && !star && !hidden && !winter && !christmas;
+            if (friday == fridayCard && star == starCard && hidden == hiddenCard && wedding == weddingCard && winter == winterCard && christmas == christmasCard) return;
             fridayCard = friday;
             starCard = star;
             hiddenCard = hidden;
             weddingCard = wedding;
-            cardEdge.color = friday ? UIStyle.Unlucky : star ? HudView.StarEdge : hidden ? HiddenBadge.Ink : UIStyle.CardEdge;
-            cardFill.color = friday ? FridayFill : star ? StarFill : hidden ? HiddenFill : UIStyle.Card;
-            dim.GetComponent<Image>().color = friday ? FridayDim : star ? StarDim : hidden ? HiddenDim : UIStyle.Dim;
+            winterCard = winter;
+            christmasCard = christmas;
+            cardEdge.color = friday ? UIStyle.Unlucky : star ? HudView.StarEdge : hidden ? HiddenBadge.Ink
+                : christmas ? WinterDeco.ChristmasEdge : winter ? WinterDeco.IceEdge : UIStyle.CardEdge;
+            cardFill.color = friday ? FridayFill : star ? StarFill : hidden ? HiddenFill
+                : christmas ? WinterDeco.ChristmasFill : winter ? WinterDeco.IceFill : UIStyle.Card;
+            dim.GetComponent<Image>().color = friday ? FridayDim : star ? StarDim : hidden ? HiddenDim
+                : christmas ? WinterDeco.ChristmasDim : winter ? WinterDeco.IceDim : UIStyle.Dim;
             starDeco.gameObject.SetActive(star);
             SetDecoration(cardEdge.color, friday, star, wedding);
         }
 
         public const float BadgeHeight = 36f;
+        static readonly Color ChristmasRibbonInk = UIStyle.Hex("#FFE3C2");
 
         /// <summary>Star-night card: the edge stars twinkle slowly (~0.3-0.9 Hz, alpha 0.44..1 - no flashing).</summary>
         void TickStars()
@@ -527,8 +691,10 @@ namespace FloorF.UI
             bool tutorial = ctx.Day.IsTutorial;
             title.text = tutorial ? ctx.S(UIStrings.TrainingDone) : string.Format(ctx.S(UIStrings.DayComplete), ctx.Day.DisplayDay);
             // the training shift's wrap-up: what the real days add, and that practice Luck/tips do not carry over
-            body.gameObject.SetActive(tutorial);
+            bool merry = !tutorial && ctx.IsChristmas;
+            body.gameObject.SetActive(tutorial || merry);
             if (tutorial) body.text = "<color=" + UIFormat.LuckyHex + ">" + ctx.S(UIStrings.PracticeReset) + "</color>";
+            else if (merry) body.text = "<color=" + WinterDeco.HollyHex + ">" + ctx.S(UIStrings.MerryChristmas) + "</color>";
             extra.gameObject.SetActive(true);
             string luckColor = s.LuckDelta >= 0 ? "#5BE37D" : UIFormat.UnluckyHex;
             extra.text =
@@ -577,7 +743,8 @@ namespace FloorF.UI
         {
             UIFormat.Ending(ctx.Day.Ending, ko, out var t, out var text);
             title.text = t;
-            title.color = ctx.Day.Ending == EndingKind.Haunted || ctx.Day.Ending == EndingKind.FourthFloor ? UIStyle.Unlucky : UIStyle.Lucky;
+            title.color = ctx.Day.Ending == EndingKind.Haunted || ctx.Day.Ending == EndingKind.FourthFloor ? UIStyle.Unlucky
+                : ctx.Day.Ending == EndingKind.SilentNight ? WinterDeco.Ice : UIStyle.Lucky;
             body.gameObject.SetActive(true);
             string quote = ctx.Day.Ending == EndingKind.FourthFloor ? SpecialLine(ko) : null;
             body.text = !string.IsNullOrEmpty(quote)
@@ -607,7 +774,14 @@ namespace FloorF.UI
                     line += "   <color=" + UIFormat.LuckyHex + ">" + ctx.S(UIStrings.EndingNew) + "</color>";
                 unlockLine.text = line;
             }
-            action.Label.text = ctx.S(UIStrings.PlayAgain);
+            if (offerShown)
+            {
+                int extra = ctx.Data != null && ctx.Data.ExtendedDayCount > 0 ? ctx.Data.ExtendedDayCount : 3;
+                offer.text = ctx.F(UIStrings.SeasonOffer, extra) + "\n<color=#F4EEDCAA>" + ctx.S(UIStrings.SeasonTeaser) + "</color>";
+                action.Label.text = ctx.S(UIStrings.KeepOpen);
+                again.Label.text = ctx.S(UIStrings.PlayAgainShort);
+            }
+            else action.Label.text = ctx.S(UIStrings.PlayAgain);
         }
 
         /// <summary>One stamp per real day: its grade in the summary stamp's colour, "-" (dim) for a day not reached.</summary>
@@ -618,6 +792,7 @@ namespace FloorF.UI
             bool show = days > 0 && j != null && j.Count > 0;
             journey.gameObject.SetActive(show);
             if (!show) return;
+            int baseDays = ctx.Data != null && ctx.Data.PlayableDayCount > 0 ? ctx.Data.PlayableDayCount : days;
             for (int i = 0; i < MaxJourneyDays; i++)
             {
                 var st = journeyStamps[i];
@@ -629,6 +804,7 @@ namespace FloorF.UI
                 st.Letter.color = c;
                 foreach (var e in st.Ring) e.color = g != null ? c : new Color(c.r, c.g, c.b, 0.3f);
                 st.Day.text = N(i + 1);
+                st.Day.color = i + 1 > baseDays ? WinterDeco.Ice : UIStyle.InkDim; // the winter season's nights
             }
         }
 

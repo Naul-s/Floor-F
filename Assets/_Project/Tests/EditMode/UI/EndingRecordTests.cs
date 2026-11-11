@@ -13,11 +13,11 @@ namespace FloorF.Tests.EditMode.UI
         public void TearDown() => EndingCollection.StoreOverride = null;
 
         [Test]
-        public void Empty_NothingUnlocked_FourEndings_OnlyFourthFloorHidden()
+        public void Empty_NothingUnlocked_SixEndings_OnlyFourthFloorHidden()
         {
             var r = new EndingRecord();
-            Assert.AreEqual(4, EndingRecord.Total);
-            CollectionAssert.AreEqual(new[] { EndingKind.Prosperous, EndingKind.Modest, EndingKind.Haunted, EndingKind.FourthFloor }, EndingRecord.All);
+            Assert.AreEqual(6, EndingRecord.Total);
+            CollectionAssert.AreEqual(new[] { EndingKind.Prosperous, EndingKind.Modest, EndingKind.Haunted, EndingKind.WinterMiracle, EndingKind.SilentNight, EndingKind.FourthFloor }, EndingRecord.All);
             Assert.AreEqual(0, r.UnlockedCount);
             foreach (var k in EndingRecord.All)
             {
@@ -93,7 +93,7 @@ namespace FloorF.Tests.EditMode.UI
             var store = new MemoryEndingStore("2:1");
             var c = new EndingCollection(store);
             Assert.AreEqual(1, c.Unlocked);
-            Assert.AreEqual(4, EndingCollection.Total);
+            Assert.AreEqual(6, EndingCollection.Total);
             Assert.AreEqual(EndingKind.None, c.LastNew);
 
             Assert.IsTrue(c.Add(EndingKind.FourthFloor));
@@ -164,6 +164,23 @@ namespace FloorF.Tests.EditMode.UI
         }
 
         [Test]
+        public void WinterEndings_AreCounted_Saved_AndReadBack()
+        {
+            var r = new EndingRecord();
+            Assert.IsTrue(r.Add(EndingKind.Prosperous));
+            Assert.IsTrue(r.Add(EndingKind.WinterMiracle), "a base ending and then the winter one in the same run");
+            Assert.IsTrue(r.Add(EndingKind.SilentNight));
+            Assert.IsFalse(r.Add(EndingKind.SilentNight));
+            Assert.AreEqual(3, r.UnlockedCount);
+            string s = r.Serialize();
+            Assert.AreEqual("1:1,5:1,6:2", s);
+            var back = EndingRecord.Parse(s + ",7:3");
+            Assert.AreEqual(2, back.Times(EndingKind.SilentNight));
+            Assert.AreEqual(1, back.Times(EndingKind.WinterMiracle));
+            Assert.AreEqual(3, back.UnlockedCount, "an unknown future kind is skipped");
+        }
+
+        [Test]
         public void Strings_NamesLinesHints_EnKo()
         {
             foreach (bool ko in new[] { false, true })
@@ -185,8 +202,20 @@ namespace FloorF.Tests.EditMode.UI
             StringAssert.Contains("0", UIFormat.EndingHint(EndingKind.Haunted, false, 6, 65));
             // the hidden one only whispers: no rule, no numbers
             string hidden = UIFormat.EndingHint(EndingKind.FourthFloor, false, 6, 65);
-            Assert.AreEqual("Some floors are only hidden, never gone…", hidden);
-            Assert.AreEqual("가려진 층은 사라지지 않는다…", UIFormat.EndingHint(EndingKind.FourthFloor, true, 6, 65));
+            Assert.AreEqual("Not on your first stay. Some nights, someone asks for a floor that isn't there…", hidden);
+            Assert.AreEqual("첫 방문엔 볼 수 없어요. 어떤 밤엔 누군가 없는 층을 찾습니다…", UIFormat.EndingHint(EndingKind.FourthFloor, true, 6, 65));
+            // the winter endings: Christmas Eve, the miracle with the prosperous Luck
+            Assert.AreEqual("Keep the hotel open through Christmas Eve with Luck 65+.", UIFormat.EndingHint(EndingKind.WinterMiracle, false, 6, 65));
+            Assert.AreEqual("영업을 이어가 크리스마스 이브를 운 65 이상으로 마치기.", UIFormat.EndingHint(EndingKind.WinterMiracle, true, 6, 65));
+            Assert.AreEqual("Keep the hotel open through Christmas Eve.", UIFormat.EndingHint(EndingKind.SilentNight, false, 6, 65));
+            Assert.AreEqual("MIRACLE", UIFormat.EndingName(EndingKind.WinterMiracle, false));
+            Assert.AreEqual("고요한 밤", UIFormat.EndingName(EndingKind.SilentNight, true));
+            UIFormat.Ending(EndingKind.WinterMiracle, false, out var mt, out _);
+            UIFormat.Ending(EndingKind.SilentNight, true, out var st, out _);
+            Assert.AreEqual("A CHRISTMAS MIRACLE", mt);
+            Assert.AreEqual("고요한 밤", st);
+            Assert.IsTrue(UIFormat.IsWinterEnding(EndingKind.WinterMiracle) && UIFormat.IsWinterEnding(EndingKind.SilentNight));
+            Assert.IsFalse(UIFormat.IsWinterEnding(EndingKind.Prosperous));
             Assert.IsFalse(System.Text.RegularExpressions.Regex.IsMatch(hidden, "[0-9]"));
             Assert.AreEqual("Endings 3/4 unlocked", string.Format(UIStrings.EndingsUnlocked.En, 3, 4));
             Assert.AreEqual("엔딩 3/4 해금", string.Format(UIStrings.EndingsUnlocked.Ko, 3, 4));

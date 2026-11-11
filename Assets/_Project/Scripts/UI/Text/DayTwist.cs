@@ -13,7 +13,7 @@ namespace FloorF.UI
     /// </summary>
     static class DayTwist
     {
-        public enum Kind { None, Training, Basics, Ride, Couple, Gambler, Friday, Wedding, Star }
+        public enum Kind { None, Training, Basics, Ride, Couple, Gambler, Friday, Wedding, Star, NewGuest, Lottery, LuckyForAll }
 
         public static Kind Resolve(DayDef d, GameData data)
         {
@@ -21,18 +21,23 @@ namespace FloorF.UI
             if (d.tutorial) return Kind.Training;
             if (d.friday13) return Kind.Friday;
             if (d.starNight) return Kind.Star;
+            if (d.lottery) return Kind.Lottery;
+            if (d.luckyForAll > 0) return Kind.LuckyForAll;
             if (WeddingGuests(d, data, out _, out _)) return Kind.Wedding;
             if (FirstWith(d, data, GuestTraits.Gambler)) return Kind.Gambler;
             if (FirstWith(d, data, GuestTraits.Devout)) return Kind.Couple;
             int real = RealDayOrdinal(d, data);
-            return real == 1 ? Kind.Basics : real == 2 ? Kind.Ride : Kind.None;
+            if (real == 1) return Kind.Basics;
+            if (real == 2) return Kind.Ride;
+            return NewGuest(d, data) != null ? Kind.NewGuest : Kind.None;
         }
 
         /// <summary>Colour of the line on the card (the card look's accent: red Friday, starlight, rose wedding, gold).</summary>
         public static string Hex(Kind k) =>
-            k == Kind.Friday ? UIFormat.UnluckyHex : k == Kind.Star ? StarHex : k == Kind.Wedding ? WeddingHex : UIFormat.LuckyHex;
+            k == Kind.Friday ? UIFormat.UnluckyHex : k == Kind.Star ? StarHex : k == Kind.Wedding ? WeddingHex
+            : k == Kind.LuckyForAll ? HollyHex : k == Kind.NewGuest ? IceHex : UIFormat.LuckyHex;
 
-        public const string StarHex = "#DCD4FF", WeddingHex = "#FF8FB8";
+        public const string StarHex = "#DCD4FF", WeddingHex = "#FF8FB8", IceHex = "#BFE6FF", HollyHex = "#9BE89B";
 
         /// <summary>The effect text (no "TODAY:" prefix), or null for <see cref="Kind.None"/>.</summary>
         public static string Text(Kind k, DayDef d, GameData data, bool ko)
@@ -54,6 +59,18 @@ namespace FloorF.UI
                 case Kind.Wedding:
                     WeddingGuests(d, data, out var pair, out var solo);
                     return KoreanParticles.Format(UIStrings.TodayWedding.Get(ko), List(pair, ko), List(solo, ko));
+                case Kind.Lottery:
+                    return KoreanParticles.Format(UIStrings.TodayLottery.Get(ko), N(d.lotteryDraws > 0 ? d.lotteryDraws : 1),
+                        UIFormat.Factor(rules.lotteryTipMultiplier), N(rules.lotteryLuckBonus));
+                case Kind.LuckyForAll:
+                    return KoreanParticles.Format(UIStrings.TodayLuckyForAll.Get(ko), N(d.luckyForAll));
+                case Kind.NewGuest:
+                    var g = NewGuest(d, data);
+                    if (g == null) return null;
+                    string name = ko && !string.IsNullOrEmpty(g.nameKo) ? g.nameKo : g.name;
+                    return g.unlucky != null && g.unlucky.Length > 0
+                        ? KoreanParticles.Format(UIStrings.TodayNewGuest.Get(ko), name, List(g.lucky, ko), List(g.unlucky, ko))
+                        : KoreanParticles.Format(UIStrings.TodayNewGuestNoUnlucky.Get(ko), name, List(g.lucky, ko));
                 default: return null;
             }
         }
@@ -89,6 +106,29 @@ namespace FloorF.UI
                 foreach (var g in Guests(other, data)) if (g.HasTrait(trait)) return false;
             }
             return true;
+        }
+
+        /// <summary>
+        /// A guest who checks in for the first time today (no earlier day has them) and shows their numbers - never the
+        /// mystery guest (that one stays a secret). The first in spawn order; null when there is none.
+        /// </summary>
+        internal static GuestDef NewGuest(DayDef d, GameData data)
+        {
+            if (d == null || data == null) return null;
+            foreach (var g in Guests(d, data))
+            {
+                if (g.hideNumbers || g.HasTrait(GuestTraits.Mystery) || g.lucky == null || g.lucky.Length == 0) continue;
+                bool seen = false;
+                foreach (var other in data.Days)
+                {
+                    if (other == null || other.day >= d.day) continue;
+                    if (other.spawns == null) continue;
+                    foreach (var s in other.spawns) if (s != null && s.guest == g.id) { seen = true; break; }
+                    if (seen) break;
+                }
+                if (!seen) return g;
+            }
+            return null;
         }
 
         /// <summary>1 = the first real (non-tutorial) day, 2 = the second ...; 0 when unknown.</summary>
@@ -134,14 +174,16 @@ namespace FloorF.UI
         }
 
         /// <summary>Lucky numbers as "6 and 8" / "3, 5 and 7" ("6, 8" / "3, 5, 7" in Korean).</summary>
-        static string List(GuestDef g, bool ko)
+        static string List(GuestDef g, bool ko) => List(g?.lucky, ko);
+
+        static string List(int[] numbers, bool ko)
         {
-            if (g?.lucky == null || g.lucky.Length == 0) return "?";
+            if (numbers == null || numbers.Length == 0) return "?";
             var sb = new StringBuilder();
-            for (int i = 0; i < g.lucky.Length; i++)
+            for (int i = 0; i < numbers.Length; i++)
             {
-                if (i > 0) sb.Append(ko ? ", " : i == g.lucky.Length - 1 ? " and " : ", ");
-                sb.Append(N(g.lucky[i]));
+                if (i > 0) sb.Append(ko ? ", " : i == numbers.Length - 1 ? " and " : ", ");
+                sb.Append(N(numbers[i]));
             }
             return sb.ToString();
         }

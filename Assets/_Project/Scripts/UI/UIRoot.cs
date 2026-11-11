@@ -30,6 +30,7 @@ namespace FloorF.UI
         CurseView curse;
         WishView wish;
         DayBannerView banner;
+        LotteryView lottery;
         CharmsView charms;
         ScenicView scenic;
         ClickFxView clickFx;
@@ -71,6 +72,8 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<WishMade>(e => { if (built && !OnTitle) wish.OnMade(e); }));
             subs.Add(bus.Subscribe<WishStarFaded>(e => { if (built) wish.OnFaded(e); }));
             subs.Add(bus.Subscribe<EndingReached>(OnEndingReached));
+            subs.Add(bus.Subscribe<LotteryDrawn>(e => { if (built && !OnTitle) lottery.OnDrawn(e); }));
+            subs.Add(bus.Subscribe<LotteryWon>(OnLotteryWon));
             subs.Add(bus.Subscribe<DayEnded>(OnDayEnded));
             subs.Add(bus.Subscribe<DebugReadoutChanged>(e => { lastDebug = e; if (built) debugReadout.On(e); }));
         }
@@ -95,6 +98,15 @@ namespace FloorF.UI
         }
 
         void OnDisable() => subs.Clear();
+
+        /// <summary>Jackpot: the gold popup over the car and one more on the HUD badge's count.</summary>
+        void OnLotteryWon(LotteryWon e)
+        {
+            if (!built || OnTitle) return;
+            var rules = ctx.Data != null ? ctx.Data.Rules : new RulesDef();
+            popups.OnLotteryWon(e, rules.lotteryTipMultiplier, rules.lotteryLuckBonus);
+            hud.OnLotteryWon();
+        }
 
         /// <summary>Guests whose NEXT Unlucky verdict a shield charm just ate (CharmTriggered comes right before it).</summary>
         readonly System.Collections.Generic.Dictionary<GuestId, StickerId> shielded = new System.Collections.Generic.Dictionary<GuestId, StickerId>();
@@ -151,6 +163,9 @@ namespace FloorF.UI
             scenic = new ScenicView(ctx, rt, fxRect); // eye button next to the day box; hint / caption on the FX canvas
             wish.Fx.SetAsLastSibling(); // hint, explain card, float-ups above the HUD boxes
             banner = new DayBannerView(ctx, rt);
+            lottery = new LotteryView(ctx, rt);
+            hud.LotteryRolling = () => lottery.Rolling;
+            panel.LotteryRolling = () => lottery.Rolling;
             shop = new ShopView(ctx, rt, panel);
             curse = new CurseView(ctx, rt); // above the HUD / popups, under the flow cards, coach marks and menu
             flow = new FlowScreensView(ctx, rt);
@@ -290,6 +305,7 @@ namespace FloorF.UI
             curse.Tick(dt);
             wish.Tick(dt);
             banner.Tick(dt);
+            lottery.Tick(dt);
             shop.Tick();
             flow.Tick();
             tutorial.Tick(dt, Time.unscaledTime);
@@ -298,7 +314,8 @@ namespace FloorF.UI
             clickFx.Tick(UIClock.UnscaledDt);
             FadeHud(UIClock.UnscaledDt);
             // an open title card (CREDITS / ENDINGS / OPTIONS) keeps Enter from starting a game behind it
-            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || (OnTitle && menu.TitleCardOpen) || scenic.HoldsEnter);
+            // the ending card's "keep the hotel open" offer: Enter = that button, not the Gameplay PLAY AGAIN shortcut
+            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || (OnTitle && menu.TitleCardOpen) || scenic.HoldsEnter || flow.OwnsEnter);
         }
 
         void LateUpdate()
@@ -318,6 +335,7 @@ namespace FloorF.UI
             bool used = attractUsed;
             if (scenic.Tick(UIClock.UnscaledDt, used ? default : press)) used = true;
             if (!used && press.H && ctx.Phase == DayPhase.Running && !OnTitle && !ctx.Paused) hud.ToggleRules();
+            if (!used && press.Enter && flow.OwnsEnter && !ctx.Paused) { flow.Click(); used = true; }
             if (press.Pointer && !attractUsed) OnPointerPress(press.Screen);
         }
 
@@ -395,7 +413,8 @@ namespace FloorF.UI
                 flow.ExpiredLabels = flow.ExpiredCharms = 0;
                 charms.Clear(); // a new day: shield counts start over
             }
-            if (e.Current == DayPhase.Intro || e.Current == DayPhase.Title) hud.ResetStreak(); // a new day starts at 0 silently
+            if (e.Current == DayPhase.Intro || e.Current == DayPhase.Title) { hud.ResetStreak(); hud.ResetJackpots(); } // a new day starts at 0 silently
+            if (e.Current != DayPhase.Running) lottery.Stop();
             // the attract demo replays a day behind the title: every tutorial day's lesson starts from wave 1
             tutorial.OnPhaseChanged(e);
             if (OnTitle) banner.Stop(); else banner.OnPhaseChanged(e);
@@ -459,6 +478,43 @@ namespace FloorF.UI
             if (day != null) ctx.Day = day;
             if (built) { panel.RefreshLabels(); shop.RefreshLanguage(); if (day != null) flow.Refresh(); }
         }
+
+        /// <summary>Test hook: fake winter-season services (the real ones come from Gameplay). null = back to GameServices.</summary>
+        internal void OverrideSeasonForTests(ISeasonQuery season, ISeasonFlow flowService = null, IRunHistory history = null)
+        {
+            ctx.SeasonOverride = season;
+            ctx.SeasonFlowOverride = flowService;
+            ctx.HistoryOverride = history;
+            if (built) { panel.RefreshLabels(); flow.Refresh(); }
+        }
+        // winter season / lottery / Christmas
+        internal bool FlowWinterLook => flow.WinterLook;
+        internal bool FlowChristmasLook => flow.ChristmasLook;
+        internal bool WinterRibbonVisible => flow.WinterRibbonVisible;
+        internal string WinterRibbonText => flow.WinterRibbonText;
+        internal Rect WinterRibbonRect => flow.WinterRibbonRect(ctx.CanvasRect);
+        internal bool FlowSnowfall => flow.SnowfallVisible;
+        internal bool FlowCornerFlakes => flow.CornerFlakesVisible;
+        internal bool FlowHolly => flow.HollyVisible;
+        internal string SeasonOfferText => flow.OfferText;
+        internal bool PlayAgainVisible => flow.AgainVisible;
+        internal string PlayAgainText => flow.AgainText;
+        internal void ClickPlayAgain() => flow.ClickAgain();
+        internal bool FlowOwnsEnter => flow.OwnsEnter;
+        internal bool LotteryVisible => lottery.Visible;
+        internal bool LotteryRolling => lottery.Rolling;
+        internal string LotteryBallText => lottery.NumberText;
+        internal string LotteryResultText => lottery.ResultText;
+        internal string LotteryCaptionText => lottery.CaptionText;
+        internal Rect LotteryRect => lottery.Visible ? UIBuild.CanvasRect(ctx.CanvasRect, lottery.Rect) : default;
+        internal void SetLotteryAge(float t) => lottery.SetAge(t);
+        internal bool IsJackpotButton(int floor) => panel.IsJackpot(floor);
+        internal bool SeasonBadgeVisible => hud.SeasonBadgeVisible;
+        internal string SeasonBadgeText => hud.SeasonBadgeTextNow;
+        internal bool SeasonBadgeFits => hud.SeasonBadgeFits;
+        internal Rect SeasonBadgeRect => UIBuild.CanvasRect(ctx.CanvasRect, hud.SeasonBadge);
+        internal bool SnowCapVisible => hud.SnowCapVisible;
+        internal bool LastPopupIsJackpot => popups.LastPopupIsJackpot;
 
         // endings collection / hidden-ending badge
         /// <summary>Test hook: swap the endings record's store (re-read at once); the title and ending card refresh.</summary>
