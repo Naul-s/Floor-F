@@ -48,7 +48,7 @@
     "rerollBaseCost": 20,
     "rerollCostMultiplier": 2.0,
     "maxRerolls": 3,
-    "prosperousEndingLuck": 80,
+    "prosperousEndingLuck": 85,
     "winterMiracleLuck": 90,
     "mysteryChance": 0.3,
     "mysteryPityRuns": 3,
