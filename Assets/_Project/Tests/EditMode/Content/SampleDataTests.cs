@@ -34,6 +34,9 @@ namespace FloorF.Tests.EditMode.Content
         [TestCase("italian_nonno")]
         [TestCase("chinese_wedding_party")]
         [TestCase("japanese_wedding_guest")]
+        [TestCase("solo_traveler")]
+        [TestCase("santa")]
+        [TestCase("carolers")]
         public void MvpGuest_Exists(string id)
         {
             Assert.IsTrue(data.TryGetGuest(new GuestArchetypeId(id), out _), id);
