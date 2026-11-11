@@ -194,6 +194,29 @@ namespace FloorF.Rendering
             return b.Build("City " + ppu + "ppu");
         }
 
+        /// <summary>
+        /// The near row's windows exactly as <see cref="BuildBlock"/> lays them out: block index, screen-plane x / y of the
+        /// window's bottom-left (whole units), width (units) and the window depth. Seasonal dressing (snow on the sills,
+        /// candles) follows the same grid.
+        /// </summary>
+        public static IEnumerable<(int Block, int X, int Y, int W, float Z)> NearWindows()
+        {
+            float g = RenderingStyle.GroundY;
+            for (int i = 0; i < Blocks.Length; i++)
+            {
+                var blk = Blocks[i];
+                if (blk.Z > 6f) continue;
+                var look = i < CityDressing.Looks.Length ? CityDressing.Looks[i] : default;
+                float top = Mathf.Round(g + blk.Height);
+                int winW = blk.Style == 1 ? 2 : 1, pitch = blk.Style == 1 ? 3 : 2;
+                bool shop = look.Shop != CityDressing.Shop.None;
+                int firstRow = !shop ? 1 : look.Shop == CityDressing.Shop.Lotto ? 5 : 3;
+                for (int y = Mathf.CeilToInt(g) + firstRow; y + 1 <= top - 1; y += 2)
+                    for (int x = blk.X0 + 1; x + winW <= blk.X1 - 1; x += pitch)
+                        yield return (i, x, y, winW, blk.Z - 0.01f);
+            }
+        }
+
         /// <summary>Wall pattern of a block (by its colour): brick, concrete panels, glazed tiles, stone; far towers get floor lines.</summary>
         public static WallPattern PatternOf(in Block blk)
         {

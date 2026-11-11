@@ -143,6 +143,22 @@ namespace FloorF.Rendering
         readonly List<Neon> neons = new List<Neon>();
         int signs;
 
+        // ---- recorded on the first build (not on zoom replays) for the seasonal dressing (WinterView, ChristmasDecor)
+        /// <summary>World boxes whose tops catch snow: awnings, sign boards, fire escapes, balconies, AC units, roof props.</summary>
+        public readonly List<Bounds> Ledges = new List<Bounds>();
+        /// <summary>Shop sign boards: text, screen-plane rectangle (x0, y0, x1, y1) and depth.</summary>
+        public readonly List<(string Text, Rect Screen, float Z)> SignBoards = new List<(string, Rect, float)>();
+        /// <summary>Shop fronts: block x range (screen), display window bottom/top (screen y), front depth, door x (screen).</summary>
+        public readonly List<(float X0, float X1, float WindowY0, float WindowY1, float Z, float Door)> ShopFronts = new List<(float, float, float, float, float, float)>();
+
+        void Ledge(float sx0, float sy0, float sx1, float sy1, float z0, float z1)
+        {
+            if (ledger.Replaying) return;
+            var b = new Bounds();
+            b.SetMinMax(new Vector3(wx(sx0, z0), wy(sy0, z0), z0), new Vector3(wx(sx1, z0), wy(sy1, z0), z1));
+            Ledges.Add(b);
+        }
+
         /// <summary>Neon signs built (tests).</summary>
         public int SignCount => signs;
         public int NeonTexelCount => neons.Count;
@@ -238,6 +254,11 @@ namespace FloorF.Rendering
             float x0 = Snap(cx - tw * 0.5f - 3f * px), x1 = x0 + tw + 6f * px;
             float y0 = Snap(y), y1 = y0 + th + 6f * px;
             int back = atlas.Static(SignBack);
+            if (!ledger.Replaying)
+            {
+                SignBoards.Add((text, UnityEngine.Rect.MinMaxRect(x0, y0, x1, y1), z));
+                Ledge(x0, y1 - 0.1f, x1, y1, z - 0.02f, z + 0.12f);
+            }
             int rim = NeonTexel(neon * 0.55f, 0, 1, false);
             Rect(b, x0, y0, x1, y1, z - 0.005f, rim);
             Rect(b, x0 + px, y0 + px, x1 - px, y1 - px, z - 0.01f, back);
@@ -285,6 +306,7 @@ namespace FloorF.Rendering
             float wy0 = g + 0.15f, wy1 = g + 1.55f;
             // door on the right third, display window on the rest
             float door = x1 - 1.0f;
+            if (!ledger.Replaying) ShopFronts.Add((blk.X0, blk.X1, wy0, wy1, wz, door));
             Rect(b, x0 - 0.1f, wy0 - 0.1f, x1 + 0.1f, wy1 + 0.1f, wz, frame);
             Rect(b, x0, wy0, door - 0.1f, wy1, wz - 0.002f, window);
             Rect(b, door, wy0, x1, wy1 - 0.1f, wz - 0.002f, atlas.Static(glass * 0.55f));
@@ -441,6 +463,7 @@ namespace FloorF.Rendering
         {
             int ta = atlas.Static(a), tc = atlas.Static(c);
             float az = z - 0.9f, sy = g + 1.65f;
+            Ledge(blk.X0 + 0.5f, sy + 0.3f, blk.X1 - 0.5f, sy + 0.4f, az, z);
             for (int i = 0; blk.X0 + 0.5f + i * 0.5f < blk.X1 - 0.5f; i++)
             {
                 float ax = blk.X0 + 0.5f + i * 0.5f;
@@ -459,6 +482,7 @@ namespace FloorF.Rendering
             {
                 // platform (slab + its top), railing, ladder down to the next platform
                 b.Box(new Vector3(wx(x0, fz), wy(y - 0.1f, fz), fz), new Vector3(wx(x1, fz), wy(y, fz), z), metal, rail, metal);
+                Ledge(x0, y - 0.1f, x1, y, fz, z);
                 Rect(b, x0, y + 0.55f, x1, y + 0.55f + px, fz - 0.01f, rail);
                 for (float rx = x0; rx <= x1 + 0.01f; rx += 0.5f) Rect(b, rx, y, rx + px, y + 0.55f, fz - 0.01f, rail);
                 // diagonal stairs to the platform above, pixel-stepped
@@ -481,6 +505,7 @@ namespace FloorF.Rendering
             {
                 float x0 = blk.X0 + 0.7f, x1 = blk.X1 - 0.7f;
                 b.Box(new Vector3(wx(x0, bz), wy(y - 0.12f, bz), bz), new Vector3(wx(x1, bz), wy(y, bz), z), slab, atlas.Static(PaletteMeshBuilder.Top(new Color(0.30f, 0.29f, 0.30f))), slab);
+                Ledge(x0, y - 0.12f, x1, y, bz, z);
                 Rect(b, x0, y + 0.42f, x1, y + 0.42f + px, bz - 0.01f, rail);
                 for (float rx = x0; rx <= x1 + 0.01f; rx += 0.25f) Rect(b, rx, y, rx + px, y + 0.42f, bz - 0.01f, rail);
             }
@@ -497,6 +522,7 @@ namespace FloorF.Rendering
                     if (LightSchedule.Hash(RenderingStyle.CitySeed, index, k, 140) > 0.3f) continue;
                     float az = z - 0.3f;
                     Box(b, x, y - 0.45f, x + 0.6f, y - 0.1f, az, 0.3f, body);
+                    Ledge(x, y - 0.45f, x + 0.6f, y - 0.1f, az, az + 0.3f);
                     Rect(b, x + 0.1f, y - 0.35f, x + 0.5f, y - 0.35f + px, az - 0.005f, grille);
                     Rect(b, x + 0.1f, y - 0.25f, x + 0.5f, y - 0.25f + px, az - 0.005f, grille);
                 }
@@ -521,6 +547,7 @@ namespace FloorF.Rendering
                     Rect(b, tx, top + 1.85f, tx + 1.4f, top + 1.85f + px, rz - 0.01f, band);
                     Box(b, tx + 0.15f, top + 2.3f, tx + 1.25f, top + 2.6f, rz + 0.1f, 1.0f, wood * 0.8f);
                     Box(b, tx + 0.45f, top + 2.6f, tx + 0.95f, top + 2.8f, rz + 0.3f, 0.6f, wood * 0.8f);
+                    Ledge(tx + 0.15f, top + 2.3f, tx + 1.25f, top + 2.6f, rz + 0.1f, rz + 1.1f);
                     break;
                 }
                 case Roof.Billboard:
@@ -529,6 +556,7 @@ namespace FloorF.Rendering
                     foreach (float lx in new[] { bx0 + 0.6f, bx1 - 0.7f })
                         Box(b, lx, top, lx + 0.1f, top + 0.8f, rz, 0.1f, dark);
                     Box(b, bx0, top + 0.8f, bx1, top + 2.8f, rz, 0.15f, new Color(0.10f, 0.09f, 0.14f));
+                    Ledge(bx0, top + 2.7f, bx1, top + 2.8f, rz, rz + 0.15f);
                     int face = Light(LivingLights.Kind.Lamp, new Color(0.22f, 0.12f, 0.30f), new Color(0.10f, 0.07f, 0.13f));
                     Rect(b, bx0 + 0.1f, top + 0.9f, bx1 - 0.1f, top + 2.7f, rz - 0.01f, face);
                     float cx = (bx0 + bx1) * 0.5f;

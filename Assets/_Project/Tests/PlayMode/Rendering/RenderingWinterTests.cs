@@ -57,6 +57,24 @@ namespace FloorF.Tests.PlayMode.Rendering
 
         static float Blueness(Color c) => c.b - c.r;
 
+        /// <summary>
+        /// The real Running camera: the day's establishing shot (UI) leaves the rig in the wide scenic frame - zoom back
+        /// into the gameplay frame and wait until it is there.
+        /// </summary>
+        static IEnumerator GameplayFrame(RenderingRoot root)
+        {
+            float step = Time.captureDeltaTime;
+            root.CameraStepOverride = 0.1f;
+            for (int i = 0; i < 120 && root.Rig.InScenicView; i++)
+            {
+                if (root.Rig.ScenicOn) GameServices.Events.Publish(new ScenicViewChanged(false, false));
+                yield return null;
+            }
+            root.CameraStepOverride = null;
+            Assert.IsFalse(root.Rig.InScenicView, "gameplay frame");
+            Time.captureDeltaTime = step;
+        }
+
         [UnityTest]
         public IEnumerator NoSeason_NothingWinterIsBuiltOrDrawn()
         {
@@ -99,17 +117,23 @@ namespace FloorF.Tests.PlayMode.Rendering
 
             Assert.IsTrue(w.Snowing);
             Assert.IsTrue(w.SnowRenderer.enabled, "snow falls");
-            Assert.That(w.FlakeQuadCount, Is.InRange(100, WinterSchedule.MaxFlakes), "a heavy snowfall, still cheap");
+            Assert.That(w.FlakeQuadCount, Is.InRange(180, WinterSchedule.MaxFlakes), "a heavy snowfall, still cheap (<= 300 quads)");
             Assert.IsTrue(w.HeavyCover, "Christmas Eve: snow lies on the hotel and the street");
             Assert.IsFalse(w.DustCover);
             Assert.IsTrue(w.SignCapRenderer.enabled, "snow on the HOTEL sign");
             Assert.Greater(w.IcicleCount, 20, "icicles");
+            Assert.Greater(w.SillCount, 100, "snow on the neighbours' window sills");
+            Assert.IsTrue(root.Street.Snowy, "snow on the cars");
             Assert.LessOrEqual(w.Root.GetComponentsInChildren<Renderer>(false).Count(r => r.enabled), 5, "few draws");
 
             var xmas = root.Christmas;
             Assert.IsTrue(xmas.Shown);
-            Assert.AreEqual(root.Building.FloorCount, xmas.WreathCount, "a wreath on every floor");
-            Assert.Greater(xmas.BulbCount, 40, "bulbs on the facade");
+            Assert.AreEqual(root.Building.FloorCount * 3, xmas.WreathCount, "wreaths by the doors and on both pilasters of every floor");
+            Assert.Greater(xmas.CandleCount, 10, "candles in the neighbours' windows");
+            Assert.GreaterOrEqual(xmas.HollyCount, 5, "holly over the shop windows");
+            Assert.Greater(xmas.XmasSign.width, 0f, "FORTUNE reads MERRY XMAS");
+            Assert.Less(xmas.SidewalkSnowman.y, 0f, "a snowman on the sidewalk (gameplay frame)");
+            Assert.Greater(xmas.BulbCount, 150, "bulbs on the facade and along the street");
             Assert.IsTrue(xmas.HatRenderer.enabled, "Santa hat on the HOTEL sign");
             var lobbyProps = root.Building.PropZoneMinX;
             Assert.GreaterOrEqual(xmas.TreeBounds.min.x, lobbyProps - 0.05f, "tree inside the lobby");
@@ -130,7 +154,9 @@ namespace FloorF.Tests.PlayMode.Rendering
             var lobbyLight = root.Lighting.GetBaseColor(new FloorIndex(0));
             Assert.Greater(lobbyLight.r, lobbyLight.b, "warm lobby against the cold night");
 
+            yield return GameplayFrame(root);
             yield return RenderingTestDriver.Freeze();
+            Assert.IsTrue(File.Exists(FrameCapture.Capture("render_winter_christmas_play")), "what the player sees (HUD on)");
             HideOtherCanvases(true);
             Assert.IsTrue(File.Exists(FrameCapture.Capture("render_winter_christmas")));
             HideOtherCanvases(false);
@@ -150,6 +176,8 @@ namespace FloorF.Tests.PlayMode.Rendering
             fake.IsExtendedDay = false;
             yield return null;
             Assert.IsFalse(w.SnowRenderer.enabled || w.HeavyCover || w.SignCapRenderer.enabled || w.IcicleRenderer.enabled);
+            yield return null;
+            Assert.IsFalse(root.Street.Snowy, "cars clean again");
             Assert.IsFalse(xmas.Shown);
             Assert.IsFalse(xmas.Root.gameObject.activeSelf || xmas.HatRenderer.enabled);
         }
@@ -191,7 +219,7 @@ namespace FloorF.Tests.PlayMode.Rendering
 
             // first snow: light flakes, a dusting, no heavy cover, no Christmas
             var w = root.Winter;
-            Assert.That(w.FlakeQuadCount, Is.InRange(20, 70));
+            Assert.That(w.FlakeQuadCount, Is.InRange(80, 170), "first snow: light but clearly falling");
             Assert.IsTrue(w.DustCover);
             Assert.IsFalse(w.HeavyCover);
             Assert.IsFalse(root.Christmas.Built);
@@ -202,7 +230,9 @@ namespace FloorF.Tests.PlayMode.Rendering
             Assert.Greater(root.Fx.ActiveCount, 10, "coin shower");
             for (int i = 0; i < 3; i++) yield return null;
 
+            yield return GameplayFrame(root);
             yield return RenderingTestDriver.Freeze();
+            Assert.IsTrue(File.Exists(FrameCapture.Capture("render_winter_lottery_play")), "what the player sees (HUD on)");
             HideOtherCanvases(true);
             Assert.IsTrue(File.Exists(FrameCapture.Capture("render_winter_lottery")));
             HideOtherCanvases(false);

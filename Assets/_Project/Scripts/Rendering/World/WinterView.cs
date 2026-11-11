@@ -21,18 +21,26 @@ namespace FloorF.Rendering
     /// </summary>
     sealed class WinterView
     {
-        public static readonly Color SnowTop = new Color(0.64f, 0.66f, 0.69f);
-        public static readonly Color SnowFront = new Color(0.52f, 0.55f, 0.63f);
-        public static readonly Color SnowShade = new Color(0.38f, 0.42f, 0.52f);
+        // white that reads as snow at night, kept at / under the pixel glow's weak range (PixelGlow.Weak 0.70..0.78,
+        // weight 0.05): thin caps may brush it, the big snow fields (sidewalk, roofs) stay under it - no halos
+        public static readonly Color SnowTop = new Color(0.74f, 0.76f, 0.79f);
+        public static readonly Color SnowFront = new Color(0.63f, 0.67f, 0.75f);
+        public static readonly Color SnowShade = new Color(0.47f, 0.51f, 0.63f);
+        public static readonly Color SnowField = new Color(0.66f, 0.68f, 0.70f);
+        /// <summary>Car roofs (palette boxes shade their tops x1.28: stays &lt;= 0.78).</summary>
+        public static readonly Color CarSnow = new Color(0.57f, 0.59f, 0.61f);
+        static readonly Color Trodden = new Color(0.44f, 0.46f, 0.52f);
+        static readonly Color DustTop = new Color(0.70f, 0.72f, 0.75f);
+        static readonly Color DustFront = new Color(0.50f, 0.53f, 0.62f);
         static readonly Color Slush = new Color(0.27f, 0.29f, 0.34f);
         static readonly Color Ice = new Color(0.50f, 0.62f, 0.69f);
         static readonly Color IceTip = new Color(0.36f, 0.46f, 0.56f);
-        static readonly Color FlakeColor = new Color(0.72f, 0.74f, 0.78f);
+        static readonly Color FlakeColor = new Color(0.76f, 0.78f, 0.80f);
         /// <summary>Winter mood targets (Mood = 1).</summary>
         public static readonly Color WinterAmbient = new Color(0.22f, 0.25f, 0.36f);
         public static readonly Color WinterMoon = new Color(0.52f, 0.66f, 1.00f);
         public static readonly Color WinterSky = new Color(0.050f, 0.066f, 0.125f);
-        public const float HotelSnowFactor = 0.5f;
+        public const float HotelSnowFactor = 0.62f;
         public const float SleighDepth = SkyView.StarDepth - 0.4f;
         const int RampSteps = 6;
 
@@ -40,6 +48,7 @@ namespace FloorF.Rendering
         readonly IWorldLayout layout;
         readonly BuildingView building;
         readonly HotelFacade facade;
+        readonly CityView city;
         readonly int seed;
         readonly PixelQuads snowQuads = new PixelQuads();
         readonly PixelQuads sleighQuads = new PixelQuads();
@@ -84,8 +93,9 @@ namespace FloorF.Rendering
         public bool Winter { get; private set; }
         public Rect HotelPixels { get; private set; }
 
-        public WinterView(Transform parent, RenderAssets assets, IWorldLayout layout, BuildingView building, HotelFacade facade, int seed)
+        public WinterView(Transform parent, RenderAssets assets, IWorldLayout layout, BuildingView building, HotelFacade facade, int seed, CityView city = null)
         {
+            this.city = city;
             this.assets = assets;
             this.layout = layout;
             this.building = building;
@@ -205,31 +215,45 @@ namespace FloorF.Rendering
             if (IcicleRenderer != null) IcicleRenderer.enabled = heavy;
         }
 
-        int snowTop, snowFront, snowShade, slush;
+        int snowTop, snowFront, snowShade, snowField, slush, trodden;
+        // dusting (first snow): a paler, thinner set
+        int dustTop, dustFront;
 
         void Colours()
         {
             snowTop = Atlas.Static(SnowTop);
             snowFront = Atlas.Static(SnowFront);
             snowShade = Atlas.Static(SnowShade);
+            snowField = Atlas.Static(SnowField);
             slush = Atlas.Static(Slush);
+            trodden = Atlas.Static(Trodden);
+            dustTop = Atlas.Static(DustTop);
+            dustFront = Atlas.Static(DustFront);
         }
 
-        /// <summary>Snow cap on top of a box whose top is at <paramref name="y"/>: overhangs by <paramref name="lip"/>.</summary>
-        void Cap(PaletteMeshBuilder b, float x0, float x1, float y, float z0, float z1, float thick, float lip = 0.03f)
-            => b.Box(new Vector3(x0 - lip, y, z0 - lip), new Vector3(x1 + lip, y + thick, z1 + lip), snowFront, snowTop, snowShade);
+        bool heavyBuild;
 
-        /// <summary>Thin top-only dusting.</summary>
-        void Dust(PaletteMeshBuilder b, float x0, float x1, float y, float z0, float z1)
-            => b.Flat(x0, z0, x1, z1, y + 0.012f, snowTop);
+        /// <summary>
+        /// Snow cap on top of a box whose top is at <paramref name="y"/>: overhangs by <paramref name="lip"/>. The heavy
+        /// cover is at least 2 px thick in the gameplay frame (front face) plus its top face; the dusting is a 1-px line.
+        /// </summary>
+        void Cap(PaletteMeshBuilder b, float x0, float x1, float y, float z0, float z1, float thick, float lip = 0.04f)
+        {
+            if (heavyBuild) b.Box(new Vector3(x0 - lip, y, z0 - lip), new Vector3(x1 + lip, y + thick, z1 + lip), snowFront, snowTop, snowShade);
+            else b.Box(new Vector3(x0, y, z0), new Vector3(x1, y + DustThick, z1), dustFront, dustTop, -1);
+        }
+
+        const float DustThick = 0.07f;
 
         void BuildHeavy()
         {
             Colours();
+            heavyBuild = true;
             var b = new PaletteMeshBuilder(Atlas);
-            HotelCaps(b, heavy: true);
-            StreetSnow(b, heavy: true);
-            NeighbourRoofs(b, heavy: true);
+            HotelCaps(b);
+            StreetSnow(b);
+            NeighbourRoofs(b);
+            CityLedges(b);
             HeavyRenderer = PaletteRenderer.Create(Root, "Snow Cover", assets.Own(b.Build("Snow Cover")), Atlas.Material);
             BuildSignCap();
         }
@@ -237,25 +261,23 @@ namespace FloorF.Rendering
         void BuildDust()
         {
             Colours();
+            heavyBuild = false;
             var b = new PaletteMeshBuilder(Atlas);
-            HotelCaps(b, heavy: false);
-            StreetSnow(b, heavy: false);
-            NeighbourRoofs(b, heavy: false);
+            HotelCaps(b);
+            StreetSnow(b);
+            NeighbourRoofs(b);
+            CityLedges(b);
             DustRenderer = PaletteRenderer.Create(Root, "Snow Dust", assets.Own(b.Build("Snow Dust")), Atlas.Material);
         }
 
-        void HotelCaps(PaletteMeshBuilder b, bool heavy)
+        void HotelCaps(PaletteMeshBuilder b)
         {
             if (facade == null) return;
+            bool heavy = heavyBuild;
             float sx = layout.ShaftX, roof = facade.RoofY, front = facade.FrontZ;
             float pz = facade.ParapetZ, pzBack = facade.ParapetBackZ;
             float cx0 = facade.CorniceLeft, cx1 = facade.CorniceRight;
-            float t = heavy ? 0.13f : 0f;
-            void Top(float x0, float x1, float y, float z0, float z1, float thick)
-            {
-                if (heavy) Cap(b, x0, x1, y, z0, z1, thick);
-                else Dust(b, x0, x1, y, z0, z1);
-            }
+            float t = 0.24f;
 
             // parapet: coping tops of the full walls, the low steps beside the sign and the corner piers + finials
             for (int side = 0; side < 2; side++)
@@ -263,98 +285,103 @@ namespace FloorF.Rendering
                 float m = side == 0 ? 1f : -1f;
                 float o0 = sx + m * (cx0 - sx), o1 = sx + m * (facade.StepOutX - sx), i1 = sx + m * (facade.StepInX - sx);
                 float p0 = sx + m * (cx0 + 0.6f - sx);
-                Top(Mathf.Min(p0, o1) - 0.04f, Mathf.Max(p0, o1) + 0.04f, facade.ParapetTop + 0.07f, pz - 0.04f, pzBack + 0.04f, t);
-                Top(Mathf.Min(o1, i1) - 0.04f, Mathf.Max(o1, i1) + 0.04f, facade.StepTop + 0.07f, pz - 0.04f, pzBack + 0.04f, t);
+                Cap(b, Mathf.Min(p0, o1) - 0.04f, Mathf.Max(p0, o1) + 0.04f, facade.ParapetTop + 0.07f, pz - 0.04f, pzBack + 0.04f, t);
+                Cap(b, Mathf.Min(o1, i1) - 0.04f, Mathf.Max(o1, i1) + 0.04f, facade.StepTop + 0.07f, pz - 0.04f, pzBack + 0.04f, t);
                 float a = Mathf.Min(o0, p0), c = Mathf.Max(o0, p0);
-                Top(a - 0.04f, c + 0.04f, facade.PierTop + 0.07f, pz - 0.09f, pzBack + 0.09f, t);
+                Cap(b, a - 0.04f, c + 0.04f, facade.PierTop + 0.07f, pz - 0.09f, pzBack + 0.09f, t);
                 float fc = (a + c) * 0.5f;
-                Top(fc - 0.12f, fc + 0.12f, facade.PierTop + 0.27f, pz + 0.02f, pz + 0.2f, heavy ? 0.09f : 0f);
+                Cap(b, fc - 0.12f, fc + 0.12f, facade.PierTop + 0.27f, pz + 0.02f, pz + 0.2f, 0.12f);
             }
             // cornice lip in front of the parapet
-            Top(cx0 - 0.15f, cx1 + 0.15f, roof, front - 0.55f, pz - 0.04f, heavy ? 0.08f : 0f);
-            if (!heavy)
-            {
-                Dust(b, facade.AnnexLeft - 0.05f, facade.AnnexRight + 0.1f, facade.AnnexTop, facade.AnnexZ - 0.15f, layout.Depth * 0.5f - 0.4f);
-                Dust(b, facade.CanopyLeft, facade.CanopyRight, facade.CanopyTop, facade.CanopyFrontZ, facade.AnnexZ);
-                return;
-            }
-            // the roof deck (seen between the props), roof props
-            b.Flat(cx0 + 0.1f, front - 0.2f, cx1 - 0.1f, layout.Depth * 0.5f + 0.25f, roof + 0.03f, snowTop);
-            float chimX = cx0 + 2.1f, ac0 = chimX + 0.75f;
-            Cap(b, chimX - 0.06f, chimX + 0.56f, roof + 1.15f, 0.94f, 1.56f, 0.1f);
-            Cap(b, ac0 + 0.1f, ac0 + 1.05f, roof + 0.74f, -0.6f, 0.25f, 0.1f);
-            Cap(b, facade.HutLeft - 0.08f, facade.HutRight + 0.08f, facade.HutTop, 0.32f, 1.98f, 0.14f);
-            const float tz = 0.5f, coneStep = 0.24f;
-            Cap(b, facade.TowerLeft - 0.06f + 2 * coneStep, facade.TowerRight + 0.06f - 2 * coneStep, facade.TowerTop, tz - 0.06f + 0.4f, tz + 1.26f - 0.4f, 0.08f);
-            // pilasters: every floor band (window ledges of the facade) and the capitals
+            Cap(b, cx0 - 0.15f, cx1 + 0.15f, roof, front - 0.55f, pz - 0.04f, 0.14f);
+            // pilasters: every floor band (the facade's ledges) and the capitals
             float pw = HotelFacade.PilasterWidth;
             float rightIn = layout.ShaftX + layout.FloorWidth * 0.5f + HotelFacade.CutawayClearance;
             float ppz = facade.PilasterZ;
             for (int f = 1; f < layout.FloorCount; f++)
             {
                 float y = f * layout.FloorHeight;
-                Cap(b, facade.PilasterLeft - 0.08f, facade.PilasterLeft + pw, y, ppz - 0.1f, ppz + 0.4f, 0.06f, 0.01f);
-                Cap(b, rightIn, facade.PilasterRight + 0.08f, y, ppz - 0.1f, ppz + 0.4f, 0.06f, 0.01f);
+                Cap(b, facade.PilasterLeft - 0.08f, facade.PilasterLeft + pw, y, ppz - 0.1f, ppz + 0.4f, 0.16f, 0.03f);
+                Cap(b, rightIn, facade.PilasterRight + 0.08f, y, ppz - 0.1f, ppz + 0.4f, 0.16f, 0.03f);
             }
             // entrance annex roof, its AC box, the striped canopy
-            Cap(b, facade.AnnexLeft - 0.05f, facade.AnnexRight + 0.1f, facade.AnnexTop, facade.AnnexZ - 0.15f, layout.Depth * 0.5f - 0.4f, 0.14f);
-            Cap(b, facade.AnnexRight - 1.7f, facade.AnnexRight - 0.7f, facade.AnnexTop + 0.55f, facade.AnnexZ + 0.6f, facade.AnnexZ + 1.5f, 0.08f);
-            Cap(b, facade.CanopyLeft, facade.CanopyRight, facade.CanopyTop, facade.CanopyFrontZ, facade.AnnexZ, 0.1f);
+            Cap(b, facade.AnnexLeft - 0.05f, facade.AnnexRight + 0.1f, facade.AnnexTop, facade.AnnexZ - 0.15f, layout.Depth * 0.5f - 0.4f, 0.26f);
+            Cap(b, facade.CanopyLeft, facade.CanopyRight, facade.CanopyTop, facade.CanopyFrontZ, facade.AnnexZ, 0.2f);
+            if (!heavy) return;
+            Cap(b, facade.AnnexRight - 1.7f, facade.AnnexRight - 0.7f, facade.AnnexTop + 0.55f, facade.AnnexZ + 0.6f, facade.AnnexZ + 1.5f, 0.12f);
+            // the roof deck (seen between the props), roof props
+            b.Flat(cx0 + 0.1f, front - 0.2f, cx1 - 0.1f, layout.Depth * 0.5f + 0.25f, roof + 0.03f, snowField);
+            float chimX = cx0 + 2.1f, ac0 = chimX + 0.75f;
+            Cap(b, chimX - 0.06f, chimX + 0.56f, roof + 1.15f, 0.94f, 1.56f, 0.14f);
+            Cap(b, ac0 + 0.1f, ac0 + 1.05f, roof + 0.74f, -0.6f, 0.25f, 0.14f);
+            Cap(b, facade.HutLeft - 0.08f, facade.HutRight + 0.08f, facade.HutTop, 0.32f, 1.98f, 0.18f);
+            const float tz = 0.5f, coneStep = 0.24f;
+            Cap(b, facade.TowerLeft - 0.06f + 2 * coneStep, facade.TowerRight + 0.06f - 2 * coneStep, facade.TowerTop, tz - 0.06f + 0.4f, tz + 1.26f - 0.4f, 0.1f);
             // plinth cap (front ledge at the lobby floor)
-            Cap(b, facade.PilasterLeft - 0.15f, facade.PilasterRight + 0.15f, -0.045f, front - 0.3f, front - 0.2f, 0.04f, 0f);
+            Cap(b, facade.PilasterLeft - 0.15f, facade.PilasterRight + 0.15f, -0.06f, front - 0.3f, front - 0.2f, 0.06f, 0f);
         }
 
-        void StreetSnow(PaletteMeshBuilder b, bool heavy)
+        void StreetSnow(PaletteMeshBuilder b)
         {
             float g = RenderingStyle.GroundY, road = RenderingStyle.RoadY, curb = RenderingStyle.CurbZ;
             float half = RenderingStyle.StreetHalfLength + 12f;
             float hotelFront = -layout.Depth * 0.5f - 0.15f;
-            if (!heavy)
+            if (!heavyBuild)
             {
-                // first snow: a white curb and loose patches along the walls and the curb
-                b.Flat(-half, curb - 0.18f, half, curb, g + 0.006f, snowShade);
-                for (int i = 0; i < 70; i++)
+                // first snow: a white curb, a thin white edge along the walls and loose patches on the sidewalk
+                b.Flat(-half, curb - 0.18f, half, curb, g + 0.006f, dustTop);
+                b.Flat(-half, hotelFront - 0.22f, half, hotelFront, g + 0.005f, dustTop);
+                for (int i = 0; i < 110; i++)
                 {
                     float x = Mathf.Lerp(-half, half, LightSchedule.Hash(seed, i, 220, 0));
-                    bool wall = LightSchedule.Hash(seed, i, 221, 0) < 0.5f;
-                    float z = wall ? hotelFront - 0.05f - 0.3f * LightSchedule.Hash(seed, i, 222, 0) : curb + 0.05f + 0.25f * LightSchedule.Hash(seed, i, 222, 0);
-                    float w = Mathf.Lerp(0.3f, 1.4f, LightSchedule.Hash(seed, i, 223, 0));
-                    b.Flat(x, z - 0.12f, x + w, z + 0.12f, g + 0.005f, LightSchedule.Hash(seed, i, 224, 0) < 0.5f ? snowShade : snowTop);
+                    float z = Mathf.Lerp(curb + 0.05f, hotelFront - 0.1f, LightSchedule.Hash(seed, i, 222, 0));
+                    float w = Mathf.Lerp(0.3f, 1.2f, LightSchedule.Hash(seed, i, 223, 0));
+                    b.Flat(x, z - 0.1f, x + w, z + 0.1f, g + 0.005f, LightSchedule.Hash(seed, i, 224, 0) < 0.5f ? dustFront : dustTop);
                 }
                 return;
             }
-            // sidewalk under snow, two trampled lanes where the pedestrians walk
-            b.Flat(-half, curb, half, hotelFront, g + 0.004f, snowTop);
+            // sidewalk and the yards in front of the neighbours under snow, two trodden lanes where the pedestrians walk
+            b.Flat(-half, curb, half, 30f, g + 0.004f, snowField);
             foreach (float lane in RenderingStyle.WalkLanes)
-                b.Flat(-half, lane - 0.16f, half, lane + 0.16f, g + 0.006f, Atlas.Static(Color.Lerp(SnowShade, Slush, 0.35f)));
-            // curb: snow on top and down its face, a bank along the gutter with a ragged edge
+                b.Flat(-half, lane - 0.14f, half, lane + 0.14f, g + 0.006f, trodden);
+            // drifts against the walls: ragged mounds along the hotel plinth and the shop fronts
+            for (float x = -half; x < half; )
+            {
+                float w = Mathf.Lerp(0.6f, 2.2f, LightSchedule.Hash(seed, (int)(x * 7f), 228, 0));
+                float h = Mathf.Lerp(0.1f, 0.3f, LightSchedule.Hash(seed, (int)(x * 7f), 229, 0));
+                b.Box(new Vector3(x, g, hotelFront - 0.42f), new Vector3(x + w, g + h, hotelFront), snowFront, snowTop, snowShade);
+                x += w;
+            }
+            // curb: snow on top and down its face, a ragged bank of ploughed snow along the gutter
             b.Flat(-half, curb - 0.18f, half, curb, g + 0.006f, snowTop);
             b.Front(-half, road + 0.05f, half, g + 0.006f, curb - 0.004f, snowFront);
-            float bankZ = curb - 0.5f;
-            b.Flat(-half, bankZ, half, curb, road + 0.004f, snowShade);
-            for (int i = 0; i < 90; i++)
+            for (float x = -half; x < half; )
             {
-                float x = Mathf.Lerp(-half, half, LightSchedule.Hash(seed, i, 225, 0));
-                float w = Mathf.Lerp(0.3f, 1.1f, LightSchedule.Hash(seed, i, 226, 0));
-                float d = Mathf.Lerp(0.08f, 0.3f, LightSchedule.Hash(seed, i, 227, 0));
-                b.Flat(x, bankZ - d, x + w, bankZ, road + 0.004f, snowShade);
+                float w = Mathf.Lerp(0.5f, 1.8f, LightSchedule.Hash(seed, (int)(x * 5f), 225, 0));
+                float h = Mathf.Lerp(0.14f, 0.38f, LightSchedule.Hash(seed, (int)(x * 5f), 226, 0));
+                float d = Mathf.Lerp(0.35f, 0.6f, LightSchedule.Hash(seed, (int)(x * 5f), 227, 0));
+                b.Box(new Vector3(x, road, curb - d), new Vector3(x + w, road + h, curb - 0.02f), snowFront, snowTop, snowShade);
+                x += w;
             }
-            // slush tracks in the lanes, snow along the far road edge (the bottom of the screen)
+            // slush tracks in the lanes, snow between them and along the far road edge (the bottom of the screen)
             float dashZ = (RenderingStyle.FarLaneZ + RenderingStyle.NearLaneZ) * 0.5f;
-            b.Flat(-half, dashZ - 0.25f, half, dashZ + 0.25f, road + 0.006f, slush);
+            b.Flat(-half, dashZ - 0.3f, half, dashZ + 0.3f, road + 0.006f, snowShade);
             foreach (float lane in new[] { RenderingStyle.FarLaneZ, RenderingStyle.NearLaneZ })
-                b.Flat(-half, lane - 0.08f, half, lane + 0.08f, road + 0.005f, slush);
-            b.Flat(-half, -40f, half, RenderingStyle.NearLaneZ - 0.95f, road + 0.004f, snowShade);
-            // street lamp heads
+            {
+                b.Flat(-half, lane - 0.5f, half, lane - 0.3f, road + 0.005f, slush);
+                b.Flat(-half, lane + 0.3f, half, lane + 0.5f, road + 0.005f, slush);
+            }
+            b.Flat(-half, -40f, half, RenderingStyle.NearLaneZ - 0.95f, road + 0.004f, snowField);
+            // street lamps: heads and arms
             float z0 = -layout.Depth * 0.5f, lampZ = curb + 0.25f;
             foreach (float sx in CityView.LampXs)
             {
                 float x = PixelGrid.WorldX(sx, lampZ, RenderingStyle.CameraShear, z0);
-                Cap(b, x - 0.06f, x + 0.6f, g + 3.42f, lampZ - 0.06f, lampZ + 0.06f, 0.06f, 0.02f);
+                Cap(b, x - 0.06f, x + 0.72f, g + 3.42f, lampZ - 0.12f, lampZ + 0.12f, 0.12f, 0.03f);
             }
         }
 
-        void NeighbourRoofs(PaletteMeshBuilder b, bool heavy)
+        void NeighbourRoofs(PaletteMeshBuilder b)
         {
             var shear = RenderingStyle.CameraShear;
             float z0 = -layout.Depth * 0.5f, g = RenderingStyle.GroundY;
@@ -366,13 +393,33 @@ namespace FloorF.Rendering
                 float x0 = PixelGrid.WorldX(blk.X0, z, shear, z0), x1 = PixelGrid.WorldX(blk.X1, z, shear, z0);
                 float yTop = PixelGrid.WorldY(top, z, shear, z0);
                 bool back = blk.Z > 6f;
-                var topC = back ? Atlas.Static(SnowShade * 0.8f) : snowTop;
-                var frontC = back ? Atlas.Static(SnowShade * 0.65f) : snowFront;
-                if (heavy)
+                if (!heavyBuild)
                 {
-                    b.Box(new Vector3(x0 - 0.05f, yTop - 0.05f, z - 0.03f), new Vector3(x1 + 0.05f, yTop + 0.18f, z + depth), frontC, topC, snowShade);
+                    b.Box(new Vector3(x0, yTop, z), new Vector3(x1, yTop + DustThick, z + depth), back ? Atlas.Static(DustFront * 0.7f) : dustFront, back ? Atlas.Static(DustTop * 0.75f) : dustTop, -1);
+                    continue;
                 }
-                else b.Flat(x0, z, x1, z + depth, yTop + 0.01f, topC);
+                var topC = back ? Atlas.Static(SnowField * 0.8f) : snowField;
+                var frontC = back ? Atlas.Static(SnowFront * 0.75f) : snowFront;
+                b.Box(new Vector3(x0 - 0.06f, yTop - 0.06f, z - 0.04f), new Vector3(x1 + 0.06f, yTop + 0.3f, z + depth), frontC, topC, snowShade);
+                // a few drips over the roof edge
+                for (int i = 0; i < 6; i++)
+                {
+                    float dx = Mathf.Lerp(x0 + 0.3f, x1 - 0.3f, LightSchedule.Hash(seed, blk.X0, i, 231));
+                    float dl = Mathf.Lerp(0.1f, 0.3f, LightSchedule.Hash(seed, blk.X0, i, 232));
+                    b.Front(dx, yTop - 0.06f - dl, dx + 0.12f, yTop - 0.06f, z - 0.045f, frontC);
+                }
+            }
+        }
+
+        /// <summary>Awnings, sign boards, fire escapes, balconies, AC units and roof props of the neighbours (CityDressing.Ledges).</summary>
+        void CityLedges(PaletteMeshBuilder b)
+        {
+            var d = city?.Dressing;
+            if (d == null) return;
+            foreach (var l in d.Ledges)
+            {
+                if (l.min.z > 6f) continue; // back row: too far to see
+                Cap(b, l.min.x, l.max.x, l.max.y, l.min.z, l.max.z, 0.14f, 0.03f);
             }
         }
 
@@ -416,6 +463,7 @@ namespace FloorF.Rendering
         }
 
         public int IcicleCount { get; private set; }
+        public int SillCount { get; private set; }
 
         Mesh BuildIcicles(PixelGrid grid, int key)
         {
@@ -459,6 +507,20 @@ namespace FloorF.Rendering
                 }
             }
             IcicleCount = count;
+            // snow on every window sill of the neighbours' near row (a 1-px drift on the 1-px sill, a little wider)
+            float spx = 1f / key;
+            var sh = grid.Shear;
+            int sill = Atlas.Static(SnowTop);
+            int sills = 0;
+            foreach (var w in CityView.NearWindows())
+            {
+                float z = w.Z - 0.006f;
+                float x0 = w.X - 2f * spx, x1 = w.X + w.W + 2f * spx;
+                b.Front(PixelGrid.WorldX(x0, z, sh, grid.ShearDepth), PixelGrid.WorldY(w.Y - spx, z, sh, grid.ShearDepth),
+                    PixelGrid.WorldX(x1, z, sh, grid.ShearDepth), PixelGrid.WorldY(w.Y, z, sh, grid.ShearDepth), z, sill);
+                sills++;
+            }
+            SillCount = sills;
             return b.Build("Icicles " + key + "ppu");
         }
 

@@ -23,7 +23,7 @@ namespace FloorF.Tests.EditMode.Rendering
             Assert.Less(first, eve / 2, "first snow is light");
             Assert.AreEqual(WinterSchedule.MaxFlakes, eve);
             Assert.AreEqual(eve, WinterSchedule.FlakeCount(5f), "clamped");
-            Assert.LessOrEqual(WinterSchedule.MaxFlakes, 200, "WebGL: a couple of hundred quads at most");
+            Assert.LessOrEqual(WinterSchedule.MaxFlakes, 300, "WebGL: a few hundred quads at most");
         }
 
         [Test]
@@ -43,7 +43,7 @@ namespace FloorF.Tests.EditMode.Rendering
                 if (b.Pos.y < a.Pos.y + 1f) // not wrapped
                     Assert.Less(b.Pos.y, a.Pos.y, "falls");
             }
-            Assert.That(bigs, Is.InRange(10, 80), "some near (2x2) flakes, mostly single pixels");
+            Assert.That(bigs, Is.InRange(WinterSchedule.MaxFlakes / 5, WinterSchedule.MaxFlakes / 2), "a good share of near (2x2) flakes, the rest single pixels");
 
             // calm (Silent Night) falls slower
             float fast = 0f, slow = 0f;

@@ -12,7 +12,7 @@ namespace FloorF.Rendering
     static class WinterSchedule
     {
         /// <summary>Flakes at SnowAmount 1 (Christmas Eve). The count scales with the amount: WebGL-cheap.</summary>
-        public const int MaxFlakes = 150;
+        public const int MaxFlakes = 280;
         public const float FlakeMinSpeed = 13f;
         public const float FlakeMaxSpeed = 32f;
         /// <summary>Wind from the right: pixels per second of drift for the slowest flake (big ones drift more).</summary>
@@ -31,7 +31,8 @@ namespace FloorF.Rendering
             public float Level;
         }
 
-        public static int FlakeCount(float amount) => Mathf.Clamp(Mathf.RoundToInt(Mathf.Clamp01(amount) * MaxFlakes), 0, MaxFlakes);
+        /// <summary>Flakes for a snow amount: amount^0.7 so the first snow (0.3) is a clearly visible flurry (~43%), still light.</summary>
+        public static int FlakeCount(float amount) => amount <= 0f ? 0 : Mathf.Clamp(Mathf.RoundToInt(Mathf.Pow(Mathf.Clamp01(amount), 0.7f) * MaxFlakes), 0, MaxFlakes);
 
         /// <summary>
         /// Flake <paramref name="i"/> at <paramref name="time"/>: drifts down through the viewport and wraps; sways on the
@@ -40,7 +41,7 @@ namespace FloorF.Rendering
         public static Flake SnowFlake(int seed, int i, float time, float calm = 0f)
         {
             float near = LightSchedule.Hash(seed, i, 201, 0);
-            bool big = near > 0.72f;
+            bool big = near > 0.6f;
             float speed = Mathf.Lerp(FlakeMinSpeed, FlakeMaxSpeed, near) * Mathf.Lerp(1f, 0.55f, Mathf.Clamp01(calm));
             float span = StarField.Height + 12f;
             float t = Mathf.Max(0f, time);
