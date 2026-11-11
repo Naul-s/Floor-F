@@ -64,6 +64,24 @@ namespace FloorF.Rendering
         readonly List<Car> cars = new List<Car>();
         readonly List<Walker> walkers = new List<Walker>();
         readonly Mesh[,] carMeshes = new Mesh[Kinds.Length, 2];
+        Mesh[,] snowyMeshes;
+        bool snowyApplied;
+
+        /// <summary>Winter (heavy snow): cars wear snow on their roofs and bonnets (meshes built on first use).</summary>
+        public bool Snowy { get; set; }
+
+        Mesh CarMesh(int variant, int dir)
+        {
+            if (Snowy && snowyMeshes == null)
+            {
+                snowyMeshes = new Mesh[Kinds.Length, 2];
+                for (int k = 0; k < Kinds.Length; k++)
+                    for (int d = 0; d < 2; d++)
+                        snowyMeshes[k, d] = assets.Own(BuildCarMesh(Kinds[k], d == 0 ? 1 : -1, true));
+            }
+            var set = Snowy ? snowyMeshes : carMeshes;
+            return set[variant, dir > 0 ? 0 : 1];
+        }
         readonly float[] laneTimer = new float[2];
         readonly float[] walkTimer = new float[2];
         AnimationClip walk;
@@ -117,7 +135,7 @@ namespace FloorF.Rendering
 
         // ------------------------------------------------------------------ cars
 
-        Mesh BuildCarMesh(CarKind kind, int dir)
+        Mesh BuildCarMesh(CarKind kind, int dir, bool snow = false)
         {
             var b = new PaletteMeshBuilder(atlas);
             bool van = kind.Shape == 2;
@@ -171,6 +189,18 @@ namespace FloorF.Rendering
                 Front(c0 + 0.12f, 0.68f, c1 - 0.1f, 0.94f, -0.43f, glass);
                 Front((c0 + c1) * 0.5f - 0.05f, 0.68f, (c0 + c1) * 0.5f + 0.05f, 0.94f, -0.44f, body * 0.8f);
                 if (kind.Shape == 1) Lamp(-0.25f, 1.0f, -0.15f, 0.25f, 1.14f, 0.15f, new Color(1f, 0.9f, 0.45f));
+            }
+            if (snow)
+            {
+                var white = WinterView.CarSnow;
+                if (van) Box(-half + 0.05f, 1.2f, -0.46f, half - 0.05f, 1.36f, 0.46f, white);
+                else
+                {
+                    float c0 = -half + 0.5f, c1 = half - 0.75f;
+                    Box(c0 + 0.04f, 1.0f, -0.38f, c1 - 0.04f, 1.16f, 0.38f, white);
+                    Box(c1 + 0.05f, 0.62f, -0.44f, half - 0.15f, 0.7f, 0.44f, white);
+                    Box(-half + 0.05f, 0.62f, -0.44f, c0 - 0.05f, 0.7f, 0.44f, white);
+                }
             }
             Lamp(half - 0.2f, 0.36f, -0.52f, half + 0.03f, 0.54f, 0.46f, new Color(1f, 0.96f, 0.78f));
             Lamp(-half - 0.03f, 0.38f, -0.52f, -half + 0.16f, 0.54f, 0.46f, new Color(0.95f, 0.14f, 0.12f));
@@ -226,7 +256,7 @@ namespace FloorF.Rendering
             c.Length = Kinds[c.Variant].Shape == 2 ? 3.2f : 2.6f;
             c.Cruise = c.Speed = lane == 0 ? Range(4.5f, 6.5f) : Range(5f, 7.5f);
             c.X = -c.Dir * RenderingStyle.StreetHalfLength;
-            c.Filter.sharedMesh = carMeshes[c.Variant, c.Dir > 0 ? 0 : 1];
+            c.Filter.sharedMesh = CarMesh(c.Variant, c.Dir);
             c.Active = true;
             c.T.gameObject.SetActive(true);
             CarsSpawned++;
@@ -321,6 +351,11 @@ namespace FloorF.Rendering
         /// <summary>Advance on the juice clock (dt = 0 holds everything) and place on <paramref name="grid"/>.</summary>
         public void Tick(float dt, PixelGrid grid)
         {
+            if (Snowy != snowyApplied)
+            {
+                snowyApplied = Snowy;
+                foreach (var c in cars) if (c.Active) c.Filter.sharedMesh = CarMesh(c.Variant, c.Dir);
+            }
             if (dt > 0f) Step(Mathf.Min(dt, 0.1f));
             Place(grid, dt > 0f);
         }

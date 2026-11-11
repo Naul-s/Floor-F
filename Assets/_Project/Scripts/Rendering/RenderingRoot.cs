@@ -241,9 +241,9 @@ namespace FloorF.Rendering
             weather = new WeatherView(world, assets, palette, layout, RenderingStyle.CitySeed);
             weather.Build();
             var lobby = LobbyFloor();
-            winter = new WinterView(world, assets, layout, building, facade, RenderingStyle.CitySeed);
+            winter = new WinterView(world, assets, layout, building, facade, RenderingStyle.CitySeed, city);
             winter.Build();
-            christmas = new ChristmasDecor(world, assets, layout, building, facade, winter.Atlas, lobby, RenderingStyle.CitySeed);
+            christmas = new ChristmasDecor(world, assets, layout, building, facade, winter.Atlas, lobby, RenderingStyle.CitySeed, city);
             lottery = new LotteryView(world, assets, layout, building, lobby);
             ending.Winter = winter;
             ending.Christmas = christmas;
@@ -338,6 +338,7 @@ namespace FloorF.Rendering
             winter.Tick(time, jdt, rig.Current, s, weather.Raining);
             christmas.Tick(time, s != null && s.IsChristmas, rig.Current.Grid);
             lottery.Tick(jdt, juiceTime, s);
+            street.Snowy = winter.HeavyCover;
             ApplyMood(winter.Mood);
         }
 
