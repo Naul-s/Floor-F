@@ -40,9 +40,9 @@ namespace FloorF.UI
         public static readonly Loc RuleFriday13 = new Loc("Friday 13th: travelled 13 = unlucky for ALL", "13일의 금요일: 이동 13 = 모두 불길");
         /// <summary>Friday the 13th HUD badge. {0} = penalty multiplier ("x1.5").</summary>
         public static readonly Loc Friday13Badge = new Loc("FRIDAY 13TH · bad luck {0}", "13일의 금요일 · 불운 {0}");
-        /// <summary>Friday the 13th intro card line under the data intro. {0} = the penalty multiplier ("1.5").</summary>
-        public static readonly Loc Friday13Intro = new Loc("Today every UNLUCKY moment costs {0}x the Luck - and travelling 13 floors is unlucky for EVERYONE.",
-            "오늘은 불길한 판정마다 운이 {0}배로 깎여요 - 그리고 13층을 이동하면 누구에게나 불길해요.");
+        /// <summary>Friday the 13th "TODAY:" line (DayTwist). {0} = the penalty multiplier ("1.5"), {1} = StoryRules.FridayDistance.</summary>
+        public static readonly Loc Friday13Intro = new Loc("every UNLUCKY moment costs {0}x Luck, and travelling {1} floors is unlucky for EVERYONE.",
+            "불길한 판정마다 운이 {0}배로 깎이고, {1}층을 이동하면 누구에게나 불길해요.");
 
         /// <summary>Rainy day intro line (IDayQuery.IsRainy, presentation only).</summary>
         public static readonly Loc RainIntro = new Loc("Rain tonight - thunder rolls in the distance.", "오늘 밤은 비 - 멀리서 천둥이 울려요.");
@@ -52,9 +52,27 @@ namespace FloorF.UI
         public static readonly Loc RuleStarNight = new Loc("Star night: 7 = lucky for ALL", "별의 밤: 7 = 모두 행운");
         /// <summary>Star-night HUD badge.</summary>
         public static readonly Loc StarNightBadge = new Loc("STAR NIGHT · 7 lucky for all", "별이 쏟아지는 밤 · 7 = 모두 행운");
-        /// <summary>Star-night intro card line under the data intro. {0} = Luck per wish.</summary>
-        public static readonly Loc StarNightIntro = new Loc("Tonight 7 is LUCKY for everyone. Shooting stars will cross the sky - click one (or press E) to make a wish: +{0} Luck!",
-            "오늘 밤은 7이 누구에게나 행운이에요. 별똥별이 지나가면 클릭(또는 E)해서 소원을 비세요: 운 +{0}!");
+        /// <summary>Star-night "TODAY:" line (DayTwist). {0} = StoryRules.StarNightNumber, {1} = Luck per wish.</summary>
+        public static readonly Loc StarNightIntro = new Loc("{0} is LUCKY for everyone. Click a shooting star (or press E) to make a wish: +{1} Luck!",
+            "{0:이} 누구에게나 행운. 별똥별을 클릭(또는 E)해서 소원을 빌면 운 +{1}!");
+
+        // ---- intro card "TODAY:" lines (DayTwist): the day's twist, plainly
+        public static readonly Loc Today = new Loc("TODAY:", "오늘:");
+        public static readonly Loc TodayTraining = new Loc("no clock and nobody leaves - practice Luck and tips reset afterwards.",
+            "시간 제한도, 떠나는 손님도 없어요. 연습한 운과 팁은 끝나면 초기화돼요.");
+        public static readonly Loc TodayBasics = new Loc("OPEN judges the floor number, CLOSE the head count.",
+            "문을 열면 층 번호로, 닫으면 탑승 인원수로 판정해요.");
+        public static readonly Loc TodayRide = new Loc("stepping out, guests also judge how many floors they rode - detours count!",
+            "내릴 때는 탄 뒤 움직인 층수로도 판정해요. 돌아간 층도 다 세요!");
+        /// <summary>{0} = couple's party size, {1} = StoryRules.DevoutNumber (its penalty x StoryRules.DevoutPenaltyFactor = 2).</summary>
+        public static readonly Loc TodayCouple = new Loc("couples board together as {0} riders. The priest's unlucky {1} costs DOUBLE Luck.",
+            "부부는 {0}명이 함께 타요. 신부님의 불길한 {1:은} 운이 두 배로 깎여요.");
+        /// <summary>{0} = the gambler's lucky head count.</summary>
+        public static readonly Loc TodayGambler = new Loc("the gambler only boards if that makes exactly {0} riders.",
+            "도박꾼은 타고 나서 딱 {0}명이 될 때만 타요.");
+        /// <summary>{0} = the wedding party's lucky numbers, {1} = the gift guest's.</summary>
+        public static readonly Loc TodayWedding = new Loc("wedding parties ride in pairs and love {0}. The gift guest loves odd {1}.",
+            "결혼식 하객은 둘씩 타고 {0:을} 좋아해요. 축의금 손님은 홀수 {1:을} 좋아해요.");
         /// <summary>Hint next to a wish star until the first wish of the run.</summary>
         public static readonly Loc WishHint = new Loc("Make a wish! [E]", "소원을 빌어요! [E]");
         /// <summary>Float-up when a wish comes true. {0} = Luck gained.</summary>
@@ -202,6 +220,35 @@ namespace FloorF.UI
         public static readonly Loc EndFinalLuck = new Loc("Final luck", "최종 운");
         public static readonly Loc EndTips = new Loc("Tips", "팁");
         public static readonly Loc ToTitle = new Loc("TITLE", "타이틀");
+        /// <summary>Best run so far (EndingRecord). {0} = final Luck, {1} = tips earned. Title plate (12px) / ending card line.</summary>
+        public static readonly Loc BestRecord = new Loc("BEST  LUCK {0}  ·  ${1}", "최고 기록  운 {0}  ·  ${1}");
+        public static readonly Loc EndBest = new Loc("Best run: Luck {0} · tips ${1}", "최고 기록: 운 {0} · 팁 ${1}");
+        public static readonly Loc NewBest = new Loc("NEW BEST!", "최고 기록 경신!");
+
+        // ---- summary card hint (SummaryHint: explains the grade / what to do better)
+        public static readonly Loc HintNoneDelivered = new Loc("Nobody reached their floor - deliver guests to earn tips.",
+            "아무도 목적지에 못 갔어요 - 손님을 내려 줘야 팁을 받아요.");
+        public static readonly Loc HintLeftOne = new Loc("1 guest gave up waiting - serve the queues faster.",
+            "손님 1명이 기다리다 떠났어요 - 줄 선 손님을 더 빨리 태우세요.");
+        public static readonly Loc HintLeftN = new Loc("{0} guests gave up waiting - serve the queues faster.",
+            "손님 {0}명이 기다리다 떠났어요 - 줄 선 손님을 더 빨리 태우세요.");
+        public static readonly Loc HintUnluckyOne = new Loc("1 unlucky moment - check the red numbers before you stop or close.",
+            "불길 판정 1번 - 멈추거나 닫기 전에 빨간 숫자를 확인하세요.");
+        public static readonly Loc HintUnluckyN = new Loc("{0} unlucky moments - check the red numbers before you stop or close.",
+            "불길 판정 {0}번 - 멈추거나 닫기 전에 빨간 숫자를 확인하세요.");
+        /// <summary>{0} = signed Luck change ("-12").</summary>
+        public static readonly Loc HintLuckDown = new Loc("Luck {0} today - dodge red numbers, or cover one with a sticker.",
+            "오늘 운 {0} - 빨간 숫자를 피하거나, 스티커로 나쁜 층을 가려 보세요.");
+        /// <summary>{0} = signed Luck change ("+4").</summary>
+        public static readonly Loc HintLuckFlat = new Loc("Luck {0} today - stop on gold numbers to climb faster.",
+            "오늘 운 {0} - 금색 숫자에 멈추면 더 빨리 올라요.");
+        public static readonly Loc HintStreakNone = new Loc("No lucky streak yet - chain lucky moments for bigger tips.",
+            "아직 연속 행운이 없어요 - 행운을 이어 가면 팁이 커져요.");
+        public static readonly Loc HintStreakShort = new Loc("Best streak x{0} - chain lucky moments for bigger tips.",
+            "최고 연속 x{0} - 행운을 이어 가면 팁이 커져요.");
+        public static readonly Loc PraiseStreak = new Loc("{0} lucky moments in a row - superb shift!", "행운 {0}연속 - 훌륭한 근무!");
+        public static readonly Loc PraiseClean = new Loc("Not one unlucky moment - flawless!", "불길 판정 0번 - 완벽해요!");
+        public static readonly Loc PraiseTop = new Loc("Top marks - the guests will be back!", "최고 점수 - 손님들이 또 올 거예요!");
 
         // ---- endings collection (EndingRecord: title ENDINGS card, ending card badge + unlock line)
         /// <summary>Badge on the 4th-floor ending (it overrides the Luck endings).</summary>

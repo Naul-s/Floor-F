@@ -323,6 +323,9 @@ namespace FloorF.UI
             return p >= GradeS ? "S" : p >= GradeA ? "A" : p >= GradeB ? "B" : "C";
         }
 
+        /// <summary>Title plate: "BEST  LUCK 72  ·  $340" ("최고 기록  운 72  ·  $340").</summary>
+        public static string BestRecord(int luck, int tips, bool ko) => string.Format(UIStrings.BestRecord.Get(ko), N(luck), N(tips));
+
         public static void Ending(EndingKind kind, bool ko, out string title, out string text)
         {
             switch (kind)

@@ -71,15 +71,27 @@ namespace FloorF.UI
             subs.Add(bus.Subscribe<WishMade>(e => { if (built && !OnTitle) wish.OnMade(e); }));
             subs.Add(bus.Subscribe<WishStarFaded>(e => { if (built) wish.OnFaded(e); }));
             subs.Add(bus.Subscribe<EndingReached>(OnEndingReached));
+            subs.Add(bus.Subscribe<DayEnded>(OnDayEnded));
             subs.Add(bus.Subscribe<DebugReadoutChanged>(e => { lastDebug = e; if (built) debugReadout.On(e); }));
         }
 
-        /// <summary>Counts the ending in the collection (EndingReached is flow-silent on the title demo; guarded anyway).</summary>
+        /// <summary>Counts the ending in the collection with the run's final Luck and tips earned (best record);
+        /// EndingReached is flow-silent on the title demo - guarded anyway.</summary>
         void OnEndingReached(EndingReached e)
         {
             if (!built || OnTitle || ctx.Endings == null) return;
-            ctx.Endings.Add(e.Ending);
+            int tips = ctx.Journey.Count > 0 ? ctx.Journey.TipsEarned : e.TotalTips;
+            ctx.Endings.Add(e.Ending, e.FinalLuck, tips);
             if (flow.Shown == DayPhase.Ending) flow.Refresh();
+            menu.RefreshLanguage(); // the title's best-record plate
+        }
+
+        /// <summary>A real day's summary: graded into the run's journey (the ending card's stamp row). Day 0 never counts.</summary>
+        void OnDayEnded(DayEnded e)
+        {
+            if (!built || OnTitle || ctx.Data == null) return;
+            if (ctx.Data.TryGetDay(e.Day, out var def) && def.tutorial) return;
+            ctx.Journey.Add(ctx.Data.DisplayDayNumber(e.Day), e.Summary);
         }
 
         void OnDisable() => subs.Clear();
@@ -353,7 +365,8 @@ namespace FloorF.UI
             charms.Clear();
             flow.LastSpecialLine = null;
             flow.ExpiredLabels = flow.ExpiredCharms = 0;
-            if (ctx.Endings != null) ctx.Endings.LastNew = EndingKind.None;
+            if (ctx.Endings != null) ctx.Endings.ClearNew();
+            ctx.Journey.Clear();
         }
 
         void OnGuestSpoke(GuestSpoke e)
@@ -455,6 +468,16 @@ namespace FloorF.UI
             if (built) { menu.RefreshLanguage(); flow.Refresh(); }
         }
         internal EndingCollection Endings => ctx.Endings;
+        internal RunJourney Journey => ctx.Journey;
+        internal string EndingJourneyText => flow.JourneyText;
+        internal string EndingBestText => flow.BestText;
+        internal Rect EndingJourneyRect => flow.JourneyRect(ctx.CanvasRect);
+        internal string FlowToday => flow.TodayText;
+        internal string FlowHint => flow.HintText;
+        internal string FlowTextOverflow() => flow.Overflow();
+        internal bool TitleBestVisible => menu.BestVisible;
+        internal string TitleBestText => menu.BestText;
+        internal Rect TitleBestRect => menu.BestRect(ctx.CanvasRect);
         internal bool EndingHiddenBadgeVisible => flow.HiddenBadgeVisible;
         internal string EndingHiddenBadgeText => flow.HiddenBadgeText;
         internal bool EndingHiddenBadgeFits => flow.HiddenBadgeFits;

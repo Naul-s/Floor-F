@@ -518,7 +518,7 @@ namespace FloorF.Tests.PlayMode.UI
             {
                 GameServices.Get<IGameSettings>().UseKorean = ko;
                 yield return UITestDriver.Frames(2);
-                StringAssert.Contains(ko ? "오늘 밤은 비" : "Rain tonight", ui.FlowExtra);
+                StringAssert.Contains(ko ? "오늘 밤은 비" : "Rain tonight", ui.FlowToday);
                 if (day.IsFriday13) Assert.IsTrue(ui.FlowFridayLook, "Friday-13 red card still applies");
                 var card = ui.FlowCardRect;
                 Assert.Greater(card.yMin, 0f);
