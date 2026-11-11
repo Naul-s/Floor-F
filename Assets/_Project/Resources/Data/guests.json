@@ -314,6 +314,93 @@
         { "trigger": "left", "text": "...Another night, then.", "textKo": "...그럼 다른 밤에." },
         { "trigger": "relabelled", "text": "You can cover a number. It's still there.", "textKo": "숫자는 가려도, 그대로 거기 있어요." }
       ]
+    },
+    {
+      "id": "solo_traveler",
+      "name": "Solo Traveller",
+      "nameKo": "혼행족",
+      "lucky": [1, 11],
+      "unlucky": [2],
+      "hideNumbers": false,
+      "patienceSeconds": 35,
+      "baseTip": 14,
+      "partySize": 1,
+      "destinations": ["rooms", "bar", "rooftop", "karaoke"],
+      "traits": [],
+      "color": "#E08A3C",
+      "accessory": "backpack",
+      "lines": [
+        { "trigger": "spawn", "text": "Table for one, room for one, ride for one.", "textKo": "1인석, 1인실, 엘리베이터도 1인용으로요." },
+        { "trigger": "board", "text": "11/11 - Singles' Day! Four ones, all alone. Like me.", "textKo": "11월 11일, 솔로의 날! 1이 넷, 다 혼자네요. 저처럼." },
+        { "trigger": "lucky_floor", "text": "A one! Solo and proud.", "textKo": "1이다! 혼자라서 당당해요." },
+        { "trigger": "unlucky_floor", "text": "A 2? Don't remind me.", "textKo": "2? 굳이 상기시켜 주지 마세요." },
+        { "trigger": "lucky_occupancy", "text": "Just me in here? Perfect.", "textKo": "나 혼자 타는 거예요? 완벽해." },
+        { "trigger": "unlucky_occupancy", "text": "Two of us... feels like a date. Awkward.", "textKo": "둘이 타니까 데이트하는 기분... 어색해." },
+        { "trigger": "lucky_distance", "text": "That many floors - my lonely lucky number!", "textKo": "그 층 수, 딱 외로운 내 행운의 숫자!" },
+        { "trigger": "unlucky_distance", "text": "Two floors. Even the ride came in pairs.", "textKo": "두 층이라니. 층 수까지 짝을 지어 오네." },
+        { "trigger": "delivered", "text": "Thanks! I'll treat myself tonight.", "textKo": "고마워요! 오늘 밤은 나한테 선물해야지." },
+        { "trigger": "impatient", "text": "Solo doesn't mean I have all night.", "textKo": "혼자라고 시간이 남아도는 건 아니라고요." },
+        { "trigger": "left", "text": "Fine, the stairs. Single file.", "textKo": "됐어요, 계단으로. 한 줄로, 혼자서." },
+        { "trigger": "relabelled", "text": "A new number? As long as it isn't 2.", "textKo": "번호를 바꿨어요? 2만 아니면 돼요." }
+      ]
+    },
+    {
+      "id": "santa",
+      "name": "Santa",
+      "nameKo": "산타",
+      "lucky": [12, 25],
+      "unlucky": [],
+      "hideNumbers": false,
+      "patienceSeconds": 60,
+      "baseTip": 40,
+      "partySize": 1,
+      "destinations": ["rooftop"],
+      "traits": ["vip"],
+      "color": "#C0392B",
+      "accessory": "santa_hat",
+      "lines": [
+        { "trigger": "spawn", "text": "Ho ho ho! The roof, please - my sleigh is parked up there.", "textKo": "호호호! 옥상으로 부탁해요. 썰매를 거기 세워 뒀거든." },
+        { "trigger": "board", "text": "Twelve days of Christmas, and the twenty-fifth. Those are my numbers!", "textKo": "크리스마스의 12일, 그리고 25일. 그게 내 숫자란다!" },
+        { "trigger": "lucky_floor", "text": "Twelve! Someone's on the nice list.", "textKo": "12! 누군가 착한 아이 명단에 올랐구나." },
+        { "trigger": "unlucky_floor", "text": "Hm. I'll check my list twice.", "textKo": "흠. 명단을 두 번 확인해 봐야겠군." },
+        { "trigger": "lucky_occupancy", "text": "A sleigh full of friends! Ho ho!", "textKo": "썰매 가득 친구들이구나! 호호!" },
+        { "trigger": "unlucky_occupancy", "text": "Crowded as a chimney.", "textKo": "굴뚝처럼 비좁구먼." },
+        { "trigger": "lucky_distance", "text": "Twelve floors! Like the twelve days of Christmas!", "textKo": "열두 층! 크리스마스의 12일처럼!" },
+        { "trigger": "unlucky_distance", "text": "My reindeer fly straighter than this.", "textKo": "우리 순록은 이보다 곧게 난다네." },
+        { "trigger": "delivered", "text": "Merry Christmas! Here's a little something.", "textKo": "메리 크리스마스! 작은 선물이란다." },
+        { "trigger": "impatient", "text": "Ho... ho? The children are waiting!", "textKo": "호... 호? 아이들이 기다린단 말이다!" },
+        { "trigger": "left", "text": "No time! Down the chimney - er, the stairs.", "textKo": "시간이 없어! 굴뚝으로... 아니, 계단으로." },
+        { "trigger": "relabelled", "text": "A new number! I love a wrapped surprise.", "textKo": "번호가 바뀌었네! 포장된 깜짝 선물 같구나." }
+      ]
+    },
+    {
+      "id": "carolers",
+      "name": "Carolers",
+      "nameKo": "캐럴 합창단",
+      "lucky": [3, 12],
+      "unlucky": [4],
+      "hideNumbers": false,
+      "patienceSeconds": 40,
+      "baseTip": 10,
+      "partySize": 3,
+      "destinations": ["lobby", "restaurant", "bar", "rooms"],
+      "traits": [],
+      "color": "#2E7D32",
+      "accessory": "scarf",
+      "lines": [
+        { "trigger": "spawn", "text": "Fa-la-la-la-la! Three voices, one lift.", "textKo": "팔랄랄라라! 세 목소리, 엘리베이터 하나." },
+        { "trigger": "board", "text": "Three of us in harmony - three is a lucky chord!", "textKo": "셋이 화음을 맞추죠. 3은 행운의 화음이에요!" },
+        { "trigger": "lucky_floor", "text": "Our lucky note! Fa-la-la!", "textKo": "행운의 음이다! 팔랄라!" },
+        { "trigger": "unlucky_floor", "text": "Four? That note is flat.", "textKo": "4? 그 음은 반음 낮아요." },
+        { "trigger": "lucky_occupancy", "text": "Just the three of us - perfect harmony!", "textKo": "딱 우리 셋, 완벽한 화음!" },
+        { "trigger": "unlucky_occupancy", "text": "Four in here? Someone's off-key.", "textKo": "넷이 탔네? 누군가 음이탈이야." },
+        { "trigger": "lucky_distance", "text": "Even the ride kept perfect time!", "textKo": "탄 층 수까지 박자가 딱 맞네!" },
+        { "trigger": "unlucky_distance", "text": "Four floors - flat as a cracked bell.", "textKo": "네 층이라니, 깨진 종처럼 맥 빠져." },
+        { "trigger": "delivered", "text": "We wish you a merry Christmas!", "textKo": "메리 크리스마스를 빌어요!" },
+        { "trigger": "impatient", "text": "Our voices are getting cold!", "textKo": "목소리가 얼어붙겠어요!" },
+        { "trigger": "left", "text": "We'll carol up the stairs instead.", "textKo": "계단을 오르며 캐럴이나 부를게요." },
+        { "trigger": "relabelled", "text": "A new number? We'll write a new verse.", "textKo": "번호를 바꿨어요? 새 가사를 지어야겠네." }
+      ]
     }
   ]
 }

@@ -135,6 +135,30 @@
       "price": 150,
       "stock": 1,
       "weight": 1.5
+    },
+    {
+      "id": "any_to_11",
+      "name": "Any → 11",
+      "nameKo": "원하는 층 → 11",
+      "description": "Singles' Day: four lonely 1s. Solo travellers adore it.",
+      "descriptionKo": "솔로의 날 숫자, 외로운 1이 넷. 혼행족이 아주 좋아해요.",
+      "from": "*",
+      "to": "11",
+      "price": 110,
+      "stock": 1,
+      "weight": 1.3
+    },
+    {
+      "id": "any_to_12",
+      "name": "Any → 12",
+      "nameKo": "원하는 층 → 12",
+      "description": "12 days of Christmas: Santa's number - and on Christmas Eve, everyone's.",
+      "descriptionKo": "크리스마스의 12일. 산타의 숫자예요. 크리스마스 이브엔 모두의 숫자!",
+      "from": "*",
+      "to": "12",
+      "price": 120,
+      "stock": 1,
+      "weight": 1.3
     }
   ]
 }
