@@ -15,6 +15,8 @@ namespace FloorF.UI
         internal static bool EstablishingShots = true;
         /// <summary>"HOW LUCK WORKS" starts collapsed from Day 2 on (until the player toggles it).</summary>
         internal static bool RulesAutoCollapse = true;
+        /// <summary>Ending: the scene plays alone for a beat (FlowScreensView.EndingBeat), then the card fades in.</summary>
+        internal static bool EndingBeat = true;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         internal static void ResetStatics() => SetAll(true);
@@ -24,6 +26,7 @@ namespace FloorF.UI
             AttractScreen = on;
             EstablishingShots = on;
             RulesAutoCollapse = on;
+            EndingBeat = on;
         }
     }
 

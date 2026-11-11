@@ -316,7 +316,7 @@ namespace FloorF.UI
             FadeHud(UIClock.UnscaledDt);
             // an open title card (CREDITS / ENDINGS / OPTIONS) keeps Enter from starting a game behind it
             // the ending card's "keep the hotel open" offer: Enter = that button, not the Gameplay PLAY AGAIN shortcut
-            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || (OnTitle && menu.TitleCardOpen) || scenic.HoldsEnter || flow.OwnsEnter);
+            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || (OnTitle && menu.TitleCardOpen) || scenic.HoldsEnter || flow.OwnsEnter || flow.HoldsEnter);
         }
 
         void LateUpdate()
@@ -338,6 +338,8 @@ namespace FloorF.UI
         {
             bool attractUsed = menu.HandleAttractPress(press);
             bool used = attractUsed;
+            // the ending scene's beat: any key / click brings the card - and does nothing else
+            if (!used && press.Any && flow.InEndingBeat && !ctx.Paused) { flow.SkipEndingBeat(); used = true; }
             if (scenic.Tick(UIClock.UnscaledDt, used ? default : press)) used = true;
             if (!used && press.H && ctx.Phase == DayPhase.Running && !OnTitle && !ctx.Paused) hud.ToggleRules();
             // the offer only takes Enter once it has been on screen a moment: the Enter that closed the summary (same
@@ -373,7 +375,7 @@ namespace FloorF.UI
 
         void FadeHud(float dt)
         {
-            bool hide = scenic.HidesUi;
+            bool hide = scenic.HidesUi || flow.InEndingBeat; // the ending scene first: no HUD over it
             float target = hide ? 0f : 1f;
             hudGroup.alpha = Mathf.MoveTowards(hudGroup.alpha, target, dt / (hide ? 0.15f : 0.25f));
             if (hudGroup.blocksRaycasts == hide) { hudGroup.blocksRaycasts = !hide; hudGroup.interactable = !hide; }
@@ -510,6 +512,12 @@ namespace FloorF.UI
         internal string PlayAgainText => flow.AgainText;
         internal void ClickPlayAgain() => flow.ClickAgain();
         internal bool FlowOwnsEnter => flow.OwnsEnter;
+        internal bool EndingBeatActive => flow.InEndingBeat;
+        internal float EndingBeatAge => flow.EndingBeatAge;
+        /// <summary>The flow card is fully shown and clickable (false during the ending beat and its fade-in).</summary>
+        internal bool FlowCardUp => flow.CardUp;
+        /// <summary>Test hook: end the ending beat now (as a key press would).</summary>
+        internal void SkipEndingBeat() => flow.SkipEndingBeat();
         internal bool EndingViewButtonVisible => flow.ViewButtonVisible;
         internal Rect EndingViewButtonRect => flow.ViewButtonRect(ctx.CanvasRect);
         internal void ClickEndingView() => flow.ClickView();

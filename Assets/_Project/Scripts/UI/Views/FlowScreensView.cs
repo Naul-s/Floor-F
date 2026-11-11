@@ -17,6 +17,18 @@ namespace FloorF.UI
     {
         readonly UIContext ctx;
         readonly RectTransform dim, card;
+        /// <summary>On the dim: hides the whole card during the ending beat and fades it in after.</summary>
+        readonly CanvasGroup dimGroup;
+
+        // ------------------------------------------------------------------ ending: scene first, card later
+        /// <summary>
+        /// Seconds the ending scene plays alone before the card fades in (any key / click skips). The Christmas miracle
+        /// waits longer: Santa's sleigh (first flight 1.5 s in, 7 s long, past the moon top-left) should be mostly seen.
+        /// </summary>
+        public const float EndingBeat = 3.5f, MiracleBeat = 6f, CardFadeIn = 0.4f;
+        public static float BeatFor(EndingKind k) => k == EndingKind.WinterMiracle ? MiracleBeat : EndingBeat;
+        float beatAge = -1f, fadeAge = -1f;
+        int enterHeldUntilFrame = -1;
         readonly Image cardEdge, cardFill;
         /// <summary>Friday the 13th intro: red edge on near-black, red title, a red-black dim.</summary>
         public static readonly Color FridayFill = new Color(0.04f, 0.01f, 0.012f, 0.97f), FridayDim = new Color(0.08f, 0f, 0f, 0.78f);
@@ -76,6 +88,7 @@ namespace FloorF.UI
             this.ctx = ctx;
             dim = UIBuild.Box("FlowDim", canvas, UIStyle.Dim, raycast: true).rectTransform;
             UIBuild.Stretch(dim);
+            dimGroup = dim.gameObject.AddComponent<CanvasGroup>();
 
             cardEdge = UIBuild.Box("Card", dim, UIStyle.CardEdge);
             card = cardEdge.rectTransform;
@@ -496,7 +509,59 @@ namespace FloorF.UI
         }
 
         /// <summary>Ending card with the winter season on offer: Enter = KEEP THE HOTEL OPEN (UIRoot owns Enter then).</summary>
-        public bool OwnsEnter => Shown == DayPhase.Ending && offerShown && ctx.CanExtendSeason;
+        public bool OwnsEnter => Shown == DayPhase.Ending && offerShown && ctx.CanExtendSeason && CardUp;
+
+        /// <summary>The card is fully shown and clickable (not in the ending beat / its fade-in).</summary>
+        public bool CardUp => dim.gameObject.activeSelf && beatAge < 0f && fadeAge < 0f;
+        /// <summary>The ending scene plays alone (the card is hidden; any key / click skips to it).</summary>
+        public bool InEndingBeat => beatAge >= 0f && dim.gameObject.activeSelf;
+        public float EndingBeatAge => beatAge;
+        /// <summary>Enter belongs to the UI during the beat, the card's fade-in and the frame after a skip: it never also
+        /// restarts / keeps the hotel open through Gameplay's Enter shortcut.</summary>
+        public bool HoldsEnter => InEndingBeat || fadeAge >= 0f || Time.frameCount <= enterHeldUntilFrame;
+
+        void StartBeat()
+        {
+            beatAge = 0f;
+            fadeAge = -1f;
+            dimGroup.alpha = 0f;
+            dimGroup.interactable = false;
+            dimGroup.blocksRaycasts = true; // a click during the beat lands on the (invisible) dim, never on a button
+        }
+
+        void StopBeat()
+        {
+            beatAge = fadeAge = -1f;
+            dimGroup.alpha = 1f;
+            dimGroup.interactable = true;
+            dimGroup.blocksRaycasts = true;
+        }
+
+        /// <summary>The beat is over (time, or a key / click): the card fades in; that press does nothing else.</summary>
+        public void SkipEndingBeat()
+        {
+            if (beatAge < 0f) return;
+            beatAge = -1f;
+            fadeAge = 0f;
+            enterHeldUntilFrame = Time.frameCount + 1;
+        }
+
+        void TickEndingBeat()
+        {
+            if (beatAge >= 0f)
+            {
+                if (!dim.gameObject.activeSelf || shown != DayPhase.Ending) { StopBeat(); return; }
+                if (!ctx.Paused) beatAge += UIClock.UnscaledDt;
+                if (beatAge >= BeatFor(ctx.Day != null ? ctx.Day.Ending : EndingKind.None)) SkipEndingBeat();
+                else return;
+            }
+            if (fadeAge < 0f) return;
+            fadeAge += UIClock.UnscaledDt;
+            float k = Mathf.Clamp01(fadeAge / CardFadeIn);
+            dimGroup.alpha = k * k * (3f - 2f * k);
+            card.anchoredPosition = new Vector2(0f, Mathf.Round(-24f * (1f - k) * (1f - k))); // rises into place
+            if (k >= 1f) StopBeat();
+        }
 
         void OnSkip()
         {
@@ -537,6 +602,7 @@ namespace FloorF.UI
 
         public void Tick()
         {
+            TickEndingBeat();
             TickStamp();
             TickStars();
             TickWinter();
@@ -558,9 +624,12 @@ namespace FloorF.UI
 
         void Show(DayPhase phase)
         {
+            bool enteringEnding = phase == DayPhase.Ending && shown != DayPhase.Ending;
+            if (phase != DayPhase.Ending) StopBeat();
+            else if (enteringEnding && UIFeatures.EndingBeat) StartBeat();
             shown = phase;
             shownDay = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
-            card.anchoredPosition = Vector2.zero; // a stamp jolt never carries over
+            if (beatAge < 0f && fadeAge < 0f) card.anchoredPosition = Vector2.zero; // a stamp jolt never carries over
             bool modal = phase == DayPhase.Intro || phase == DayPhase.Summary || phase == DayPhase.Ending;
             dim.gameObject.SetActive(modal);
             bool graded = modal && phase == DayPhase.Summary && !ctx.Day.IsTutorial;
