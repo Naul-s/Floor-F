@@ -11,7 +11,8 @@ using Policy = FloorF.Tests.EditMode.Core.PlaythroughBot.Policy;
 namespace FloorF.Tests.EditMode.Core
 {
     /// <summary>
-    /// Automated full playthroughs on the REAL Resources/Data/*.json: Day 0 -> Day 7 -> ending, many fixed seeds per bot
+    /// Automated full playthroughs on the REAL Resources/Data/*.json: Day 0 -> Day 7 -> ending (-> winter days 8-10 ->
+    /// winter ending when the base ending offers the extension), many fixed seeds per bot
     /// policy (<see cref="PlaythroughBot"/>), every run checking the invariants (no exception, no softlock, luck 0..max,
     /// tips &gt;= 0, one-day stickers/charms, reroll counts/prices, capacity, nobody left behind, the tutorial ends and resets).
     /// Plus mid-run RestartGame / ReturnToTitle / debug day jumps / forced endings, each followed by a full replay.
@@ -35,15 +36,20 @@ namespace FloorF.Tests.EditMode.Core
             var watch = Stopwatch.StartNew();
             var runs = new List<PlaythroughBot>();
             for (int seed = 1; seed <= SeedsPerPolicy; seed++)
-                runs.Add(new PlaythroughBot(data, policy, seed).Play());
+                runs.Add(new PlaythroughBot(data, policy, seed) { ExtendSeason = true }.Play());
             watch.Stop();
 
             TestContext.Out.WriteLine(Report(policy, runs, watch.ElapsedMilliseconds));
             var violations = runs.SelectMany(r => r.Violations).ToList();
             Assert.IsEmpty(violations, string.Join("\n", violations.Take(20)));
 
-            var endings = runs.GroupBy(r => r.Ending).ToDictionary(g => g.Key, g => g.Count());
+            // the base run's ending (the winter season follows a Prosperous/Modest one)
+            var endings = runs.GroupBy(r => r.FirstEnding).ToDictionary(g => g.Key, g => g.Count());
             int Count(EndingKind k) => endings.TryGetValue(k, out int n) ? n : 0;
+            int extendable = Count(EndingKind.Prosperous) + Count(EndingKind.Modest);
+            Assert.AreEqual(extendable, runs.Count(r => r.Extended), "every Prosperous/Modest run went on into the winter");
+            Assert.IsTrue(runs.Where(r => r.Extended).All(r => r.Ending == EndingKind.WinterMiracle || r.Ending == EndingKind.SilentNight || r.Ending == EndingKind.Haunted || r.Ending == EndingKind.FourthFloor),
+                "the winter season ends WinterMiracle / SilentNight / Haunted");
             switch (policy)
             {
                 case Policy.Idle:
@@ -55,6 +61,8 @@ namespace FloorF.Tests.EditMode.Core
                 case Policy.Greedy:
                     Assert.Greater(Count(EndingKind.Prosperous), runs.Count / 2, "playing for luck must usually prosper");
                     Assert.IsTrue(runs.All(r => r.TutorialEnded), "a competent bot finishes Day 0");
+                    Assert.Greater(runs.Count(r => r.Ending == EndingKind.WinterMiracle), 0, "a Christmas miracle is reachable");
+                    Assert.IsFalse(runs.Any(r => r.MysteryCame), "fresh record: never the mystery guest on the first run");
                     break;
                 case Policy.FourthFloor:
                     Assert.Greater(Count(EndingKind.FourthFloor), runs.Count / 2, "the hidden 4th-floor ending is reachable");
@@ -87,7 +95,8 @@ namespace FloorF.Tests.EditMode.Core
             int E(EndingKind k) => e.TryGetValue(k, out int c) ? c : 0;
             sb.AppendLine("=== " + policy + ": " + n + " seeds, " + ms + " ms");
             sb.AppendLine("endings: Prosperous " + Pct(E(EndingKind.Prosperous)) + " | Modest " + Pct(E(EndingKind.Modest)) +
-                          " | Haunted " + Pct(E(EndingKind.Haunted)) + " | 4th floor " + Pct(E(EndingKind.FourthFloor)));
+                          " | Haunted " + Pct(E(EndingKind.Haunted)) + " | 4th floor " + Pct(E(EndingKind.FourthFloor)) +
+                          " | WinterMiracle " + Pct(E(EndingKind.WinterMiracle)) + " | SilentNight " + Pct(E(EndingKind.SilentNight)) + "  (final)");
             var haunted = runs.Where(r => r.Ending == EndingKind.Haunted).Select(r => r.EndingDisplayDay).ToList();
             if (haunted.Count > 0)
                 sb.AppendLine("haunted on day: " + string.Join(" ", haunted.GroupBy(d => d).OrderBy(g => g.Key).Select(g => "d" + g.Key + "x" + g.Count())));
@@ -116,7 +125,104 @@ namespace FloorF.Tests.EditMode.Core
                           (runs.Any(r => r.TutorialEnded) ? ", avg " + runs.Where(r => r.TutorialEnded).Average(r => r.TutorialSeconds).ToString("0") + " s" : "") +
                           (policy == Policy.Random ? ", random clicks alone finished it " + runs.Count(r => r.RandomSoloFinishedTutorial) : ""));
             if (policy == Policy.FourthFloor) sb.AppendLine("4 -> F on the real 4th floor before the last day: " + runs.Count(r => r.FourthStickerBought));
+            var first = runs.GroupBy(r => r.FirstEnding).ToDictionary(g => g.Key, g => g.Count());
+            int F(EndingKind k) => first.TryGetValue(k, out int c) ? c : 0;
+            if (runs.Any(r => r.Extended))
+            {
+                var ext = runs.Where(r => r.Extended).ToList();
+                int W(EndingKind k) => ext.Count(r => r.Ending == k);
+                sb.AppendLine("base endings: Prosperous " + Pct(F(EndingKind.Prosperous)) + " | Modest " + Pct(F(EndingKind.Modest)) +
+                              " | Haunted " + Pct(F(EndingKind.Haunted)) + " | 4th floor " + Pct(F(EndingKind.FourthFloor)));
+                sb.AppendLine("winter (extended " + ext.Count + "): WinterMiracle " + W(EndingKind.WinterMiracle) + " | SilentNight " + W(EndingKind.SilentNight) +
+                              " | Haunted " + W(EndingKind.Haunted) +
+                              (W(EndingKind.Haunted) > 0 ? " (days " + string.Join(" ", ext.Where(r => r.Ending == EndingKind.Haunted).Select(r => r.EndingDisplayDay).GroupBy(d => d).OrderBy(g => g.Key).Select(g => "d" + g.Key + "x" + g.Count())) + ")" : "") +
+                              " | of all runs: WinterMiracle " + Pct(W(EndingKind.WinterMiracle)) + ", SilentNight " + Pct(W(EndingKind.SilentNight)));
+                sb.AppendLine("lottery: draws/run " + ext.Average(r => r.LotteryDraws).ToString("0.0") + ", jackpots/run " + ext.Average(r => r.Jackpots).ToString("0.0"));
+            }
             return sb.ToString();
+        }
+
+        // =========================================================================================== rare mystery guest
+
+        /// <summary>Display day of the night that schedules the mystery guest (-1 = none in the data).</summary>
+        int MysteryDisplayDay()
+        {
+            foreach (var d in data.Days)
+                foreach (var sp in d.spawns)
+                    if (data.TryGetGuest(sp.Guest, out var g) && g.HasTrait(GuestTraits.Mystery)) return data.DisplayDayNumber(new DayId(d.day));
+            return -1;
+        }
+
+        /// <summary>
+        /// A brand-new player record plays N runs in a row (IRunHistory carried between runs, as PlayerPrefs would):
+        /// how often does the mystery guest show up? Real Greedy bot runs (some never reach the mystery night), plus a
+        /// cheap gate-only model in which every run reaches it (DebugJumpToDay to that night, then an ending).
+        /// </summary>
+        [Test]
+        public void MysteryGuest_FreshRecord_NPlays_Report()
+        {
+            const int N = 10;
+            var rules = data.Rules;
+            int mysteryDay = MysteryDisplayDay();
+            Assume.That(mysteryDay, Is.GreaterThan(0), "the data schedules no mystery guest");
+            var sb = new StringBuilder();
+            sb.AppendLine("=== mystery guest: chance " + rules.mysteryChance + ", pity " + rules.mysteryPityRuns + ", night = day " + mysteryDay);
+
+            // real bots: 10 fresh records x N runs
+            const int Records = 10;
+            var perPlay = new int[N];
+            var perRecord = new List<int>();
+            for (int rec = 1; rec <= Records; rec++)
+            {
+                int runs = 0, misses = 0, came = 0;
+                for (int i = 0; i < N; i++)
+                {
+                    var bot = new PlaythroughBot(data, Policy.Greedy, rec * 1000 + i);
+                    bot.S.LoadRunHistory(runs, misses);
+                    bot.Play();
+                    Assert.IsEmpty(bot.Violations, string.Join("\n", bot.Violations.Take(10)));
+                    Assert.AreEqual(runs + 1, bot.S.FinishedRuns, "each run counts once");
+                    if (i == 0) Assert.IsFalse(bot.MysteryCame, "never on the first run");
+                    if (bot.MysteryCame) { came++; perPlay[i]++; }
+                    runs = bot.S.FinishedRuns;
+                    misses = bot.S.MysteryMisses;
+                }
+                perRecord.Add(came);
+            }
+            sb.AppendLine("bots (Greedy, " + Records + " fresh records x " + N + " runs): mystery came " + perRecord.Sum() + " times, per record avg " +
+                          perRecord.Average().ToString("0.0") + " [" + string.Join(" ", perRecord) + "], by run # " + string.Join(" ", perPlay.Select((c, i) => "#" + (i + 1) + "=" + c)));
+
+            // gate-only model: every run reaches the mystery night
+            const int Models = 1000;
+            var hist = new int[N + 1];
+            var firstAt = new int[N + 2];
+            int total = 0, longestGap = 0;
+            for (int rec = 1; rec <= Models; rec++)
+            {
+                var s = new GameSession(data, new EventBus(), new Random(rec));
+                int came = 0, first = N + 1, gap = 0;
+                for (int i = 0; i < N; i++)
+                {
+                    s.RestartGame();
+                    Assert.IsTrue(s.DebugJumpToDay(mysteryDay));
+                    bool tonight = s.MysteryTonight;
+                    if (i == 0) Assert.IsFalse(tonight, "never on the first run");
+                    Assert.IsTrue(s.BeginDay());
+                    Assert.IsTrue(s.DebugForceEnding(EndingKind.Modest));
+                    if (tonight) { came++; if (first > N) first = i + 1; gap = 0; }
+                    else if (i > 0) longestGap = Math.Max(longestGap, ++gap);
+                }
+                hist[came]++;
+                firstAt[first]++;
+                total += came;
+            }
+            sb.AppendLine("model (" + Models + " fresh records x " + N + " runs, every run reaches day " + mysteryDay + "): avg " + (total / (double)Models).ToString("0.00") +
+                          " appearances, distribution " + string.Join(" ", hist.Select((c, k) => k + ":" + c).Where((x, k) => hist[k] > 0)) +
+                          ", first appearance at run # " + string.Join(" ", firstAt.Select((c, k) => (k > N ? "never" : "#" + k) + "=" + c).Where((x, k) => firstAt[k] > 0)) +
+                          ", longest dry streak after run 1: " + longestGap);
+            TestContext.Out.WriteLine(sb.ToString());
+            if (rules.mysteryPityRuns > 0)
+                Assert.LessOrEqual(longestGap, rules.mysteryPityRuns, "pity: never more than mysteryPityRuns eligible nights in a row without it");
         }
 
         // =========================================================================================== fresh state
@@ -229,6 +335,31 @@ namespace FloorF.Tests.EditMode.Core
             }
         }
 
+        [Test]
+        public void RestartGame_MidWinter_ResetsTheSeason_ThenReplaysToAnEnding([Values(false, true)] bool viaTitle)
+        {
+            for (int seed = 1; seed <= 6; seed++)
+            {
+                var bot = new PlaythroughBot(data, Policy.Greedy, seed) { ExtendSeason = true };
+                int stopDay = data.PlayableDayCount + 1 + seed % Math.Max(1, data.ExtendedDayCount);
+                bot.Interrupt = b => b.S.Phase == DayPhase.Ending && !b.S.CanExtendSeason
+                                     || b.S.IsExtendedDay && b.S.DisplayDay >= stopDay && b.S.Phase == DayPhase.Running && b.S.ElapsedSeconds > 20f;
+                bot.Play();
+                bot.Interrupt = null;
+                string ctx = "seed " + seed + " day " + bot.S.DisplayDay + " " + bot.S.Phase;
+                Assert.IsEmpty(bot.Violations, ctx + "\n" + string.Join("\n", bot.Violations));
+                if (!bot.S.IsSeasonExtended) continue; // haunted before the winter
+                if (viaTitle) { bot.S.ReturnToTitle(); Assert.IsTrue(bot.S.StartGameFromTitle()); }
+                else bot.S.RestartGame();
+                AssertFresh(bot.S, ctx);
+                Assert.IsFalse(bot.S.IsSeasonExtended, ctx);
+                Assert.AreEqual(data.PlayableDayCount, bot.S.PlayableDayCount, ctx);
+                bot.Play(startNewGame: false);
+                Assert.IsEmpty(bot.Violations, ctx + " replay\n" + string.Join("\n", bot.Violations));
+                Assert.AreEqual(DayPhase.Ending, bot.S.Phase, ctx + " replay");
+            }
+        }
+
         // =========================================================================================== debug cheats
 
         public enum From { Title, Intro, Running, RunningPaused, Summary, Shop, Ending }
@@ -261,7 +392,7 @@ namespace FloorF.Tests.EditMode.Core
         [Test]
         public void DebugJumpToDay_FromEveryPhase_ThenPlaysToAnEnding([Values] From from)
         {
-            for (int n = 0; n <= data.PlayableDayCount; n++)
+            for (int n = 0; n <= data.SeasonPlayableDayCount; n++)
             {
                 var s = SessionIn(from, n + 1, out var bot);
                 string ctx = from + " -> day " + n;
@@ -270,6 +401,7 @@ namespace FloorF.Tests.EditMode.Core
                 Assert.AreEqual(DayPhase.Intro, s.Phase, ctx);
                 Assert.AreEqual(n, s.DisplayDay, ctx);
                 Assert.AreEqual(EndingKind.None, s.Ending, ctx);
+                Assert.AreEqual(n > data.PlayableDayCount, s.IsSeasonExtended, ctx + ": winter days turn the season on");
                 Assert.IsFalse(s.IsPaused || s.IsOnTitle || s.IsOpen, ctx);
                 Assert.IsEmpty(s.ActiveCharms, ctx);
                 Assert.IsEmpty(s.Guests.ActiveGuests, ctx);

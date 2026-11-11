@@ -12,6 +12,8 @@ namespace FloorF.Tests.EditMode.Core
     /// <see cref="GameSession"/> through the public commands only (IElevatorControl / IGameFlow / IShopService / IMenuFlow),
     /// with a fixed seed and a coarse simulated frame (<see cref="Dt"/>). While it plays it checks the run invariants and
     /// records them as <see cref="Violations"/> (the test asserts there are none) plus per-day numbers for the balance table.
+    /// With <see cref="ExtendSeason"/> it keeps the hotel open from the base Ending screen (ISeasonFlow) and plays the winter
+    /// days 8-10 to their ending too (<see cref="FirstEnding"/> = the base run's ending, <see cref="Ending"/> = the last one).
     /// </summary>
     public sealed class PlaythroughBot
     {
@@ -59,8 +61,16 @@ namespace FloorF.Tests.EditMode.Core
         public readonly List<string> Grades = new List<string>();
         public bool TutorialPlayed, TutorialEnded, RandomSoloFinishedTutorial;
         public float TutorialSeconds;
-        public int TipsEarnedTotal, Delivered, LeftCount, Purchases, Rerolls;
+        public int TipsEarnedTotal, Delivered, LeftCount, Purchases, Rerolls, LotteryDraws, Jackpots;
         public bool FourthStickerBought;
+        /// <summary>Ending screen: ExtendSeason whenever it is offered, then play the winter season.</summary>
+        public bool ExtendSeason;
+        /// <summary>The run's first ending (the base run's; Ending is the final one after an extension).</summary>
+        public EndingKind FirstEnding = EndingKind.None;
+        public int FirstEndingDisplayDay = -1;
+        public bool Extended;
+        /// <summary>The mystery guest was decided for tonight / actually appeared during this run.</summary>
+        public bool MysteryTonightSeen, MysteryCame;
 
         /// <summary>Optional hook called once per loop iteration before the phase is handled; true = the bot stops.</summary>
         public Func<PlaythroughBot, bool> Interrupt;
@@ -90,8 +100,8 @@ namespace FloorF.Tests.EditMode.Core
             S = new GameSession(data, Bus, new Random(seed));
             rng = new Random(seed * 7919 + (int)policy * 104729 + 17);
             shopper = new ShopBot(data);
-            LuckAfterDay = Enumerable.Repeat(-1, data.DayCount).ToArray();
-            TipsAfterDay = Enumerable.Repeat(-1, data.DayCount).ToArray();
+            LuckAfterDay = Enumerable.Repeat(-1, data.AllDayCount).ToArray();
+            TipsAfterDay = Enumerable.Repeat(-1, data.AllDayCount).ToArray();
             Subscribe();
         }
 
@@ -114,6 +124,14 @@ namespace FloorF.Tests.EditMode.Core
                 lastStartedDay = 0;
                 rerollK = 0;
                 Ending = EndingKind.None;
+                FirstEnding = EndingKind.None;
+                FirstEndingDisplayDay = -1;
+                Extended = false;
+            });
+            Bus.Subscribe<SeasonExtended>(e =>
+            {
+                Check(e.FirstDay.Number == data.DayCount + 1 && e.ExtraDays == data.ExtendedDayCount, "SeasonExtended " + e.FirstDay + " +" + e.ExtraDays);
+                Check(S.IsSeasonExtended && S.Ending == EndingKind.None && S.PlayableDayCount == data.SeasonPlayableDayCount, "season not extended after SeasonExtended");
             });
             knownLuck = S.Score.Luck;
             knownTips = S.Score.Tips;
@@ -130,7 +148,16 @@ namespace FloorF.Tests.EditMode.Core
                 knownTips = e.Current;
             });
             Bus.Subscribe<GuestBoarded>(e => Check(e.Occupancy <= data.Capacity && S.Elevator.Occupancy <= S.Elevator.Capacity, "over capacity: " + e.Occupancy));
-            Bus.Subscribe<GuestSpawned>(e => { Check(openGuests.Add(e.Guest), "guest spawned twice " + e.Guest); destinationOf[e.Guest] = e.DestinationFloor; });
+            Bus.Subscribe<GuestSpawned>(e =>
+            {
+                Check(openGuests.Add(e.Guest), "guest spawned twice " + e.Guest);
+                destinationOf[e.Guest] = e.DestinationFloor;
+                if (data.TryGetGuest(e.Archetype, out var def) && def.HasTrait(GuestTraits.Mystery))
+                {
+                    MysteryCame = true;
+                    Check(S.MysteryTonight, "mystery guest spawned on a night it was not due");
+                }
+            });
             Bus.Subscribe<GuestDelivered>(e =>
             {
                 Check(openGuests.Remove(e.Guest), "delivered a guest that was not open " + e.Guest);
@@ -170,6 +197,25 @@ namespace FloorF.Tests.EditMode.Core
                 var charms = S.ActiveCharms.Select(c => c.Id).OrderBy(c => c.Value).ToList();
                 Check(charms.SequenceEqual(activeCharms.OrderBy(c => c.Value)), "charms active today [" + string.Join(",", charms) + "] != bought [" + string.Join(",", activeCharms) + "]");
                 if (e.IsTutorial) TutorialPlayed = true;
+                if (S.MysteryTonight) MysteryTonightSeen = true;
+                Check(S.IsExtendedDay == data.IsExtendedDay(e.Day) && (!S.IsExtendedDay || S.IsSeasonExtended), "winter day without the season extended");
+                Check(e.DayCount == S.DayCount, "DayStarted.DayCount " + e.DayCount + " != " + S.DayCount);
+                Check(S.IsLotteryNight == data.GetDay(e.Day).lottery, "lottery flag");
+            });
+            Bus.Subscribe<LotteryDrawn>(e =>
+            {
+                Check(S.IsLotteryNight && S.Phase == DayPhase.Running, "draw outside a running lottery night");
+                Check(e.Number == S.LotteryNumber && e.DrawIndex < e.DrawCount, "draw " + e.Number + " #" + e.DrawIndex + "/" + e.DrawCount);
+                bool shown = false;
+                for (int f = 0; f < S.Building.FloorCount; f++)
+                    if (S.Building.GetLabel(new FloorIndex(f)).TryGetNumber(out int n) && n == e.Number) shown = true;
+                Check(shown, "drawn number " + e.Number + " is not on any floor button");
+                LotteryDraws++;
+            });
+            Bus.Subscribe<LotteryWon>(e =>
+            {
+                Check(e.Number == S.LotteryNumber && S.Building.GetLabel(e.Floor).TryGetNumber(out int n) && n == e.Number, "jackpot on a floor not showing the number");
+                Jackpots++;
             });
             Bus.Subscribe<StickersExpired>(e =>
             {
@@ -227,6 +273,12 @@ namespace FloorF.Tests.EditMode.Core
                 Check(e.Ending != EndingKind.Haunted || e.FinalLuck == 0, "haunted with luck " + e.FinalLuck);
                 Check(e.Ending != EndingKind.Prosperous || e.FinalLuck >= rules.prosperousEndingLuck, "prosperous below the line");
                 Check(e.Ending != EndingKind.Modest || (e.FinalLuck > 0 && e.FinalLuck < rules.prosperousEndingLuck), "modest outside its range " + e.FinalLuck);
+                Check(e.Ending != EndingKind.WinterMiracle || e.FinalLuck >= rules.prosperousEndingLuck, "winter miracle below the line");
+                Check(e.Ending != EndingKind.SilentNight || (e.FinalLuck > 0 && e.FinalLuck < rules.prosperousEndingLuck), "silent night outside its range " + e.FinalLuck);
+                bool winter = e.Ending == EndingKind.WinterMiracle || e.Ending == EndingKind.SilentNight;
+                Check(!winter || (S.IsSeasonExtended && data.IsLastSeasonDay(e.Day)), "winter ending outside the season's last day");
+                Check(!S.IsSeasonExtended || e.Ending != EndingKind.Prosperous && e.Ending != EndingKind.Modest, "base ending during the season");
+                if (FirstEnding == EndingKind.None) { FirstEnding = e.Ending; FirstEndingDisplayDay = data.DisplayDayNumber(e.Day); }
                 Check(S.Offers.Count == 0 && !S.IsOpen, "shop still open at the ending");
             });
         }
@@ -273,7 +325,15 @@ namespace FloorF.Tests.EditMode.Core
             for (int guard = 0; guard < 400000; guard++)
             {
                 if (Interrupt != null && Interrupt(this)) return this;
-                if (S.Phase == DayPhase.Ending) break;
+                if (S.Phase == DayPhase.Ending)
+                {
+                    if (!ExtendSeason || !S.CanExtendSeason) break;
+                    Extended = true;
+                    bool ok = S.ExtendSeason();
+                    Check(ok, "ExtendSeason refused while offered");
+                    if (!ok) return this;
+                    continue;
+                }
                 if (Violations.Count >= MaxViolations) return this;
                 if (!StepOnce()) return this;
             }
@@ -281,6 +341,10 @@ namespace FloorF.Tests.EditMode.Core
             Check(Ending == S.Ending && Ending != EndingKind.None, "ending " + S.Ending + " / event " + Ending);
             if (Ending == EndingKind.Prosperous || Ending == EndingKind.Modest)
                 Check(EndingDisplayDay == data.PlayableDayCount, "Prosperous/Modest before the last day");
+            if (Ending == EndingKind.WinterMiracle || Ending == EndingKind.SilentNight)
+                Check(EndingDisplayDay == data.SeasonPlayableDayCount, "winter ending before the last winter day");
+            if (ExtendSeason && data.HasExtendedDays && (FirstEnding == EndingKind.Prosperous || FirstEnding == EndingKind.Modest))
+                Check(Extended, "the season was offered but not extended");
             return this;
         }
 
@@ -308,6 +372,8 @@ namespace FloorF.Tests.EditMode.Core
                 Check(S.SkipTutorial(), "SkipTutorial refused on the Day 0 intro");
                 return true;
             }
+            // the 4th-floor bot tests the ending path, not its rarity: the mystery guest comes whenever it is scheduled
+            if (Kind == Policy.FourthFloor && !S.MysteryTonight) S.DebugToggleMysteryTonight();
             var strategy = Kind == Policy.Greedy || Kind == Policy.FourthFloor ? AutoPilotStrategy.LuckAware : AutoPilotStrategy.LuckBlind;
             // the pilot refuses the tutorial when its control is the session (IDayQuery): drive Day 0 through a plain wrapper
             IElevatorControl control = S.IsTutorial ? new PlainControl(S) : (IElevatorControl)S;

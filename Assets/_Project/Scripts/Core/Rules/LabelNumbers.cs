@@ -66,6 +66,29 @@ namespace FloorF.Core
         public const int StarNightNumber = 7;
     }
 
+    /// <summary>
+    /// "Lucky for everyone" numbers (star night's 7, <see cref="DayDef.luckyForAll"/> - Christmas Eve's 12): a guest's own
+    /// numbers with that number forced Lucky for every source (floor label, head count, ride distance). It also beats the
+    /// guest's own unlucky copy of the number (removed from Unlucky).
+    /// </summary>
+    public static class LuckyForAllRules
+    {
+        /// <summary>
+        /// <paramref name="own"/> plus <paramref name="number"/> as Lucky (and not Unlucky). <paramref name="number"/> &lt;= 0 =
+        /// none. Returns <paramref name="own"/> itself when it already is that way.
+        /// </summary>
+        public static LuckProfile Apply(LuckProfile own, int number)
+        {
+            own = own ?? LuckProfile.None;
+            if (number <= 0) return own;
+            if (own.Lucky.Contains(number) && !own.Unlucky.Contains(number)) return own;
+            var lucky = new System.Collections.Generic.List<int>(own.Lucky) { number };
+            var unlucky = new System.Collections.Generic.List<int>();
+            foreach (var n in own.Unlucky) if (n != number) unlucky.Add(n);
+            return new LuckProfile(NumberSet.From(lucky), NumberSet.From(unlucky));
+        }
+    }
+
     /// <summary>Star-night luck: a guest's own numbers with <see cref="StoryRules.StarNightNumber"/> forced Lucky.</summary>
     public static class StarNightRules
     {
@@ -73,15 +96,6 @@ namespace FloorF.Core
         /// <paramref name="own"/> plus 7 as Lucky (removed from Unlucky: the star night wins over a guest's own unlucky 7).
         /// Returns <paramref name="own"/> itself when it already is that way.
         /// </summary>
-        public static LuckProfile Apply(LuckProfile own)
-        {
-            own = own ?? LuckProfile.None;
-            int seven = StoryRules.StarNightNumber;
-            if (own.Lucky.Contains(seven) && !own.Unlucky.Contains(seven)) return own;
-            var lucky = new System.Collections.Generic.List<int>(own.Lucky) { seven };
-            var unlucky = new System.Collections.Generic.List<int>();
-            foreach (var n in own.Unlucky) if (n != seven) unlucky.Add(n);
-            return new LuckProfile(NumberSet.From(lucky), NumberSet.From(unlucky));
-        }
+        public static LuckProfile Apply(LuckProfile own) => LuckyForAllRules.Apply(own, StoryRules.StarNightNumber);
     }
 }

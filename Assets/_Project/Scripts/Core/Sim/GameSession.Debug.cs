@@ -11,13 +11,16 @@ namespace FloorF.Core
     /// DayEnded / WishStarFaded), stickered floors get their original labels back (FloorLabelChanged), charms and the shop
     /// are cleared, the ending is cleared; Luck and tips are KEPT (from the title: a fresh run's start values, the demo's
     /// numbers are not the player's). Then GameStarted(current Luck) -> DayPhaseChanged(shown -> Intro), so every view
-    /// resets as for a new run. No DayEnded for an interrupted day.
+    /// resets as for a new run. No DayEnded for an interrupted day. Winter-season days (8-10) can be jumped to as well: the
+    /// season counts as extended there (IsSeasonExtended, "/10"); a jump to a base day ends it. The mystery guest of the
+    /// target day is decided as for any Intro (see GameSession.Season.cs); the run counts as new for FinishedRuns.
     ///
     /// Force ending (<see cref="DebugForceEnding"/>): the real ending path (DayEnded + expiry when a day runs, then
     /// DayPhaseChanged(-> Ending) -> EndingReached), so the endings collection records it like a real one. Luck is made
     /// consistent with the ending first (LuckChanged, source Other): Haunted -> 0, Prosperous -> at least
     /// rules.prosperousEndingLuck, Modest -> below it (min 1), FourthFloor unchanged. Prosperous/Modest happen on the last
-    /// day (the day moves there). From the title a run is started first (GameStarted -> Intro).
+    /// day of the base run (the day moves there, the winter season is off again, so it can be extended). From the title a
+    /// run is started first (GameStarted -> Intro).
     /// </summary>
     public sealed partial class GameSession
     {
@@ -25,7 +28,7 @@ namespace FloorF.Core
         internal bool DebugJumpToDay(int displayDay)
         {
             int number = displayDay + data.TutorialDayCount;
-            if (number < 1 || number > data.DayCount) return false;
+            if (number < 1 || number > data.AllDayCount) return false;
             var shown = Phase;
             Unpause();
             ReleaseTutorialHold();
@@ -42,17 +45,20 @@ namespace FloorF.Core
                 CloseShop();
                 ClearCharms();
                 ending = EndingKind.None;
+                ResetSeason();
             }
             spawns = Array.Empty<SpawnDef>();
             nextSpawn = 0;
             day = new DayId(number);
             dayDef = data.GetDay(day);
+            seasonExtended = data.IsExtendedDay(day);
             elapsed = 0f;
             waveClock = 0f;
             emptyFor = 0f;
             ResetElevator();
             phase = DayPhase.Intro;
-            bus.Publish(new GameStarted(data.DayCount, Score.Luck, Score.MaxLuck));
+            DecideMysteryTonight();
+            bus.Publish(new GameStarted(DayCount, Score.Luck, Score.MaxLuck));
             SetPhase(DayPhase.Intro, shown);
             return true;
         }
@@ -72,6 +78,7 @@ namespace FloorF.Core
             {
                 day = new DayId(data.DayCount);
                 dayDef = data.GetDay(day);
+                seasonExtended = false;
             }
             ReachEnding(kind);
             return true;

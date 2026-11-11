@@ -9,7 +9,8 @@ namespace FloorF.Core
     /// documented order. Gameplay (Unity) only feeds Tick(Time.deltaTime) and player commands.
     ///
     /// Services: <see cref="Building"/> (IBuildingQuery), <see cref="Elevator"/> (IElevatorQuery), <see cref="Guests"/>
-    /// (IGuestQuery), <see cref="Score"/> (IScoreQuery); this object is IElevatorControl, IDayQuery, IGameFlow, IShopService.
+    /// (IGuestQuery), <see cref="Score"/> (IScoreQuery); this object is IElevatorControl, IDayQuery, IGameFlow, IShopService,
+    /// IMenuFlow, ISeasonQuery, ISeasonFlow, IRunHistory (winter season, lottery night, rare mystery guest: GameSession.Season.cs).
     ///
     /// Door cycle: OpenDoors -> Opening (doorSeconds) -> Open: DoorsOpened, riders judged on the label, then riders for
     /// this floor exit (boardSeconds per guest/party), then waiting guests board while the doors stay open.
@@ -34,6 +35,13 @@ namespace FloorF.Core
     /// Unlucky: Luck -unluckyDistanceLuckPenalty; if that empties the meter on a real day the hotel is Haunted at once (the
     /// guest is not paid). A distance line replaces the delivered line (one bubble per exit; the 4th-floor "special" wins).
     /// Parties are judged per member (same distance). Neutral distances publish nothing.
+    ///
+    /// Lottery night jackpot (<see cref="IsLotteryNight"/>): a rider stepping out at the destination on a floor whose label
+    /// is the current <see cref="LotteryNumber"/> - judged AFTER the ride distance (a Haunted distance pays nothing):
+    ///   GuestExited -> LuckJudged(RideDistance)... -> LotteryWon -> GuestDelivered(tip) -> CharmTriggered(tips)? ->
+    ///   LuckChanged(Delivery)? -> LuckChanged(Lottery)? -> TipsChanged -> GuestSpoke
+    /// Tip = baseTip x the guest's lucky floor/occupancy/distance multipliers x streak x rules.lotteryTipMultiplier
+    /// x tips charm, rounded once at the end. Luck +rules.lotteryLuckBonus. Parties: per member.
     ///
     /// Unlucky penalties (every Unlucky LuckJudged: floor label, occupancy, ride distance, honest sticker):
     ///   base x <see cref="StoryRules.DevoutPenaltyFactor"/> when a devout guest's number is <see cref="StoryRules.DevoutNumber"/>
@@ -129,9 +137,11 @@ namespace FloorF.Core
         // =========================================================================================== IDayQuery
 
         public DayId CurrentDay => day;
-        public int DayCount => data.DayCount;
+        /// <summary>Days of the run: the base run (GameData.DayCount), or every day once the season was extended.</summary>
+        public int DayCount => seasonExtended ? data.AllDayCount : data.DayCount;
         public int DisplayDay => data.DisplayDayNumber(day);
-        public int PlayableDayCount => data.PlayableDayCount;
+        /// <summary>"/7", or "/10" once the season was extended (GameData.SeasonPlayableDayCount).</summary>
+        public int PlayableDayCount => seasonExtended ? data.SeasonPlayableDayCount : data.PlayableDayCount;
         /// <summary>Visible phase: <see cref="DayPhase.Title"/> while the title/demo runs (the demo's own day phases stay internal).</summary>
         public DayPhase Phase => onTitle ? DayPhase.Title : phase;
         public bool IsTutorial => dayDef != null && dayDef.tutorial;
@@ -158,6 +168,7 @@ namespace FloorF.Core
             onTitle = false;
             Unpause();
             ResetRun();
+            DecideMysteryTonight();
             bus.Publish(new GameStarted(data.DayCount, Score.Luck, Score.MaxLuck));
             SetPhase(DayPhase.Intro, shown);
         }
@@ -175,6 +186,7 @@ namespace FloorF.Core
             }
             started = true;
             ending = EndingKind.None;
+            ResetSeason();
             lastSummary = default;
             day = DayId.First;
             CloseShop();
@@ -195,7 +207,7 @@ namespace FloorF.Core
         {
             if (phase != DayPhase.Intro) return false;
             dayDef = data.GetDay(day);
-            spawns = (SpawnDef[])dayDef.spawns.Clone();
+            spawns = TonightsSpawns(dayDef); // without the mystery guest unless it comes tonight
             // stable sort by time (Array.Sort is unstable)
             var times = new float[spawns.Length];
             for (int i = 0; i < times.Length; i++) times[i] = spawns[i].time + i * 1e-6f;
@@ -209,8 +221,11 @@ namespace FloorF.Core
             dayDelivered = dayLeft = dayLucky = dayUnlucky = 0;
             Score.BeginDay();
             ScheduleWishStars();
+            ClearLottery();
             SetPhase(DayPhase.Running);
-            PublishFlow(new DayStarted(day, data.DayCount, dayDef.durationSeconds, dayDef.tutorial));
+            PublishFlow(new DayStarted(day, DayCount, dayDef.durationSeconds, dayDef.tutorial));
+            SettleMysteryNight(); // RunHistoryChanged when the pity counter moved
+            StepLottery();        // lottery night: the first winning number right away
             SpawnDue();
             return true;
         }
@@ -228,6 +243,7 @@ namespace FloorF.Core
             elapsed = 0f;
             waveClock = 0f;
             ResetElevator();
+            DecideMysteryTonight();
             SetPhase(DayPhase.Intro);
             return true;
         }
@@ -284,6 +300,7 @@ namespace FloorF.Core
                 ReachEnding(Score.Luck >= rules.prosperousEndingLuck ? EndingKind.Prosperous : EndingKind.Modest);
                 return true;
             }
+            if (TryReachWinterEnding()) return true; // last winter day: WinterMiracle / SilentNight
             if (OpenShop()) SetPhase(DayPhase.Shop);
             else GoToNextDayIntro();
             return true;
@@ -304,6 +321,7 @@ namespace FloorF.Core
             elapsed = 0f;
             waveClock = 0f;
             ResetElevator();
+            DecideMysteryTonight();
             SetPhase(DayPhase.Intro);
         }
 
@@ -347,6 +365,7 @@ namespace FloorF.Core
         {
             elapsed += dt;
             if (dayDef.tutorial && Guests.Active.Count == 0) waveClock += dt;
+            StepLottery();
             StepWishStars(dt);
             SpawnDue();
             StepPatience(dt);
@@ -971,8 +990,12 @@ namespace FloorF.Core
                     // rule 3 before the payment: a lucky distance multiplies this tip, an unlucky one may haunt the hotel
                     bool distanceLine = JudgeDistance(g, floor);
                     if (CheckHaunted()) return; // EndDay dropped everyone (this guest included): no payment
+                    // lottery night: stepped out on the floor showing the winning number
+                    bool jackpot = IsLotteryWin(floor);
+                    if (jackpot) bus.Publish(new LotteryWon(g.Id, floor, lotteryNumber));
                     // lucky streak bonus taken at payment time (see ScoreKeeper)
                     double raw = (double)g.Def.baseTip * g.TipMultiplier * Score.StreakTipMultiplier;
+                    if (jackpot) raw *= LotteryTipFactor;
                     int plainTip = (int)Math.Round(raw, MidpointRounding.AwayFromZero);
                     // tips charm (one day): x (1 + amount), feedback when it added something
                     int tip = (int)Math.Round(raw * TipFactor, MidpointRounding.AwayFromZero);
@@ -980,6 +1003,7 @@ namespace FloorF.Core
                     if (tip > plainTip && TipsCharm() is StickerDef tipsCharm) bus.Publish(new CharmTriggered(tipsCharm.Id, g.Id));
                     dayDelivered++;
                     Score.AddLuck(rules.deliveryLuckBonus, LuckSource.Delivery);
+                    if (jackpot) Score.AddLuck(Math.Max(0, rules.lotteryLuckBonus), LuckSource.Lottery);
                     Score.AddTips(tip, earned: true);
                     // 4th-floor ending: the mystery guest gets off at the real 4th floor while a sticker hides it
                     bool fourth = g.Def.HasTrait(GuestTraits.Mystery) && floor == StoryRules.RealFourthFloor && Building.IsRelabelled(floor);
@@ -1027,6 +1051,7 @@ namespace FloorF.Core
         /// <summary>The running day stops: everyone leaves, stars fade, DayEnded, one-day purchases expire (phase unchanged).</summary>
         void CloseOutDay()
         {
+            ClearLottery(); // the winning number is only good for its night
             DropAllGuests();
             FadeAllWishStars();
             lastSummary = new DaySummary(dayDelivered, dayLeft, Score.TipsEarnedToday, luckAtStart, Score.Luck, dayLucky, dayUnlucky, Score.BestStreakToday);
@@ -1040,6 +1065,7 @@ namespace FloorF.Core
             CloseShop();
             SetPhase(DayPhase.Ending);
             PublishFlow(new EndingReached(kind, day, Score.Luck, Score.Tips));
+            CountFinishedRun(); // the run's first ending: RunHistoryChanged
         }
 
         /// <summary>Ends the running day now (debug key / tests).</summary>
