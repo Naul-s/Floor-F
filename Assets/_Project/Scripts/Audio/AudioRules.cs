@@ -46,7 +46,38 @@ namespace FloorF.Audio
             new Entry(typeof(UiSound), AudioCue.Tap),
             new Entry(typeof(UiSound), AudioCue.Reveal),
             new Entry(typeof(ScenicViewChanged), AudioCue.ScenicWhoosh),
+            new Entry(typeof(GuestSpawned), AudioCue.SleighBells),
+            new Entry(typeof(GuestBoarded), AudioCue.SleighBells),
+            new Entry(typeof(GuestBoarded), AudioCue.CarolChime),
+            new Entry(typeof(LotteryDrawn), AudioCue.LotteryDraw),
+            new Entry(typeof(LotteryWon), AudioCue.LotteryJackpot),
+            new Entry(typeof(SeasonExtended), AudioCue.WinterStart),
         };
+
+        public const string SantaArchetype = "santa";
+        public const string CarolersArchetype = "carolers";
+
+        /// <summary>Santa arrives (GuestSpawned) with sleigh bells; nobody else's spawn makes a sound.</summary>
+        public static AudioCue ForSpawn(GuestArchetypeId archetype)
+            => archetype.Value == SantaArchetype ? AudioCue.SleighBells : AudioCue.None;
+
+        /// <summary>Boarding: Santa jingles again, the carolers ring their handbells (one run per party - the row's spam guard).</summary>
+        public static AudioCue ForBoarding(GuestArchetypeId archetype)
+        {
+            switch (archetype.Value)
+            {
+                case SantaArchetype: return AudioCue.SleighBells;
+                case CarolersArchetype: return AudioCue.CarolChime;
+                default: return AudioCue.None;
+            }
+        }
+
+        /// <summary>Every lottery draw rolls and dings (a number 0 = nothing drawn: silent).</summary>
+        public static AudioCue For(in LotteryDrawn e) => e.Number > 0 ? AudioCue.LotteryDraw : AudioCue.None;
+
+        public static AudioCue For(in LotteryWon e) => AudioCue.LotteryJackpot;
+
+        public static AudioCue For(in SeasonExtended e) => AudioCue.WinterStart;
 
         /// <summary>UiSound kinds: Confirm reuses the day-start chime; Click (and anything unknown) the button click.</summary>
         public static AudioCue For(UiSoundKind kind)
@@ -178,6 +209,9 @@ namespace FloorF.Audio
                         case EndingKind.Haunted: return new MusicSpec(MusicTrack.Mystery, 1f, 0.8f);
                         case EndingKind.Prosperous: return new MusicSpec(MusicTrack.Elevator, 1f, 1.06f);
                         case EndingKind.Modest: return new MusicSpec(MusicTrack.Elevator, 0.75f, 0.97f);
+                        // winter season endings (procedural loops, WinterBank): warm bells / a quiet music box
+                        case EndingKind.WinterMiracle: return new MusicSpec(MusicTrack.WinterBells, 1f, 1f);
+                        case EndingKind.SilentNight: return new MusicSpec(MusicTrack.MusicBox, 1f, 1f);
                         default: return new MusicSpec(MusicTrack.Elevator, 0.6f, 1f);
                     }
                 default: return new MusicSpec(MusicTrack.Elevator, 1f, 1f); // None / Title / Intro / Running

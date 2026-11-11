@@ -32,9 +32,11 @@ namespace FloorF.Audio
     /// <see cref="TapGuard"/>. Scenic view (ScenicViewChanged): the player's scenic mode pauses the game but keeps the
     /// music/rain unducked and plays SFX <see cref="AudioLibrary.scenicSfxDb"/> lower; the day's establishing shot
     /// leaves the levels alone and whooshes softly as it zooms back in.
+    /// Winter season (AudioRoot.Winter.cs, procedural clips from <see cref="WinterBank"/>): snow-day wind on its own voice,
+    /// the Christmas Eve sleigh-bell layer synced to the elevator song, Santa / carolers / lottery / season cues.
     /// The AudioListener is on the scene's Main Camera.
     /// </summary>
-    sealed class AudioRoot : MonoBehaviour
+    sealed partial class AudioRoot : MonoBehaviour
     {
         internal const string RootName = "[Audio]";
         /// <summary>Pooled SFX voices (round-robin); the door voices come after them in <see cref="SfxSources"/>.</summary>
@@ -146,6 +148,7 @@ namespace FloorF.Audio
             DoorCutCount = 0; lastDingTime = float.NegativeInfinity; HumStarts = 0;
             ThunderStrikes = 0; ThunderSkipped = 0;
             tapGuard.Clear(); TapsDropped = 0;
+            BellsResyncs = 0;
         }
 
         /// <summary>The player's scenic mode is on (music not pause-ducked, SFX lowered).</summary>
@@ -240,6 +243,7 @@ namespace FloorF.Audio
             var thunderGo = new GameObject("Thunder");
             thunderGo.transform.SetParent(transform, false);
             thunderSource = MakeSource(thunderGo, loop: false, priority: 96);
+            AwakeWinter();
             for (int i = 0; i < 2; i++)
             {
                 var go = new GameObject(i == 0 ? "Music A" : "Music B");
@@ -287,6 +291,7 @@ namespace FloorF.Audio
             subs.Add(bus.Subscribe<StickersExpired>(e => Play(AudioEventMap.For(e))));
             subs.Add(bus.Subscribe<UiSound>(OnUiSound));
             subs.Add(bus.Subscribe<ScenicViewChanged>(OnScenic));
+            SubscribeWinter(bus);
         }
 
         void OnDisable() => subs.Clear();
@@ -297,6 +302,7 @@ namespace FloorF.Audio
             if (GameServices.TryGet<IMenuFlow>(out var menu)) paused = menu.IsPaused;
             if (GameServices.TryGet<IGameFlow>(out var flow)) held = flow.TutorialHold;
             if (GameServices.TryGet<IDayQuery>(out var day)) { phase = day.Phase; ending = day.Ending; }
+            StartWinter();
             if (spec.Track == MusicTrack.None) SetMusic(AudioRules.MusicFor(phase, ending));
         }
 
@@ -308,6 +314,7 @@ namespace FloorF.Audio
             StepCutFades(Time.unscaledDeltaTime);
             UpdateHum(Time.unscaledDeltaTime);
             UpdateWeather(Time.unscaledDeltaTime);
+            UpdateWinter(Time.unscaledDeltaTime);
         }
 
         /// <summary>After every Update (Core ticks in Gameplay's Update): one StreakUp note for this frame's increases.</summary>
@@ -420,6 +427,7 @@ namespace FloorF.Audio
             for (int i = 0; i < sfx.Length; i++) sfx[i].volume = sfxBaseVolume[i] * sfxFade[i] * master;
             UpdateMusic(Time.unscaledTime, 0f);
             ApplyWeatherVolumes();
+            ApplyWinterVolumes();
         }
 
         void Unlock()
@@ -443,7 +451,7 @@ namespace FloorF.Audio
         {
             if (cue == AudioCue.None) return;
             if (!unlock.IsUnlocked || (paused && !ui)) { SuppressedCount++; return; }
-            var def = lib.Find(cue);
+            var def = lib.FindAny(cue);
             if (def == null || def.clips == null || def.clips.Length == 0) return;
             float now = Time.unscaledTime;
             if (!throttle.TryConsume(cue, now, def.minInterval)) return;
@@ -674,7 +682,7 @@ namespace FloorF.Audio
             ch.Source.Stop();
             ch.Started = false;
             ch.Track = next.Track;
-            ch.Source.clip = lib.Find(next.Track)?.clip;
+            ch.Source.clip = lib.FindAny(next.Track)?.clip;
             ch.Fade = 0f;
             ch.FadeTarget = 1f;
             ch.Level = next.Volume;
@@ -708,7 +716,7 @@ namespace FloorF.Audio
                     ch.Started = false;
                     ch.Track = MusicTrack.None;
                 }
-                var def = lib.Find(ch.Track);
+                var def = lib.FindAny(ch.Track);
                 // WebGL streams music clips: length/time are unknown until loaded ("Trying to get length of sound which
                 // is not loaded yet" every frame) - no seam fade until then
                 float seam = def != null && src.clip != null && src.clip.loadState == AudioDataLoadState.Loaded
@@ -725,7 +733,7 @@ namespace FloorF.Audio
             get
             {
                 var ch = music[activeMusic];
-                var def = lib.Find(ch.Track);
+                var def = lib.FindAny(ch.Track);
                 return master * lib.musicVolume * (def != null ? def.volume : 1f) * ch.Level * ch.Fade;
             }
         }
