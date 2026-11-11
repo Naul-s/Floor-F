@@ -10,6 +10,8 @@ namespace FloorF.Core
     /// Lucky for everyone from every source (floor label, head count, ride distance; a guest's own unlucky 7 loses, and a
     /// gambler counts 7 riders as lucky). <see cref="GuestInfo.Luck"/> stays the guest's OWN numbers. When 7 is Lucky only
     /// because of the star night (not by the guest's own numbers) no own-number line is said - like the Friday override.
+    /// The same rule, generalised (<see cref="LuckyForAllRules"/>), applies to <see cref="DayDef.luckyForAll"/> (Christmas
+    /// Eve's 12) on any day, on top of the star night's 7.
     ///
     /// Wish stars (any real day with wishStars &gt; 0; never the tutorial shift): at BeginDay the appear times are drawn
     /// from one seed taken from the session Random - one per equal slice of
@@ -86,8 +88,7 @@ namespace FloorF.Core
             return true;
         }
 
-        /// <summary>Numbers a guest is judged by today (<see cref="GuestRuntime.JudgeLuck"/>).</summary>
-        LuckProfile JudgingProfile(LuckProfile own) => IsStarNight ? StarNightRules.Apply(own) : own;
+        // JudgingProfile (star night 7 + DayDef.luckyForAll): GameSession.Season.cs
 
         /// <summary>A Lucky verdict that only the star night made Lucky (no own-number line for it).</summary>
         static bool IsStarOverride(LuckVerdict own, LuckVerdict judged) => judged == LuckVerdict.Lucky && own != LuckVerdict.Lucky;

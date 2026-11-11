@@ -6,7 +6,8 @@ namespace FloorF.Gameplay
     /// <summary>Keys the debug cheats read (DebugOverlay maps the Input System keyboard to these).</summary>
     internal enum DebugKey
     {
-        Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7,
+        /// <summary>0-9: that day's Intro (8, 9 = winter days); Shift+0: day 10.</summary>
+        Digit0, Digit1, Digit2, Digit3, Digit4, Digit5, Digit6, Digit7, Digit8, Digit9,
         /// <summary>Ctrl+Shift+D toggles debug mode.</summary>
         D,
         /// <summary>F1: the text overlay.</summary>
@@ -21,7 +22,7 @@ namespace FloorF.Gameplay
         Minus,
         /// <summary>N: end the running day now.</summary>
         N,
-        /// <summary>X: spawn the mystery guest (lobby -> real 4th floor).</summary>
+        /// <summary>X: spawn the mystery guest (lobby -> real 4th floor). Shift+X (Intro): toggle "mystery guest tonight".</summary>
         X,
         /// <summary>Shift+R: refill the shop's rerolls.</summary>
         R,
@@ -36,12 +37,15 @@ namespace FloorF.Gameplay
     internal sealed class DebugCheats
     {
         public const int TipsSmall = 100, TipsBig = 1000, LuckStep = 10;
+        /// <summary>Shift+0 jumps to this display day (the last winter day).</summary>
+        public const int ShiftZeroDay = 10;
         const string Secret = "LUCKY";
 
         public const string HelpText =
             "DEBUG MODE  (Ctrl+Shift+D or type LUCKY = off)\n" +
-            "0-7  jump to that day's Intro\n" +
+            "0-9  jump to that day's Intro   Shift+0  day 10\n" +
             "N  end day now    X  mystery guest\n" +
+            "Shift+X  (intro) toggle mystery guest tonight\n" +
             "Shift+P/M/G/F  ending Prosperous/Modest/Haunted/4th floor\n" +
             "T  tips +100   Shift+T  tips +1000\n" +
             "=/+  luck +10   -  luck -10\n" +
@@ -105,8 +109,13 @@ namespace FloorF.Gameplay
             {
                 case DebugKey.Digit0: case DebugKey.Digit1: case DebugKey.Digit2: case DebugKey.Digit3:
                 case DebugKey.Digit4: case DebugKey.Digit5: case DebugKey.Digit6: case DebugKey.Digit7:
-                    if (shift) return;
+                case DebugKey.Digit8: case DebugKey.Digit9:
                     int n = key - DebugKey.Digit0;
+                    if (shift)
+                    {
+                        if (key != DebugKey.Digit0) return;
+                        n = ShiftZeroDay;
+                    }
                     if (session.DebugJumpToDay(n)) Done("jump to day " + n);
                     return;
                 case DebugKey.P: if (shift) Ending(EndingKind.Prosperous); return;
@@ -120,7 +129,10 @@ namespace FloorF.Gameplay
                 case DebugKey.Plus: Luck(LuckStep); return;
                 case DebugKey.Minus: Luck(-LuckStep); return;
                 case DebugKey.N: if (!shift && session.DebugEndDay()) Done("day ended"); return;
-                case DebugKey.X: if (!shift && !session.DebugSpawnMystery().IsNone) Done("mystery guest"); return;
+                case DebugKey.X:
+                    if (!shift) { if (!session.DebugSpawnMystery().IsNone) Done("mystery guest"); }
+                    else if (session.DebugToggleMysteryTonight()) Done("mystery guest tonight " + (session.MysteryTonight ? "ON" : "OFF"));
+                    return;
                 case DebugKey.R: if (shift && session.DebugRefillRerolls()) Done("rerolls refilled"); return;
             }
         }

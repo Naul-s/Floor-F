@@ -114,6 +114,63 @@ namespace FloorF.Tests.EditMode.Gameplay
             Assert.AreEqual(2, sim.S.DisplayDay, "no day 7 in the fixture: ignored");
         }
 
+        /// <summary>Days 1-10 (no tutorial: display day = day number), 8-10 winter; day 7 schedules the mystery guest.</summary>
+        static Sim TenDays()
+        {
+            var sim = new Sim(SimFixture.Create(d =>
+            {
+                var days = new DayDef[10];
+                for (int i = 0; i < 10; i++)
+                    days[i] = new DayDef { day = i + 1, durationSeconds = 1000f, extended = i >= 7, shopStickers = new string[0] };
+                days[6].spawns = new[] { new SpawnDef { time = 1f, guest = "mystery", floor = 1, destinationFloor = 4 } };
+                d.Days.days = days;
+            }));
+            sim.S.StartNewGame();
+            return sim;
+        }
+
+        [Test]
+        public void Digits8And9_AndShift0_JumpToTheWinterDays()
+        {
+            var sim = TenDays();
+            var c = Enabled(sim);
+            Press(c, DebugKey.Digit8);
+            Assert.AreEqual(8, sim.S.DisplayDay);
+            Assert.IsTrue(sim.S.IsSeasonExtended);
+            Press(c, DebugKey.Digit9);
+            Assert.AreEqual(9, sim.S.DisplayDay);
+            Press(c, DebugKey.Digit0, shift: true);
+            Assert.AreEqual(10, sim.S.DisplayDay);
+            Assert.AreEqual(DayPhase.Intro, sim.S.Phase);
+            Assert.AreEqual("jump to day 10", c.LastAction);
+            Press(c, DebugKey.Digit5, shift: true);
+            Assert.AreEqual(10, sim.S.DisplayDay, "other Shift+digits do nothing");
+            Press(c, DebugKey.Digit0);
+            Assert.AreEqual(10, sim.S.DisplayDay, "no day 0 in this fixture: ignored");
+            StringAssert.Contains("Shift+0", DebugCheats.HelpText);
+            StringAssert.Contains("Shift+X", DebugCheats.HelpText);
+        }
+
+        [Test]
+        public void ShiftX_InTheIntro_TogglesMysteryTonight()
+        {
+            var sim = TenDays();
+            var c = Enabled(sim);
+            Press(c, DebugKey.Digit7);
+            Assert.IsFalse(sim.S.MysteryTonight, "fresh record: not on the first run");
+            Press(c, DebugKey.X, shift: true);
+            Assert.IsTrue(sim.S.MysteryTonight);
+            Assert.AreEqual("mystery guest tonight ON", c.LastAction);
+            Press(c, DebugKey.X, shift: true);
+            Assert.IsFalse(sim.S.MysteryTonight);
+            Press(c, DebugKey.X, shift: true);
+            Assert.IsTrue(sim.S.BeginDay());
+            sim.Run(2f);
+            Assert.AreEqual(1, sim.Events<GuestSpawned>().Count, "toggled on: the mystery guest comes");
+            Press(c, DebugKey.X, shift: true);
+            Assert.IsTrue(sim.S.MysteryTonight, "Shift+X does nothing while the day runs");
+        }
+
         [Test]
         public void ShiftLetters_ForceEndings_PlainLettersDoNot()
         {

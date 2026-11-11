@@ -18,7 +18,8 @@ namespace FloorF.Core
         /// Patience first: no label-only stops while a waiting guest has used half their patience, and a delivery gains
         /// value with every floor the rider has already ridden (nobody is carried around forever).
         /// Star night: judges with 7 Lucky for everyone (<see cref="StarNightRules"/>) and wishes on every shooting star it
-        /// sees (when the control is the <see cref="GameSession"/>).
+        /// sees (when the control is the <see cref="GameSession"/>). Same for the day's lucky-for-all number
+        /// (<see cref="ISeasonQuery.LuckyForAll"/>, Christmas Eve's 12) when the control is also the ISeasonQuery.
         /// </summary>
         LuckAware = 1,
     }
@@ -63,8 +64,9 @@ namespace FloorF.Core
         /// <summary>Wish stars (LuckAware): only when the control is the session itself.</summary>
         readonly GameSession session;
         readonly List<int> stars = new List<int>();
-        /// <summary>Star-night numbers per own profile (profiles are shared per archetype).</summary>
-        readonly Dictionary<LuckProfile, LuckProfile> starProfiles = new Dictionary<LuckProfile, LuckProfile>();
+        readonly ISeasonQuery seasonQuery;
+        /// <summary>Star-night / lucky-for-all numbers per (own profile, star night, lucky number) (profiles are shared per archetype).</summary>
+        readonly Dictionary<(LuckProfile, bool, int), LuckProfile> starProfiles = new Dictionary<(LuckProfile, bool, int), LuckProfile>();
         int lastDayNumber = -1;
         float lastElapsed = -1f;
         bool wasAccepting;
@@ -80,6 +82,7 @@ namespace FloorF.Core
             this.building = building ?? throw new ArgumentNullException(nameof(building));
             Strategy = strategy;
             dayQuery = control as IDayQuery;
+            seasonQuery = control as ISeasonQuery;
             session = control as GameSession;
         }
 
@@ -194,8 +197,16 @@ namespace FloorF.Core
         /// <summary>The numbers a guest is judged by today (7 Lucky for all on a star night).</summary>
         LuckProfile Judging(GuestInfo g)
         {
-            if (dayQuery == null || !dayQuery.IsStarNight) return g.Luck;
-            if (!starProfiles.TryGetValue(g.Luck, out var p)) { p = StarNightRules.Apply(g.Luck); starProfiles[g.Luck] = p; }
+            bool star = dayQuery != null && dayQuery.IsStarNight;
+            int all = seasonQuery != null ? seasonQuery.LuckyForAll : 0;
+            if (!star && all <= 0) return g.Luck;
+            var key = (g.Luck, star, all);
+            if (!starProfiles.TryGetValue(key, out var p))
+            {
+                p = star ? StarNightRules.Apply(g.Luck) : g.Luck;
+                if (all > 0) p = LuckyForAllRules.Apply(p, all);
+                starProfiles[key] = p;
+            }
             return p;
         }
 
