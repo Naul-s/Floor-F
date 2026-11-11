@@ -264,6 +264,24 @@ namespace FloorF.Tests.EditMode.Core
             Assert.AreEqual(luck + Bonus, sim.S.Score.Luck);
         }
 
+        /// <summary>Regression (playthrough bot): a restart / the title mid star night kept the old run's wish count.</summary>
+        [Test]
+        public void WishesMadeToday_IsZero_AfterRestartOrTitle([Values(false, true)] bool viaTitle)
+        {
+            var sim = StarNight();
+            Assert.IsTrue(sim.S.MakeWish(FirstStar(sim).Id));
+            Assert.AreEqual(1, sim.S.WishesMadeToday);
+            if (viaTitle)
+            {
+                sim.S.ReturnToTitle();
+                Assert.AreEqual(0, sim.S.WishesMadeToday, "title");
+                Assert.IsTrue(sim.S.StartGameFromTitle());
+            }
+            else sim.S.RestartGame();
+            Assert.AreEqual(0, sim.S.WishesMadeToday, "new run");
+            Assert.AreEqual(0, sim.S.GetWishStarsInSky(new List<int>()));
+        }
+
         [Test]
         public void MakeWish_UnknownOrNotYetAppeared_IsRefused()
         {
