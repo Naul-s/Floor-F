@@ -43,8 +43,9 @@ namespace FloorF.Gameplay
         {
             var kb = Keyboard.current;
             if (kb == null || session == null) return;
-            if (kb.anyKey.wasPressedThisFrame) ReadKeys(kb);
-            else { pressed.Clear(); letters.Clear(); }
+            // every frame, not gated on anyKey.wasPressedThisFrame: anyKey stays pressed while Shift / Ctrl is held, so
+            // the 0 / X / P of Shift+0, Shift+X ... (and the D of Ctrl+Shift+D) never registered behind that gate
+            ReadKeys(kb);
             bool wasEnabled = cheats.Enabled;
             Feed(kb.ctrlKey.isPressed, kb.shiftKey.isPressed, kb.altKey.isPressed, pressed, letters);
             if (cheats.Enabled != wasEnabled) Debug.Log("[Gameplay] " + cheats.LastAction);
