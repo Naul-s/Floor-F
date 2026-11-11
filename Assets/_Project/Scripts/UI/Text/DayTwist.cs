@@ -8,12 +8,12 @@ namespace FloorF.UI
     /// <summary>
     /// The "TODAY:" line of a day's intro card: the day's mechanical twist, stated plainly (the data intro above it is the
     /// flavour). Picked from the day's data (pure C#, EditMode-tested): the training shift, Friday the 13th, star night and
-    /// the wedding day by their flags / guests, the first day a gambler or a devout guest checks in by those traits, the
+    /// the wedding day by their flags / guests, the first day a devout guest checks in by that trait, a new guest's first day, the
     /// first two real days by their order (rules 1+2, then rule 3). Every number comes from the data or StoryRules.
     /// </summary>
     static class DayTwist
     {
-        public enum Kind { None, Training, Basics, Ride, Couple, Gambler, Friday, Wedding, Star, NewGuest, Lottery, LuckyForAll }
+        public enum Kind { None, Training, Basics, Ride, Couple, Friday, Wedding, Star, NewGuest, Lottery, LuckyForAll }
 
         public static Kind Resolve(DayDef d, GameData data)
         {
@@ -24,7 +24,6 @@ namespace FloorF.UI
             if (d.lottery) return Kind.Lottery;
             if (d.luckyForAll > 0) return Kind.LuckyForAll;
             if (WeddingGuests(d, data, out _, out _)) return Kind.Wedding;
-            if (FirstWith(d, data, GuestTraits.Gambler)) return Kind.Gambler;
             if (FirstWith(d, data, GuestTraits.Devout)) return Kind.Couple;
             int real = RealDayOrdinal(d, data);
             if (real == 1) return Kind.Basics;
@@ -50,8 +49,6 @@ namespace FloorF.UI
                 case Kind.Ride: return UIStrings.TodayRide.Get(ko);
                 case Kind.Couple:
                     return KoreanParticles.Format(UIStrings.TodayCouple.Get(ko), N(PartySize(d, data)), N(StoryRules.DevoutNumber));
-                case Kind.Gambler:
-                    return KoreanParticles.Format(UIStrings.TodayGambler.Get(ko), N(GamblerNumber(d, data)));
                 case Kind.Friday:
                     return KoreanParticles.Format(UIStrings.Friday13Intro.Get(ko), UIFormat.Multiplier(rules.friday13PenaltyMultiplier).Substring(1), N(StoryRules.FridayDistance));
                 case Kind.Star:
@@ -110,11 +107,13 @@ namespace FloorF.UI
 
         /// <summary>
         /// A guest who checks in for the first time today (no earlier day has them) and shows their numbers - never the
-        /// mystery guest (that one stays a secret). The first in spawn order; null when there is none.
+        /// mystery guest (that one stays a secret). One with lucky AND unlucky numbers wins (more to read), else the first
+        /// in spawn order; null when there is none.
         /// </summary>
         internal static GuestDef NewGuest(DayDef d, GameData data)
         {
             if (d == null || data == null) return null;
+            GuestDef first = null;
             foreach (var g in Guests(d, data))
             {
                 if (g.hideNumbers || g.HasTrait(GuestTraits.Mystery) || g.lucky == null || g.lucky.Length == 0) continue;
@@ -126,9 +125,11 @@ namespace FloorF.UI
                     foreach (var s in other.spawns) if (s != null && s.guest == g.id) { seen = true; break; }
                     if (seen) break;
                 }
-                if (!seen) return g;
+                if (seen) continue;
+                if (g.unlucky != null && g.unlucky.Length > 0) return g;
+                if (first == null) first = g;
             }
-            return null;
+            return first;
         }
 
         /// <summary>1 = the first real (non-tutorial) day, 2 = the second ...; 0 when unknown.</summary>
@@ -164,13 +165,6 @@ namespace FloorF.UI
             int n = 2;
             foreach (var g in Guests(d, data)) if (g.partySize > n) n = g.partySize;
             return n;
-        }
-
-        static int GamblerNumber(DayDef d, GameData data)
-        {
-            foreach (var g in Guests(d, data))
-                if (g.HasTrait(GuestTraits.Gambler) && g.lucky != null && g.lucky.Length > 0) return g.lucky[0];
-            return StoryRules.StarNightNumber;
         }
 
         /// <summary>Lucky numbers as "6 and 8" / "3, 5 and 7" ("6, 8" / "3, 5, 7" in Korean).</summary>

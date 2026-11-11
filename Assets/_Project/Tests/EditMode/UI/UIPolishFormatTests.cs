@@ -45,7 +45,7 @@ namespace FloorF.Tests.EditMode.UI
             Assert.AreEqual(DayTwist.Kind.Basics, DayTwist.Resolve(real[0], data), "first real day: rules 1 + 2");
             Assert.AreEqual(DayTwist.Kind.Ride, DayTwist.Resolve(real[1], data), "second real day: rule 3");
             Assert.AreEqual(DayTwist.Kind.Couple, DayTwist.Resolve(First(d => Has(d, "western_priest")), data), "the priest's first day");
-            Assert.AreEqual(DayTwist.Kind.Gambler, DayTwist.Resolve(First(d => Has(d, "gambler")), data));
+            Assert.AreEqual(DayTwist.Kind.NewGuest, DayTwist.Resolve(First(d => Has(d, "gambler")), data), "the gambler boards like anyone: a new-guest line");
             Assert.AreEqual(DayTwist.Kind.Friday, DayTwist.Resolve(First(d => d.friday13), data));
             Assert.AreEqual(DayTwist.Kind.Wedding, DayTwist.Resolve(First(d => Has(d, "chinese_wedding_party") && !d.starNight), data));
             Assert.AreEqual(DayTwist.Kind.Star, DayTwist.Resolve(First(d => d.starNight), data));
@@ -54,8 +54,8 @@ namespace FloorF.Tests.EditMode.UI
             Assert.AreEqual(DayTwist.Kind.Lottery, DayTwist.Resolve(First(d => d.lottery), data));
             Assert.AreEqual(DayTwist.Kind.LuckyForAll, DayTwist.Resolve(First(d => d.luckyForAll > 0), data));
             // every real day says something different
-            var kinds = real.Select(d => DayTwist.Resolve(d, data)).ToArray();
-            Assert.AreEqual(kinds.Length, kinds.Distinct().Count(), string.Join(",", kinds));
+            var lines = real.Select(d => Plain(DayTwist.Line(d, data, false))).ToArray();
+            Assert.AreEqual(lines.Length, lines.Distinct().Count(), string.Join(" | ", lines));
         }
 
         [Test]
@@ -100,10 +100,15 @@ namespace FloorF.Tests.EditMode.UI
             StringAssert.Contains("unlucky " + StoryRules.DevoutNumber + " costs DOUBLE", c);
             StringAssert.Contains("6은 운이 두 배", Plain(DayTwist.Line(coupleDay, data, true)));
 
-            var gambler = data.GetGuest(new GuestArchetypeId("gambler"));
-            Assert.IsTrue(gambler.HasTrait(GuestTraits.Gambler));
-            StringAssert.Contains("exactly " + gambler.lucky[0] + " riders", Plain(DayTwist.Line(First(d => Has(d, "gambler")), data, false)));
-            StringAssert.Contains("딱 " + gambler.lucky[0] + "명", Plain(DayTwist.Line(First(d => Has(d, "gambler")), data, true)));
+            // the gambler's day: no "exactly 7 riders" rule any more - the new guest with lucky AND unlucky numbers is named
+            var gamblerDay = First(d => Has(d, "gambler"));
+            var picked = DayTwist.NewGuest(gamblerDay, data);
+            Assert.IsNotNull(picked);
+            Assert.IsNotEmpty(picked.unlucky, "a guest with both kinds of numbers wins");
+            string gd = Plain(DayTwist.Line(gamblerDay, data, false));
+            StringAssert.DoesNotContain("exactly", gd);
+            StringAssert.Contains(picked.name + " loves " + picked.lucky[0], gd);
+            StringAssert.Contains(picked.nameKo, Plain(DayTwist.Line(gamblerDay, data, true)));
 
             var friday = First(d => d.friday13);
             string f = Plain(DayTwist.Line(friday, data, false));

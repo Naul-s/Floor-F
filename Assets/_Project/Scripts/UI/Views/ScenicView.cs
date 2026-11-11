@@ -28,7 +28,7 @@ namespace FloorF.UI
         public const float LandHold = 0.65f;
         public const float ButtonSize = 40f;
         /// <summary>Eye icon (2 canvas units per pixel).</summary>
-        static readonly string[] Eye =
+        internal static readonly string[] Eye =
         {
             "....#####....",
             "..##.....##..",
@@ -153,7 +153,13 @@ namespace FloorF.UI
         /// <summary>The pause card stays hidden while the scenic view uses the pause.</summary>
         public bool SuppressPauseMenu => mode == Mode.Scenic;
         /// <summary>Enter belongs to the UI (skip) until the frame after the shot ended.</summary>
-        public bool HoldsEnter => mode == Mode.Establishing || landAge >= 0f || Time.frameCount <= enterHeldUntilFrame;
+        public bool HoldsEnter => mode == Mode.Establishing || landAge >= 0f || Time.frameCount <= enterHeldUntilFrame || (mode == Mode.Scenic && endingView);
+
+        /// <summary>
+        /// The scenic view opened over the ending card (no pause there: the ending scene keeps playing). Enter / any key
+        /// only brings the card back - it must not also restart or keep the hotel open.
+        /// </summary>
+        bool endingView;
 
         bool OnTitle => ctx.Phase == DayPhase.Title || (ctx.Menu != null && ctx.Menu.IsOnTitle);
 
@@ -163,7 +169,7 @@ namespace FloorF.UI
             {
                 var p = ctx.Phase;
                 return mode == Mode.None && landAge < 0f && ctx.Menu != null && ctx.HasGame && !OnTitle
-                       && (p == DayPhase.Running || p == DayPhase.Intro || p == DayPhase.Summary || p == DayPhase.Shop);
+                       && (p == DayPhase.Running || p == DayPhase.Intro || p == DayPhase.Summary || p == DayPhase.Shop || p == DayPhase.Ending);
             }
         }
 
@@ -178,9 +184,10 @@ namespace FloorF.UI
         {
             if (!ScenicAllowed) return false;
             bool wasPaused = ctx.Menu.IsPaused;
+            endingView = ctx.Phase == DayPhase.Ending; // the ending is over: nothing to pause, the scene just plays on
             mode = Mode.Scenic; // first: PauseChanged(true) refreshes the menu, which must already keep the pause card hidden
-            if (!wasPaused && !ctx.Menu.SetPaused(true)) { mode = Mode.None; return false; }
-            fromPause = wasPaused;
+            if (!endingView && !wasPaused && !ctx.Menu.SetPaused(true)) { mode = Mode.None; return false; }
+            fromPause = wasPaused || endingView;
             exitPending = false;
             enteredFrame = Time.frameCount;
             hintAge = 0f;
@@ -198,6 +205,8 @@ namespace FloorF.UI
         {
             if (mode != Mode.Scenic) return;
             mode = Mode.None;
+            if (endingView) enterHeldUntilFrame = Time.frameCount + 1; // the Enter that closed it is not a flow Enter
+            endingView = false;
             exitPending = false;
             hint.gameObject.SetActive(false);
             hintAge = -1f;
@@ -322,7 +331,7 @@ namespace FloorF.UI
             }
             else if (mode == Mode.Scenic)
             {
-                bool allowed = ctx.HasGame && !OnTitle && phase != DayPhase.Ending;
+                bool allowed = ctx.HasGame && !OnTitle && (endingView ? phase == DayPhase.Ending : phase != DayPhase.Ending);
                 if (!allowed) { fromPause = true; ExitScenic(); }
                 else if (press.Any && Time.frameCount > enteredFrame) { exitPending = true; used = true; }
                 if (hintAge >= 0f)

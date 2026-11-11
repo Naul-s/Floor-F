@@ -103,9 +103,6 @@ namespace FloorF.UI
         /// <summary>{0} = couple's party size, {1} = StoryRules.DevoutNumber (its penalty x StoryRules.DevoutPenaltyFactor = 2).</summary>
         public static readonly Loc TodayCouple = new Loc("couples board together as {0} riders. The priest's unlucky {1} costs DOUBLE Luck.",
             "부부는 {0}명이 함께 타요. 신부님의 불길한 {1:은} 운이 두 배로 깎여요.");
-        /// <summary>{0} = the gambler's lucky head count.</summary>
-        public static readonly Loc TodayGambler = new Loc("the gambler only boards if that makes exactly {0} riders.",
-            "도박꾼은 타고 나서 딱 {0}명이 될 때만 타요.");
         /// <summary>{0} = the wedding party's lucky numbers, {1} = the gift guest's.</summary>
         public static readonly Loc TodayWedding = new Loc("wedding parties ride in pairs and love {0}. The gift guest loves odd {1}.",
             "결혼식 하객은 둘씩 타고 {0:을} 좋아해요. 축의금 손님은 홀수 {1:을} 좋아해요.");
@@ -327,9 +324,9 @@ namespace FloorF.UI
         public static readonly Loc EndHintProsperous = new Loc("Finish Day {0} with Luck {1} or more.", "{0}일차를 운 {1} 이상으로 마치기.");
         public static readonly Loc EndHintModest = new Loc("Finish Day {0} with Luck under {1}.", "{0}일차를 운 {1} 미만으로 마치기.");
         public static readonly Loc EndHintHaunted = new Loc("Let the Luck fall to 0.", "운이 0까지 떨어지면...");
-        /// <summary>The hidden one only whispers - and says it is rare (never on the first run, ISeasonQuery.MysteryTonight).</summary>
-        public static readonly Loc EndHintFourth = new Loc("Not on your first stay. Some nights, someone asks for a floor that isn't there…",
-            "첫 방문엔 볼 수 없어요. 어떤 밤엔 누군가 없는 층을 찾습니다…");
+        /// <summary>The hidden one only whispers (it is rare - ISeasonQuery.MysteryTonight - but the card never explains).</summary>
+        public static readonly Loc EndHintFourth = new Loc("Some nights, someone asks for a floor that isn't there…",
+            "어떤 밤엔 누군가 없는 층을 찾습니다…");
 
         // ---- title
         public const string GameName = "FLOOR F";

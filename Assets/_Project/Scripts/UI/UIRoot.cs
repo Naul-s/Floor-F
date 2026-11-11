@@ -170,6 +170,7 @@ namespace FloorF.UI
             curse = new CurseView(ctx, rt); // above the HUD / popups, under the flow cards, coach marks and menu
             flow = new FlowScreensView(ctx, rt);
             tutorial = new TutorialView(ctx, rt, panel, bubbles, hud);
+            flow.OnView = () => scenic.TryEnterScenic();
             menu = new MenuView(ctx, rt, () => scenic.TryEnterScenic(), () => scenic.SuppressPauseMenu, p => clickFx.Spawn(p, big: true));
             menu.BringToFront();
             clickFx.Clear();
@@ -509,6 +510,9 @@ namespace FloorF.UI
         internal string PlayAgainText => flow.AgainText;
         internal void ClickPlayAgain() => flow.ClickAgain();
         internal bool FlowOwnsEnter => flow.OwnsEnter;
+        internal bool EndingViewButtonVisible => flow.ViewButtonVisible;
+        internal Rect EndingViewButtonRect => flow.ViewButtonRect(ctx.CanvasRect);
+        internal void ClickEndingView() => flow.ClickView();
         internal bool LotteryVisible => lottery.Visible;
         internal bool LotteryRolling => lottery.Rolling;
         internal string LotteryBallText => lottery.NumberText;

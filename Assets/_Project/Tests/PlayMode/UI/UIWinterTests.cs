@@ -320,6 +320,8 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsFalse(plate.Overlaps(ui.PanelRect), "clear of the panel");
             Assert.IsFalse(plate.Overlaps(ui.LuckBoxRect), "clear of the luck meter");
             Assert.IsTrue(plate.yMax <= ui.CanvasSize.y && Mathf.Abs(plate.center.x - ui.CanvasSize.x * 0.5f) < 1f, "top centre: " + plate);
+            Assert.LessOrEqual(plate.height, 64f, "a slim strip");
+            Assert.GreaterOrEqual(plate.yMin, ui.CanvasSize.y - 80f, "stays in the sky above the building (not over the top floors / HOTEL sign): " + plate);
             yield return null;
             Assert.IsFalse(ui.IsJackpotButton(floor), "no spoiler while the ball rolls");
             ui.SetLotteryAge(0.8f);
@@ -389,7 +391,9 @@ namespace FloorF.Tests.PlayMode.UI
             var xmas = Day(x => x.christmas);
             var day = new WinterDay(GameServices.Get<IDayQuery>(), xmas.day, Data.DisplayDayNumber(new DayId(xmas.day))) { ForcedEnding = EndingKind.WinterMiracle };
             ui.OverrideServicesForTests(day: day);
-            ui.OverrideSeasonForTests(new FakeSeason { IsSeasonExtended = true, IsExtendedDay = true, IsChristmas = true, LuckyForAll = 12, SnowAmount = 1f });
+            // the season is over: no "keep the hotel open" any more
+            ui.OverrideSeasonForTests(new FakeSeason { IsSeasonExtended = true, IsExtendedDay = true, IsChristmas = true, LuckyForAll = 12, SnowAmount = 1f },
+                new FakeSeasonFlow { CanExtendSeason = false });
             GameServices.Events.Publish(new EndingReached(EndingKind.WinterMiracle, day.CurrentDay, 80, 400));
             yield return UITestDriver.Frames(2);
 
@@ -400,6 +404,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(ui.FlowSnowfall);
             Assert.IsFalse(ui.WinterRibbonVisible, "the ribbon is for the season's days");
             Assert.IsFalse(ui.EndingHiddenBadgeVisible);
+            Assert.IsNull(ui.SeasonOfferText, "no offer after the season");
             string journey = ui.EndingJourneyText;
             StringAssert.Contains("10:", journey, "ten stamps: " + journey);
             Assert.AreEqual(10, journey.Split(' ').Length, journey);
@@ -410,6 +415,23 @@ namespace FloorF.Tests.PlayMode.UI
             var j = ui.EndingJourneyRect;
             Assert.IsTrue(j.xMin >= ui.FlowCardRect.xMin && j.xMax <= ui.FlowCardRect.xMax, "10 stamps fit the card: " + j);
             yield return Day0Driver.Shot("ui_winter_ending_miracle" + sfx, true);
+
+            // the eye button (V) hides the card to watch the ending scene; any key brings it back (Enter does nothing else)
+            Assert.IsTrue(ui.EndingViewButtonVisible, "eye button on the ending card");
+            var eye = ui.EndingViewButtonRect;
+            var cardRect = ui.FlowCardRect;
+            Assert.IsTrue(eye.xMin >= cardRect.xMin && eye.xMax <= cardRect.xMax && eye.yMax <= cardRect.yMax && eye.yMin >= cardRect.yMin, "inside the card: " + eye);
+            ui.ClickEndingView();
+            yield return UITestDriver.Frames(3);
+            Assert.AreEqual(ScenicView.Mode.Scenic, ui.ScenicMode, "scenic view over the ending");
+            Assert.IsTrue(ui.HudHidden);
+            Assert.AreEqual(false, ui.FlowEnterEnabled, "Enter only brings the card back");
+            ui.InjectPress(enter: true);
+            yield return UITestDriver.Frames(2);
+            Assert.AreEqual(ScenicView.Mode.None, ui.ScenicMode);
+            Assert.AreEqual(DayPhase.Ending, GameServices.Get<IDayQuery>().Phase, "still the ending: no restart");
+            Assert.AreEqual(DayPhase.Ending, ui.VisibleFlowScreen);
+            yield return UITestDriver.Frames(2);
 
             day.ForcedEnding = EndingKind.SilentNight;
             GameServices.Events.Publish(new EndingReached(EndingKind.SilentNight, day.CurrentDay, 40, 200));

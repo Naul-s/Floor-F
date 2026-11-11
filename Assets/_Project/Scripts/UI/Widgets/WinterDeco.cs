@@ -49,39 +49,57 @@ namespace FloorF.UI
             return root;
         }
 
-        /// <summary>Holly sprig: two leaves fanning out and three berries, <paramref name="size"/> wide.</summary>
-        public static RectTransform HollySprig(string name, Transform parent, Vector2 pos, float size)
+        /// <summary>Hand-authored holly sprig (23x11): two spiky leaves, three berries, a 1-px dark outline.</summary>
+        static readonly string[] HollyPixels =
         {
-            var root = UIBuild.Rect(name, parent);
-            root.anchorMin = root.anchorMax = root.pivot = new Vector2(0.5f, 0.5f);
-            root.anchoredPosition = pos;
-            root.sizeDelta = new Vector2(size, size * 0.6f);
-            for (int i = 0; i < 2; i++)
-            {
-                float side = i == 0 ? -1f : 1f;
-                var leaf = UIBuild.Box("Leaf" + i, root, Holly).rectTransform;
-                leaf.anchorMin = leaf.anchorMax = leaf.pivot = new Vector2(0.5f, 0.5f);
-                leaf.anchoredPosition = new Vector2(side * size * 0.24f, size * 0.04f);
-                leaf.sizeDelta = new Vector2(size * 0.5f, size * 0.2f);
-                leaf.localRotation = Quaternion.Euler(0f, 0f, side * -18f);
-                var vein = UIBuild.Box("Vein", leaf, new Color(0.12f, 0.4f, 0.16f, 1f)).rectTransform;
-                UIBuild.Stretch(vein);
-                vein.anchorMin = new Vector2(0.1f, 0.45f);
-                vein.anchorMax = new Vector2(0.9f, 0.55f);
-                vein.offsetMin = vein.offsetMax = Vector2.zero;
-            }
-            float b = Mathf.Max(4f, Mathf.Round(size * 0.14f));
-            var spots = new[] { new Vector2(-b * 0.6f, -b * 0.2f), new Vector2(b * 0.6f, -b * 0.2f), new Vector2(0f, b * 0.55f) };
-            for (int i = 0; i < spots.Length; i++)
-            {
-                var berry = UIBuild.Box("Berry" + i, root, Berry).rectTransform;
-                berry.anchorMin = berry.anchorMax = berry.pivot = new Vector2(0.5f, 0.5f);
-                berry.anchoredPosition = spots[i] + new Vector2(0f, -size * 0.05f);
-                berry.sizeDelta = new Vector2(b, b);
-                var shine = UIBuild.Box("Shine", berry, new Color(1f, 1f, 1f, 0.6f)).rectTransform;
-                UIBuild.Place(shine, new Vector2(0f, 1f), Vector2.zero, new Vector2(Mathf.Max(1f, b / 3f), Mathf.Max(1f, b / 3f)));
-            }
-            return root;
+            "..........ooo..........",
+            ".........ohrro.........",
+            ".........orrro.........",
+            ".......ooorrrooo.......",
+            "....o.oohrrohrroo.o....",
+            "..oogogorrrorrrogogoo..",
+            ".ogggggorrrorrrogggggo.",
+            "ogglglglooooooolglglggo",
+            ".oogggggggo.ogggggggoo.",
+            "...ogggggo...ogggggo...",
+            "....ooooo.....ooooo....",
+        };
+        public const int HollyW = 23, HollyH = 11;
+        static Sprite holly;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => holly = null;
+
+        static Sprite HollySprite => holly != null ? holly : holly = PixelSprite("UI Holly", HollyPixels, c =>
+            c == 'o' ? UIStyle.Hex("#10200F") : c == 'g' ? UIStyle.Hex("#2F8A3E") : c == 'l' ? UIStyle.Hex("#6CC86A")
+            : c == 'r' ? UIStyle.Hex("#D8352E") : c == 'h' ? UIStyle.Hex("#FFB3A3") : Color.clear);
+
+        /// <summary>Pixel grid (row 0 = top) -> point-filtered sprite, one texel per character.</summary>
+        static Sprite PixelSprite(string name, string[] rows, System.Func<char, Color> palette)
+        {
+            int h = rows.Length, w = rows[0].Length;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false) { name = name, filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, hideFlags = HideFlags.HideAndDontSave };
+            var px = new Color[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++) px[(h - 1 - y) * w + x] = palette(rows[y][x]);
+            tex.SetPixels(px);
+            tex.Apply(false, true);
+            var sp = Sprite.Create(tex, new Rect(0f, 0f, w, h), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+            sp.name = name;
+            sp.hideFlags = HideFlags.HideAndDontSave;
+            return sp;
+        }
+
+        /// <summary>Pixel holly at an integer <paramref name="scale"/> (2 = 46x22), centred on <paramref name="pos"/>.</summary>
+        public static RectTransform HollySprig(string name, Transform parent, Vector2 pos, int scale)
+        {
+            var img = UIBuild.Box(name, parent, Color.white);
+            img.sprite = HollySprite;
+            var rt = img.rectTransform;
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = pos;
+            rt.sizeDelta = new Vector2(HollyW * scale, HollyH * scale);
+            return rt;
         }
     }
 

@@ -280,7 +280,7 @@ namespace FloorF.Tests.PlayMode.UI
             ui.ClickResume();
             yield return null;
 
-            // Intro / Summary / Shop: V works; Ending: not
+            // Intro / Summary / Shop: V works; Ending: too (to watch the ending scene), without pausing
             UITestDriver.Session().EndDayNow();
             yield return null;
             Assert.AreEqual(DayPhase.Summary, GameServices.Get<IDayQuery>().Phase);
@@ -295,8 +295,15 @@ namespace FloorF.Tests.PlayMode.UI
             yield return UITestDriver.Frames(2);
             ui.InjectPress(v: true);
             yield return null;
-            Assert.AreEqual(ScenicView.Mode.None, ui.ScenicMode, "never on the ending");
-            Assert.IsFalse(ui.ScenicButtonVisible);
+            Assert.AreEqual(ScenicView.Mode.Scenic, ui.ScenicMode, "the ending card hides to show the ending scene");
+            Assert.IsFalse(GameServices.Get<IMenuFlow>().IsPaused, "no pause on the ending");
+            Assert.IsFalse(ui.ScenicButtonVisible, "the HUD eye stays hidden: the ending card has its own");
+            ui.InjectPress(anyKey: true);
+            yield return null;
+            yield return null;
+            Assert.AreEqual(ScenicView.Mode.None, ui.ScenicMode);
+            Assert.AreEqual(DayPhase.Ending, ui.VisibleFlowScreen, "the card is back");
+            Assert.IsTrue(ui.EndingViewButtonVisible);
         }
 
         // ------------------------------------------------------------------ establishing shot
