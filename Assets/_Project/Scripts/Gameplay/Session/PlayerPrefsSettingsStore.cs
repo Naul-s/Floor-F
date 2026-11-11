@@ -5,7 +5,7 @@ namespace FloorF.Gameplay
 {
     /// <summary>
     /// <see cref="ISettingsStore"/> on PlayerPrefs (WebGL: IndexedDB, flushed by <see cref="Save"/>). Every key is
-    /// <see cref="Prefix"/> + a <see cref="SettingsKeys"/> name, so tests can use a private prefix and delete it after.
+    /// <see cref="Prefix"/> + a <see cref="SettingsKeys"/> / <see cref="ProgressKeys"/> name, so tests can use a private prefix and delete it after.
     /// </summary>
     public sealed class PlayerPrefsSettingsStore : ISettingsStore
     {
@@ -36,12 +36,14 @@ namespace FloorF.Gameplay
         public void SetFloat(string key, float value) => PlayerPrefs.SetFloat(Prefix + key, value);
         public void Save() => PlayerPrefs.Save();
 
-        /// <summary>Removes this prefix's settings keys (tests clean up after themselves).</summary>
+        /// <summary>Removes this prefix's settings and run-history keys (tests clean up after themselves).</summary>
         public void DeleteAll()
         {
             PlayerPrefs.DeleteKey(Prefix + SettingsKeys.UseKorean);
             PlayerPrefs.DeleteKey(Prefix + SettingsKeys.MasterVolume);
             PlayerPrefs.DeleteKey(Prefix + SettingsKeys.ShowTutorialHints);
+            PlayerPrefs.DeleteKey(Prefix + ProgressKeys.FinishedRuns);
+            PlayerPrefs.DeleteKey(Prefix + ProgressKeys.MysteryMisses);
             PlayerPrefs.Save();
         }
     }

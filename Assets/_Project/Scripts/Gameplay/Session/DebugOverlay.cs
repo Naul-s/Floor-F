@@ -18,9 +18,9 @@ namespace FloorF.Gameplay
     {
         const float LastActionSeconds = 2.5f;
 
-        // Key.Digit0 comes AFTER Digit9 in the Input System enum: explicit tables for days 0..7
-        static readonly Key[] DigitKeys = { Key.Digit0, Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5, Key.Digit6, Key.Digit7 };
-        static readonly Key[] NumpadKeys = { Key.Numpad0, Key.Numpad1, Key.Numpad2, Key.Numpad3, Key.Numpad4, Key.Numpad5, Key.Numpad6, Key.Numpad7 };
+        // Key.Digit0 comes AFTER Digit9 in the Input System enum: explicit tables for days 0..9
+        static readonly Key[] DigitKeys = { Key.Digit0, Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5, Key.Digit6, Key.Digit7, Key.Digit8, Key.Digit9 };
+        static readonly Key[] NumpadKeys = { Key.Numpad0, Key.Numpad1, Key.Numpad2, Key.Numpad3, Key.Numpad4, Key.Numpad5, Key.Numpad6, Key.Numpad7, Key.Numpad8, Key.Numpad9 };
 
         GameSession session;
         DebugCheats cheats;
@@ -140,6 +140,7 @@ namespace FloorF.Gameplay
             sb.Clear();
             sb.Append("Day ").Append(session.DisplayDay).Append('/').Append(session.PlayableDayCount)
               .Append("  ").Append(session.Phase).Append("  t=").Append(session.RemainingSeconds.ToString("0")).Append("s\n");
+            SeasonLine();
             sb.Append("Luck ").Append(session.Score.Luck).Append('/').Append(session.Score.MaxLuck)
               .Append("  Tips ").Append(session.Score.Tips).Append(" (+").Append(session.Score.TipsEarnedToday).Append(")\n");
             sb.Append("Car @").Append(b.GetLabel(e.CurrentFloor)).Append(' ').Append(e.Motion).Append(' ').Append(e.Doors)
@@ -177,6 +178,19 @@ namespace FloorF.Gameplay
             }
             if (cheats.Enabled) sb.Append("\n\n").Append(DebugCheats.HelpText);
             return sb.ToString();
+        }
+
+        /// <summary>One line: winter season, lottery number, lucky-for-all, mystery guest tonight + run history.</summary>
+        void SeasonLine()
+        {
+            sb.Append(session.IsSeasonExtended ? "Season: winter" : "Season: base");
+            if (session.CanExtendSeason) sb.Append(" (can extend)");
+            if (session.IsLotteryNight)
+                sb.Append("  Lottery ").Append(session.LotteryNumber > 0 ? session.LotteryNumber.ToString() : "-")
+                  .Append(" (").Append(session.LotteryDrawsDone).Append('/').Append(System.Math.Max(1, session.CurrentDayDef.lotteryDraws)).Append(')');
+            if (session.LuckyForAll > 0) sb.Append("  ").Append(session.LuckyForAll).Append(" lucky for all");
+            sb.Append("  Mystery ").Append(session.MysteryTonight ? "TONIGHT" : "no")
+              .Append(" (runs ").Append(session.FinishedRuns).Append(", misses ").Append(session.MysteryMisses).Append(")\n");
         }
 
         /// <summary>Small unobtrusive tag in the top-right corner while debug mode is on (+ the last cheat for a moment).</summary>

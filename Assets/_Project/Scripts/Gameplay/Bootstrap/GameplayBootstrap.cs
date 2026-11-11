@@ -50,7 +50,8 @@ namespace FloorF.Gameplay
 
     /// <summary>
     /// Gameplay module root. Awake: load data, build the Core <see cref="GameSession"/> (rules engine), load the saved
-    /// settings and register every Gameplay-owned service. First LateUpdate (after every module's Start and Update):
+    /// settings and run history (IRunHistory: finished runs + mystery pity counter, saved on every RunHistoryChanged)
+    /// and register every Gameplay-owned service. First LateUpdate (after every module's Start and Update):
     /// boot to the title (DayPhaseChanged(None -> Title) + attract demo), or with <see cref="SkipTitleForTests"/>
     /// straight to Day 1 Intro (GameStarted + DayPhaseChanged). Every Update after that: Tick(Time.deltaTime).
     /// </summary>
@@ -103,6 +104,7 @@ namespace FloorF.Gameplay
         GameSession session;
         ActorLocator locator;
         SettingsPersistence settingsPersistence;
+        RunHistoryPersistence runHistoryPersistence;
         float nextSettingsFlush;
 
         internal GameSession Session => session;
@@ -125,8 +127,12 @@ namespace FloorF.Gameplay
             int seed = SeedOverride ?? System.Environment.TickCount;
             session = new GameSession(data, GameServices.Events, new System.Random(seed));
             locator = new ActorLocator(session, layout);
-            settingsPersistence = new SettingsPersistence(session.Settings, CreateSettingsStore(), GameServices.Events);
+            var store = CreateSettingsStore();
+            settingsPersistence = new SettingsPersistence(session.Settings, store, GameServices.Events);
             settingsPersistence.Load();
+            // before the first run: the mystery guest never comes on a player's first run (IRunHistory.FinishedRuns 0)
+            runHistoryPersistence = new RunHistoryPersistence(session, store, GameServices.Events);
+            runHistoryPersistence.Load();
 
             GameServices.Register(data);
             GameServices.Register<IWorldLayout>(layout);
@@ -141,6 +147,9 @@ namespace FloorF.Gameplay
             GameServices.Register<IActorLocator>(locator);
             GameServices.Register<IGameSettings>(session.Settings);
             GameServices.Register<IMenuFlow>(session);
+            GameServices.Register<ISeasonQuery>(session);
+            GameServices.Register<ISeasonFlow>(session);
+            GameServices.Register<IRunHistory>(session);
 
             gameObject.AddComponent<KeyboardInput>().Bind(session);
             // every build (WebGL release too): inert until debug mode is toggled on deliberately (DebugCheats)
@@ -218,6 +227,8 @@ namespace FloorF.Gameplay
         {
             settingsPersistence?.Dispose();
             settingsPersistence = null;
+            runHistoryPersistence?.Dispose();
+            runHistoryPersistence = null;
             if (data == null) return;
             GameServices.Unregister(data);
             GameServices.Unregister<IWorldLayout>(layout);
@@ -233,6 +244,9 @@ namespace FloorF.Gameplay
             GameServices.Unregister<IActorLocator>(locator);
             GameServices.Unregister<IGameSettings>(session.Settings);
             GameServices.Unregister<IMenuFlow>(session);
+            GameServices.Unregister<ISeasonQuery>(session);
+            GameServices.Unregister<ISeasonFlow>(session);
+            GameServices.Unregister<IRunHistory>(session);
         }
     }
 }
