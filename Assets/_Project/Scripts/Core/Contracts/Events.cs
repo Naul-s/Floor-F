@@ -366,6 +366,49 @@ namespace FloorF.Core
         public WishStarFaded(int id) { Id = id; }
     }
 
+    /// <summary>The run went on into the winter season (ISeasonFlow.ExtendSeason). Next: DayPhaseChanged (Ending -> Shop or Intro).</summary>
+    public readonly struct SeasonExtended
+    {
+        /// <summary>First winter-season day.</summary>
+        public readonly DayId FirstDay;
+        /// <summary>How many winter days follow (GameData.ExtendedDayCount).</summary>
+        public readonly int ExtraDays;
+        public SeasonExtended(DayId firstDay, int extraDays) { FirstDay = firstDay; ExtraDays = extraDays; }
+    }
+
+    /// <summary>
+    /// Lottery night: a winning number was drawn (Running; the first draw right at the day start). Drawn among the numbers
+    /// currently shown on the floor buttons, so stickers can help. <see cref="DrawIndex"/> 0-based, of <see cref="DrawCount"/>.
+    /// </summary>
+    public readonly struct LotteryDrawn
+    {
+        public readonly int Number;
+        public readonly int DrawIndex;
+        public readonly int DrawCount;
+        public LotteryDrawn(int number, int drawIndex, int drawCount) { Number = number; DrawIndex = drawIndex; DrawCount = drawCount; }
+    }
+
+    /// <summary>
+    /// Lottery jackpot: a guest (each party member) stepped out at their destination on a floor showing the winning number.
+    /// Published right before that guest's GuestDelivered (whose tip already includes x rules.lotteryTipMultiplier),
+    /// followed by LuckChanged(Lottery) for rules.lotteryLuckBonus.
+    /// </summary>
+    public readonly struct LotteryWon
+    {
+        public readonly GuestId Guest;
+        public readonly FloorIndex Floor;
+        public readonly int Number;
+        public LotteryWon(GuestId guest, FloorIndex floor, int number) { Guest = guest; Floor = floor; Number = number; }
+    }
+
+    /// <summary>IRunHistory changed (owner saves it).</summary>
+    public readonly struct RunHistoryChanged
+    {
+        public readonly int FinishedRuns;
+        public readonly int MysteryMisses;
+        public RunHistoryChanged(int finishedRuns, int mysteryMisses) { FinishedRuns = finishedRuns; MysteryMisses = mysteryMisses; }
+    }
+
     /// <summary>Day 0 coach-mark hold toggled (see <see cref="IGameFlow.SetTutorialHold"/>).</summary>
     public readonly struct TutorialHoldChanged
     {

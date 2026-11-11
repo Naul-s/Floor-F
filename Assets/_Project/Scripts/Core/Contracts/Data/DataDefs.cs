@@ -113,6 +113,17 @@ namespace FloorF.Core
         /// <summary>Luck at the end of the last day needed for the Prosperous ending (else Modest).</summary>
         public int prosperousEndingLuck = 70;
 
+        // hidden 4th-floor ending: the mystery guest is rare and never on the first run
+        /// <summary>Chance (0..1) the mystery guest comes on its night once the player has finished at least one run.</summary>
+        public float mysteryChance = 0.3f;
+        /// <summary>After this many eligible nights without the mystery guest, the next eligible night is guaranteed (0 = never).</summary>
+        public int mysteryPityRuns = 3;
+
+        // lottery night (DayDef.lottery)
+        /// <summary>Jackpot: the guest's tip x this when they step out on a floor showing the drawn number.</summary>
+        public float lotteryTipMultiplier = 2f;
+        public int lotteryLuckBonus = 3;
+
         // elevator feel
         public float elevatorSecondsPerFloor = 0.6f;
         public float doorSeconds = 0.35f;
@@ -282,10 +293,31 @@ namespace FloorF.Core
         public bool friday13;
         /// <summary>"Star night" (see IDayQuery.IsStarNight).</summary>
         public bool starNight;
-        /// <summary>Presentation weather: "" (clear) or "rain" (rain + distant lightning). No rule effect.</summary>
+        /// <summary>Presentation weather: "" (clear), "rain" (rain + distant lightning) or "snow". No rule effect.</summary>
         public string weather = "";
         /// <summary>Wish stars that cross the sky during this day (spread over the clock, seeded). 0 = none.</summary>
         public int wishStars;
+        /// <summary>
+        /// Winter-season day (days 8-10): only reached through ISeasonFlow.ExtendSeason after the base run's last day ended
+        /// Prosperous or Modest. Extended days must be a trailing block. Not counted in GameData.DayCount / PlayableDayCount.
+        /// </summary>
+        public bool extended;
+        /// <summary>Lottery night (see ISeasonQuery.IsLotteryNight).</summary>
+        public bool lottery;
+        /// <summary>Lottery night: how many winning numbers are drawn over the day (spread over the clock; the first at the start).</summary>
+        public int lotteryDraws = 2;
+        /// <summary>Christmas Eve presentation (tree, wreaths, lights, Santa's sleigh). See ISeasonQuery.IsChristmas.</summary>
+        public bool christmas;
+        /// <summary>
+        /// A number that is Lucky for EVERY guest from every source tonight (floor label, head count, ride distance; a guest's
+        /// own unlucky copy loses), like star night's 7. 0 = none. Christmas Eve: 12.
+        /// </summary>
+        public int luckyForAll;
+        /// <summary>Snow 0..1 (presentation): 0 none, ~0.3 first flurries, 1 heavy snow with snow piled on ledges/roofs.</summary>
+        public float snow;
+        /// <summary>Extra intro sentence shown only when the mystery guest comes tonight (ISeasonQuery.MysteryTonight).</summary>
+        public string mysteryIntro = "";
+        public string mysteryIntroKo = "";
         /// <summary>Sticker ids offered in the shop AFTER this day.</summary>
         public string[] shopStickers = Array.Empty<string>();
         public SpawnDef[] spawns = Array.Empty<SpawnDef>();

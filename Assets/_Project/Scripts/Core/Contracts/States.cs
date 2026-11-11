@@ -84,6 +84,10 @@ namespace FloorF.Core
         Haunted = 3,
         /// <summary>Delivered the mystery guest to the real (physical) 4th floor.</summary>
         FourthFloor = 4,
+        /// <summary>Winter season (days 8-10, see ISeasonFlow.ExtendSeason) finished with Luck >= rules.prosperousEndingLuck: "A Christmas Miracle".</summary>
+        WinterMiracle = 5,
+        /// <summary>Winter season finished with Luck in between: "Silent Night".</summary>
+        SilentNight = 6,
     }
 
     /// <summary>Outcome of a shop purchase/apply attempt.</summary>

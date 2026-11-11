@@ -34,7 +34,16 @@ namespace FloorF.Core
         public IReadOnlyList<DayDef> Days => daysByIndex;
         public IReadOnlyList<StickerDef> Stickers { get; }
         public IReadOnlyList<DestinationDef> Destinations { get; }
-        public int DayCount => daysByIndex.Length;
+        /// <summary>
+        /// Days of the BASE run (tutorial included, winter-season <c>extended</c> days excluded). The base run ends after
+        /// day DayCount (<see cref="IsLastDay"/>). All days, extended included: <see cref="AllDayCount"/>.
+        /// </summary>
+        public int DayCount { get; }
+        /// <summary>Every day in days.json, the trailing winter-season (<c>extended</c>) block included.</summary>
+        public int AllDayCount => daysByIndex.Length;
+        /// <summary>Winter-season days after the base run (0 when the data has none).</summary>
+        public int ExtendedDayCount => AllDayCount - DayCount;
+        public bool HasExtendedDays => ExtendedDayCount > 0;
         /// <summary>
         /// Leading days flagged <c>tutorial</c> (the "Day 0" training shift). Shown day number = DayId.Number - this,
         /// so the first tutorial day reads "Day 0" and the first real day "Day 1". Tutorial days only count from the start.
@@ -50,6 +59,8 @@ namespace FloorF.Core
         }
         /// <summary>Days that count toward the run (DayCount - TutorialDayCount): the "/5" in "Day 2/5".</summary>
         public int PlayableDayCount => DayCount - TutorialDayCount;
+        /// <summary>Counting days of the base run + the winter season: the "/10" once the season was extended.</summary>
+        public int SeasonPlayableDayCount => AllDayCount - TutorialDayCount;
         /// <summary>Shown number of a day: 0 for the (first) tutorial day, 1 for the first real day.</summary>
         public int DisplayDayNumber(DayId day) => day.Number - TutorialDayCount;
 
@@ -66,6 +77,9 @@ namespace FloorF.Core
             foreach (var f in hotel.floors) floorsByIndex[f.number - 1] = f;
             daysByIndex = new DayDef[days.days.Length];
             foreach (var d in days.days) daysByIndex[d.day - 1] = d;
+            int baseCount = daysByIndex.Length;
+            while (baseCount > 0 && daysByIndex[baseCount - 1].extended) baseCount--;
+            DayCount = baseCount;
         }
 
         /// <summary>Validates and indexes. Throws <see cref="GameDataException"/> listing every problem.</summary>
@@ -106,7 +120,12 @@ namespace FloorF.Core
 
         public DayDef GetDay(DayId day) => TryGetDay(day, out var d) ? d : throw new KeyNotFoundException(day.ToString());
 
-        public bool IsLastDay(DayId day) => day.Number == daysByIndex.Length;
+        /// <summary>Last day of the BASE run (its end gives Prosperous/Modest, then the season may be extended).</summary>
+        public bool IsLastDay(DayId day) => day.Number == DayCount;
+        /// <summary>Last winter-season day (its end gives WinterMiracle/SilentNight). False when there are no extended days.</summary>
+        public bool IsLastSeasonDay(DayId day) => HasExtendedDays && day.Number == AllDayCount;
+        /// <summary>A winter-season (<c>extended</c>) day.</summary>
+        public bool IsExtendedDay(DayId day) => day.Number > DayCount && day.Number <= AllDayCount;
 
         // ------------------------------------------------------------ validation
 
@@ -226,6 +245,25 @@ namespace FloorF.Core
             HashSet<string> guestIds, HashSet<string> stickerIds, List<string> e)
         {
             if (c.days.Length == 0) { e.Add("days: at least one day required"); return; }
+            // extended (winter-season) days: a trailing block of real days after at least one base day
+            var byNumber = new DayDef[c.days.Length];
+            foreach (var d in c.days) if (d != null && d.day >= 1 && d.day <= c.days.Length) byNumber[d.day - 1] = d;
+            bool inExtended = false;
+            for (int i = 0; i < byNumber.Length; i++)
+            {
+                var d = byNumber[i];
+                if (d == null) continue;
+                if (d.extended)
+                {
+                    if (i == 0) e.Add("days: day 1 cannot be extended (the base run needs at least one day)");
+                    if (d.tutorial) e.Add("days (day " + d.day + "): an extended day cannot be a tutorial");
+                    inExtended = true;
+                }
+                else if (inExtended) e.Add("days (day " + d.day + "): extended days must be a trailing block");
+                if (d.lottery && d.lotteryDraws < 1) e.Add("days (day " + d.day + "): lotteryDraws must be >= 1");
+                if (!(d.snow >= 0f && d.snow <= 1f)) e.Add("days (day " + d.day + "): snow must be in 0..1");
+                if (d.luckyForAll < 0) e.Add("days (day " + d.day + "): luckyForAll must be >= 0");
+            }
             var seen = new HashSet<int>();
             for (int i = 0; i < c.days.Length; i++)
             {

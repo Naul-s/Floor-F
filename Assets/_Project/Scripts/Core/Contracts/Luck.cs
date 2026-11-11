@@ -39,6 +39,8 @@ namespace FloorF.Core
         /// included), judged once when they step out at their destination. Can exceed the floor count (e.g. 13, 17).
         /// </summary>
         RideDistance = 7,
+        /// <summary>Lottery night jackpot: a guest stepped out on a floor whose label shows the drawn number (see LotteryWon).</summary>
+        Lottery = 8,
     }
 
     /// <summary>Immutable, sorted, de-duplicated set of small integers (lucky / unlucky numbers).</summary>

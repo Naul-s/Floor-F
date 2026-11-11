@@ -5,7 +5,8 @@ namespace FloorF.Core
     // =====================================================================================================
     // Service interfaces. Registered in GameServices by their OWNER, read by everyone else.
     //   Owner Gameplay : IBuildingQuery, IElevatorQuery, IElevatorControl, IGuestQuery, IScoreQuery, IDayQuery,
-    //                    IGameFlow, IShopService, IActorLocator, IWorldLayout (HotelLayout), GameData, IGameSettings, IMenuFlow
+    //                    IGameFlow, IShopService, IActorLocator, IWorldLayout (HotelLayout), GameData, IGameSettings, IMenuFlow,
+    //                    ISeasonQuery, ISeasonFlow, IRunHistory
     //   Rendering / UI / Audio : register nothing by default; if one needs to expose something, it goes here first
     //                    (CONTRACT REQUEST), never as a direct reference between presentation modules.
     // Queries are cheap and allocation-free - poll them every frame if you like. Commands return false/an enum on
@@ -41,6 +42,63 @@ namespace FloorF.Core
         bool IsPaused { get; }
         /// <summary>Only meaningful in Running (and Intro/Summary/Shop are already waiting on the player). Returns false if rejected.</summary>
         bool SetPaused(bool paused);
+    }
+
+    /// <summary>
+    /// Winter season + special nights (owner: Gameplay, implemented by the session next to IDayQuery). Cheap, poll freely.
+    /// The base run is days 0-7 (GameData.DayCount). If day 7 ends Prosperous or Modest the Ending screen may offer
+    /// ISeasonFlow.ExtendSeason: days 8-10 (DayDef.extended) follow with Luck/tips kept, ending WinterMiracle/SilentNight
+    /// (or Haunted at Luck 0). While extended, IDayQuery.PlayableDayCount reads the season total ("/10").
+    /// </summary>
+    public interface ISeasonQuery
+    {
+        /// <summary>The run went on into the winter season (true from ExtendSeason until a restart / the title).</summary>
+        bool IsSeasonExtended { get; }
+        /// <summary>The current day is a winter-season day (DayDef.extended).</summary>
+        bool IsExtendedDay { get; }
+        /// <summary>
+        /// The hidden mystery guest comes tonight. Decided when that day's Intro is entered (so the Intro can hint it,
+        /// DayDef.mysteryIntro): never on the player's first run (IRunHistory.FinishedRuns == 0), otherwise
+        /// rules.mysteryChance, guaranteed after rules.mysteryPityRuns eligible nights without it. When false, the
+        /// day's mystery spawns are skipped.
+        /// </summary>
+        bool MysteryTonight { get; }
+        /// <summary>Lottery night (DayDef.lottery): winning numbers are drawn over the day, see <see cref="LotteryDrawn"/>.</summary>
+        bool IsLotteryNight { get; }
+        /// <summary>Current winning number (0 = none drawn yet / not a lottery night).</summary>
+        int LotteryNumber { get; }
+        /// <summary>Christmas Eve (DayDef.christmas): tree, wreaths, lights, Santa. Presentation + DayDef.luckyForAll.</summary>
+        bool IsChristmas { get; }
+        /// <summary>Number Lucky for every guest from every source tonight (DayDef.luckyForAll; star night 7 stays IsStarNight). 0 = none.</summary>
+        int LuckyForAll { get; }
+        /// <summary>DayDef.snow 0..1 of the day on screen (Intro/Running/Summary/Shop of that day). Presentation only.</summary>
+        float SnowAmount { get; }
+    }
+
+    /// <summary>Ending screen "Keep the hotel open" (owner: Gameplay).</summary>
+    public interface ISeasonFlow
+    {
+        /// <summary>In Ending after the base run's last day with Prosperous or Modest, and the data has extended days.</summary>
+        bool CanExtendSeason { get; }
+        /// <summary>
+        /// Ending -> the shop after day 7 (its DayDef.shopStickers; straight to day 8's Intro if empty). Luck/tips kept,
+        /// Ending back to None. Publishes <see cref="SeasonExtended"/> then DayPhaseChanged. False if not allowed.
+        /// </summary>
+        bool ExtendSeason();
+    }
+
+    /// <summary>
+    /// Persistent play history (owner: Gameplay - saved in PlayerPrefs, loaded before the first run). Core counts it;
+    /// every change publishes <see cref="RunHistoryChanged"/> so the owner can save it.
+    /// </summary>
+    public interface IRunHistory
+    {
+        /// <summary>Runs that reached an ending (counted once per run, at its first EndingReached).</summary>
+        int FinishedRuns { get; }
+        /// <summary>Eligible mystery nights in a row without the mystery guest (pity counter, reset when it comes).</summary>
+        int MysteryMisses { get; }
+        /// <summary>Restore saved values (no event).</summary>
+        void LoadRunHistory(int finishedRuns, int mysteryMisses);
     }
 
     /// <summary>
