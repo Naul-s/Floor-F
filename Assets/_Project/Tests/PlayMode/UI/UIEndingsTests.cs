@@ -214,7 +214,7 @@ namespace FloorF.Tests.PlayMode.UI
             string miracle = Plain(ui.EndingsSlotText(3));
             Assert.AreEqual(EndingKind.WinterMiracle, ui.EndingsSlotKind(3));
             Assert.IsFalse(ui.EndingsSlotUnlocked(3));
-            StringAssert.Contains(ko ? "크리스마스 이브를 운 " + luck : "through Christmas Eve with Luck " + luck, miracle);
+            StringAssert.Contains(ko ? "크리스마스 이브를 운 " + data.Rules.WinterMiracleLuck : "through Christmas Eve with Luck " + data.Rules.WinterMiracleLuck, miracle);
             StringAssert.DoesNotContain(ko ? "크리스마스의 기적" : "A CHRISTMAS MIRACLE", miracle, "locked: no spoiler");
             StringAssert.Contains(ko ? "크리스마스 이브까지" : "through Christmas Eve.", Plain(ui.EndingsSlotText(4)));
 
