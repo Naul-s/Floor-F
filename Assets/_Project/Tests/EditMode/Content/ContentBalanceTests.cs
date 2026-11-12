@@ -82,6 +82,21 @@ namespace FloorF.Tests.EditMode.Content
 
         static bool MentionsAny(string text, IEnumerable<int> numbers) => numbers.Any(n => ContainsNumber(text, n));
 
+        /// <summary>Most variants one trigger may have (GameSession.Speak takes them in turn).</summary>
+        const int MaxVariantsPerTrigger = 3;
+
+        /// <summary>Every variant of <paramref name="trigger"/> (in file order; empty when none).</summary>
+        static GuestLineDef[] LinesOf(GuestDef g, string trigger)
+            => (g.lines ?? new GuestLineDef[0]).Where(l => l != null && string.Equals(l.trigger, trigger, StringComparison.OrdinalIgnoreCase)).ToArray();
+
+        /// <summary>Asserts EVERY variant of <paramref name="trigger"/> names one of <paramref name="numbers"/>.</summary>
+        static void AssertAllName(GuestDef g, string trigger, IEnumerable<int> numbers, string what)
+        {
+            var lines = LinesOf(g, trigger);
+            Assert.IsNotEmpty(lines, g.id + ": no '" + trigger + "' line");
+            foreach (var l in lines) Assert.IsTrue(MentionsAny(l.text, numbers), g.id + ": " + what + " - " + l.text);
+        }
+
         // ------------------------------------------------------------ schedule shape
 
         [Test]
@@ -346,13 +361,20 @@ namespace FloorF.Tests.EditMode.Content
         }
 
         [Test]
-        public void Lines_UseKnownTriggers_OncePerGuest()
+        public void Lines_UseKnownTriggers_AtMostThreeVariants()
         {
             foreach (var g in data.Guests)
             {
                 var triggers = g.lines.Select(l => l.trigger).ToArray();
                 foreach (var t in triggers) CollectionAssert.Contains(KnownTriggers, t, g.id + ": unknown trigger");
-                Assert.AreEqual(triggers.Length, triggers.Distinct().Count(), g.id + ": duplicate trigger (only the first is ever used)");
+                foreach (var grp in triggers.GroupBy(t => t))
+                    Assert.LessOrEqual(grp.Count(), MaxVariantsPerTrigger, g.id + "/" + grp.Key + ": too many variants");
+                foreach (var grp in g.lines.GroupBy(l => l.trigger).Where(x => x.Count() > 1))
+                {
+                    Assert.AreEqual(grp.Count(), grp.Select(l => l.text).Distinct().Count(), g.id + "/" + grp.Key + ": identical variants (en)");
+                    Assert.AreEqual(grp.Count(), grp.Select(l => l.textKo).Distinct().Count(), g.id + "/" + grp.Key + ": identical variants (ko)");
+                }
+                Assert.LessOrEqual(g.LineCount(GuestLineTriggers.Special), 1, g.id + ": one special line (the ending scene quotes it)");
             }
         }
 
@@ -374,15 +396,15 @@ namespace FloorF.Tests.EditMode.Content
         {
             foreach (var g in data.Guests.Where(x => !x.hideNumbers))
             {
-                Assert.IsTrue(MentionsAny(g.FindLine(GuestLineTriggers.LuckyFloor).text, g.lucky), g.id + ": lucky_floor line should name a lucky number");
+                AssertAllName(g, GuestLineTriggers.LuckyFloor, g.lucky, "lucky_floor line should name a lucky number");
                 if (g.unlucky.Length > 0)
-                    Assert.IsTrue(MentionsAny(g.FindLine(GuestLineTriggers.UnluckyFloor).text, g.unlucky), g.id + ": unlucky_floor line should name an unlucky number");
+                    AssertAllName(g, GuestLineTriggers.UnluckyFloor, g.unlucky, "unlucky_floor line should name an unlucky number");
                 var reachableLucky = g.lucky.Where(n => n <= data.Capacity).ToArray();
                 if (reachableLucky.Length > 0)
-                    Assert.IsTrue(MentionsAny(g.FindLine(GuestLineTriggers.LuckyOccupancy).text, reachableLucky), g.id + ": lucky_occupancy line should name the headcount");
+                    AssertAllName(g, GuestLineTriggers.LuckyOccupancy, reachableLucky, "lucky_occupancy line should name the headcount");
                 var reachableUnlucky = g.unlucky.Where(n => n <= data.Capacity).ToArray();
                 if (reachableUnlucky.Length > 0)
-                    Assert.IsTrue(MentionsAny(g.FindLine(GuestLineTriggers.UnluckyOccupancy).text, reachableUnlucky), g.id + ": unlucky_occupancy line should name the headcount");
+                    AssertAllName(g, GuestLineTriggers.UnluckyOccupancy, reachableUnlucky, "unlucky_occupancy line should name the headcount");
             }
         }
 
@@ -426,17 +448,9 @@ namespace FloorF.Tests.EditMode.Content
             foreach (var g in data.Guests.Where(x => !x.hideNumbers))
             {
                 if (g.lucky.Any(n => n >= 1))
-                {
-                    var l = g.FindLine(GuestLineTriggers.LuckyDistance);
-                    Assert.IsNotNull(l, g.id + ": no lucky_distance line");
-                    Assert.IsTrue(MentionsAny(l.text, g.lucky), g.id + ": lucky_distance should name the distance - " + l.text);
-                }
+                    AssertAllName(g, GuestLineTriggers.LuckyDistance, g.lucky, "lucky_distance should name the distance");
                 if (g.unlucky.Any(n => n >= 1))
-                {
-                    var l = g.FindLine(GuestLineTriggers.UnluckyDistance);
-                    Assert.IsNotNull(l, g.id + ": no unlucky_distance line");
-                    Assert.IsTrue(MentionsAny(l.text, g.unlucky), g.id + ": unlucky_distance should name the distance - " + l.text);
-                }
+                    AssertAllName(g, GuestLineTriggers.UnluckyDistance, g.unlucky, "unlucky_distance should name the distance");
             }
         }
 
@@ -634,7 +648,7 @@ namespace FloorF.Tests.EditMode.Content
             for (int n = 1; n <= data.AllDayCount; n++)
                 if (n != data.DayCount)
                     Assert.IsFalse(data.GetDay(new DayId(n)).spawns.Any(s => s.guest == mystery.id), "mystery guest on day " + n + " (only the base run's last day)");
-            Assert.IsTrue(ContainsNumber(mystery.FindLine(GuestLineTriggers.Spawn).text, 4), "spawn line must ask for the 4th floor");
+            AssertAllName(mystery, GuestLineTriggers.Spawn, new[] { 4 }, "spawn line must ask for the 4th floor");
         }
 
         /// <summary>
@@ -648,11 +662,14 @@ namespace FloorF.Tests.EditMode.Content
             var mystery = data.Guests.Single(g => g.HasTrait(GuestTraits.Mystery));
             foreach (var trigger in new[] { GuestLineTriggers.Spawn, GuestLineTriggers.Delivered, GuestLineTriggers.Special })
             {
-                var line = mystery.FindLine(trigger);
-                Assert.IsNotNull(line, "mystery guest needs a '" + trigger + "' line");
-                Assert.IsTrue(line.text.IndexOf("hid", StringComparison.OrdinalIgnoreCase) >= 0, trigger + ": should talk about hiding - " + line.text);
-                Assert.IsTrue(line.textKo.Contains("숨") || line.textKo.Contains("가려") || line.textKo.Contains("가렸"),
-                    trigger + ".textKo: should talk about hiding - " + line.textKo);
+                var variants = LinesOf(mystery, trigger);
+                Assert.IsNotEmpty(variants, "mystery guest needs a '" + trigger + "' line");
+                foreach (var line in variants)
+                {
+                    Assert.IsTrue(line.text.IndexOf("hid", StringComparison.OrdinalIgnoreCase) >= 0, trigger + ": should talk about hiding - " + line.text);
+                    Assert.IsTrue(line.textKo.Contains("숨") || line.textKo.Contains("가려") || line.textKo.Contains("가렸"),
+                        trigger + ".textKo: should talk about hiding - " + line.textKo);
+                }
             }
             Assert.AreNotEqual(mystery.FindLine(GuestLineTriggers.Delivered).text, mystery.FindLine(GuestLineTriggers.Special).text,
                 "plain delivery and the ending need different lines");
