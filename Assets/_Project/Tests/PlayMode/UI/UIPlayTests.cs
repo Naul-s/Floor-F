@@ -255,7 +255,19 @@ namespace FloorF.Tests.PlayMode.UI
             yield return null;
             Assert.AreEqual("", ui.LanguageTogglesOutsideMenus(), "no language toggle on the running HUD");
             var pause = ui.PauseButtonRect;
-            Assert.AreEqual(ui.CanvasSize.x - 24f, pause.xMax, 1f, "pause button in the bottom-right corner (the toggle's old spot)");
+            Assert.AreEqual(ui.CanvasSize.x - MenuView.PauseRight, pause.xMax, 1f, "pause button in the bottom-right corner (the toggle's old spot)");
+            // the WebGL page's fullscreen button (TemplateData/style.css: right/bottom 8px, 34px) on a 960x540 embed
+            float s = UIStyle.RefWidth / 960f;
+            var fullscreen = Rect.MinMaxRect(ui.CanvasSize.x - (8f + 34f) * s, 8f * s, ui.CanvasSize.x - 8f * s, (8f + 34f) * s);
+            Assert.IsFalse(pause.Overlaps(fullscreen), "clear of the page's fullscreen button: " + pause + " vs " + fullscreen);
+            // press feedback: the label dips while the button is held, and comes back up on release
+            float labelY = ui.PauseLabelY;
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            var pe = new UnityEngine.EventSystems.PointerEventData(es) { button = UnityEngine.EventSystems.PointerEventData.InputButton.Left };
+            UnityEngine.EventSystems.ExecuteEvents.Execute(ui.PauseButtonObject, pe, UnityEngine.EventSystems.ExecuteEvents.pointerDownHandler);
+            Assert.AreEqual(labelY - PressSink.Depth, ui.PauseLabelY, 0.01f, "label sinks while held");
+            UnityEngine.EventSystems.ExecuteEvents.Execute(ui.PauseButtonObject, pe, UnityEngine.EventSystems.ExecuteEvents.pointerUpHandler);
+            Assert.AreEqual(labelY, ui.PauseLabelY, 0.01f, "...and pops back");
             ui.ClickPauseButton();
             yield return null;
             Assert.IsTrue(ui.PauseVisible);

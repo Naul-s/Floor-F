@@ -113,6 +113,9 @@ namespace FloorF.UI
             if (onClick != null) b.onClick.AddListener(onClick);
             var t = Text("Label", img.transform, label, fontSize, UIStyle.InkOn(bg), TextAlignmentOptions.Center, bold: true);
             Stretch(t.rectTransform, 4f);
+            var sink = img.gameObject.AddComponent<PressSink>(); // the label dips 2 px while held
+            sink.Target = t.rectTransform;
+            sink.Owner = b;
             return new ButtonParts { Button = b, Background = img, Label = t };
         }
 

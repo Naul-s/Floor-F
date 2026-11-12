@@ -37,7 +37,7 @@ namespace FloorF.UI
         public static readonly Loc RuleDistance = new Loc("Step OUT  >  they judge the FLOORS TRAVELLED", "내릴 때  >  탄 뒤 움직인 층수로 판정");
         public static readonly Loc RuleLegend = new Loc("<color={0}>gold: lucky</color>    <color={1}>red: unlucky</color>", "<color={0}>금색: 행운</color>    <color={1}>빨강: 불길</color>");
         /// <summary>Friday the 13th rule-box line (IDayQuery.IsFriday13).</summary>
-        public static readonly Loc RuleFriday13 = new Loc("Friday 13th: travelled 13 = unlucky for ALL", "13일의 금요일: 이동 13 = 모두 불길");
+        public static readonly Loc RuleFriday13 = new Loc("Friday 13th: 13 floors travelled = unlucky for ALL", "13일의 금요일: 13층 이동 = 모두 불길");
         /// <summary>Friday the 13th HUD badge. {0} = penalty multiplier ("x1.5").</summary>
         public static readonly Loc Friday13Badge = new Loc("FRIDAY 13TH · bad luck {0}", "13일의 금요일 · 불운 {0}");
         /// <summary>Friday the 13th "TODAY:" line (DayTwist). {0} = the penalty multiplier ("1.5"), {1} = StoryRules.FridayDistance.</summary>
@@ -49,12 +49,12 @@ namespace FloorF.UI
 
         // ---- star night (IDayQuery.IsStarNight, Day 7): 7 is lucky for everyone, wish stars
         /// <summary>Star-night rule-box line.</summary>
-        public static readonly Loc RuleStarNight = new Loc("Star night: 7 = lucky for ALL", "별의 밤: 7 = 모두 행운");
+        public static readonly Loc RuleStarNight = new Loc("Star night: 7 = lucky for ALL", "별이 쏟아지는 밤: 7 = 모두 행운");
         /// <summary>Star-night HUD badge.</summary>
         public static readonly Loc StarNightBadge = new Loc("STAR NIGHT · 7 lucky for all", "별이 쏟아지는 밤 · 7 = 모두 행운");
         /// <summary>Star-night "TODAY:" line (DayTwist). {0} = StoryRules.StarNightNumber, {1} = Luck per wish.</summary>
-        public static readonly Loc StarNightIntro = new Loc("{0} is LUCKY for everyone. Click a shooting star (or press E) to make a wish: +{1} Luck!",
-            "{0:이} 누구에게나 행운. 별똥별을 클릭(또는 E)해서 소원을 빌면 운 +{1}!");
+        public static readonly Loc StarNightIntro = new Loc("{0} is LUCKY for everyone. Click a shooting star (or press E) to make a wish: <nobr>Luck +{1}</nobr>!",
+            "{0:이} 누구에게나 행운. 별똥별을 클릭(또는 E)해서 소원을 빌면 <nobr>운 +{1}</nobr>!");
 
         // ---- winter season (ISeasonQuery: days 8-10 after "Keep the hotel open"), lottery night, Christmas Eve
         /// <summary>Ribbon on a winter-season intro card.</summary>
@@ -64,10 +64,10 @@ namespace FloorF.UI
         /// <summary>PLAY AGAIN without the [Enter] hint (Enter = keep the hotel open).</summary>
         public static readonly Loc PlayAgainShort = new Loc("PLAY AGAIN", "다시 하기");
         /// <summary>Ending card offer, line 1. {0} = extra days (GameData.ExtendedDayCount).</summary>
-        public static readonly Loc SeasonOffer = new Loc("Winter season: {0} more nights", "겨울 시즌: {0}일 더");
+        public static readonly Loc SeasonOffer = new Loc("Winter season: {0} more nights", "겨울 시즌: {0}일 더 영업");
         public static readonly Loc SeasonTeaser = new Loc("Singles' Day, a lottery, and Christmas Eve...", "솔로의 날, 복권 추첨, 그리고 크리스마스 이브...");
         /// <summary>Intro "TODAY:" line, lottery night (DayTwist). {0} = draws, {1} = tip multiplier ("2"), {2} = Luck bonus.</summary>
-        public static readonly Loc TodayLottery = new Loc("a winning number is drawn {0}x. Drop a guest on a floor showing it: tips x{1}, Luck +{2}!",
+        public static readonly Loc TodayLottery = new Loc("{0} winning numbers are drawn tonight. Drop a guest on a floor showing the latest: tips x{1}, Luck +{2}!",
             "당첨 번호를 {0}번 뽑아요. 그 번호 층에 내려 주면 팁 x{1}, 운 +{2}!");
         /// <summary>Intro "TODAY:" line, Christmas Eve. {0} = DayDef.luckyForAll.</summary>
         public static readonly Loc TodayLuckyForAll = new Loc("{0} is LUCKY for everyone - floor, head count or floors travelled.",
@@ -109,12 +109,12 @@ namespace FloorF.UI
         /// <summary>Hint next to a wish star until the first wish of the run.</summary>
         public static readonly Loc WishHint = new Loc("Make a wish! [E]", "소원을 빌어요! [E]");
         /// <summary>Float-up when a wish comes true. {0} = Luck gained.</summary>
-        public static readonly Loc WishGranted = new Loc("Wish granted! +{0} Luck", "소원 성취! +{0} 운");
+        public static readonly Loc WishGranted = new Loc("Wish granted! Luck +{0}", "소원 성취! 운 +{0}");
         /// <summary>One-time explain card on star night (tutorial hints on).</summary>
         public static readonly Loc WishCardTitle = new Loc("WISH STARS", "소원의 별");
         /// <summary>{0} = Luck per wish.</summary>
-        public static readonly Loc WishCardBody = new Loc("Shooting stars cross the sky tonight - only for a moment! Click one (or press E) to make a wish: +{0} Luck.",
-            "오늘 밤엔 별똥별이 하늘을 가로질러요 - 아주 잠깐! 클릭(또는 E)해서 소원을 빌면 운 +{0}.");
+        public static readonly Loc WishCardBody = new Loc("Shooting stars cross the sky tonight - only for a moment! Click one (or press E) to make a wish: <nobr>Luck +{0}</nobr>.",
+            "오늘 밤엔 별똥별이 하늘을 가로질러요 - 아주 잠깐! 클릭(또는 E)해서 소원을 빌면 <nobr>운 +{0}</nobr>.");
 
         // ---- day-start banner (Running begins)
         public static readonly Loc DayBanner = new Loc("DAY {0}", "{0}일차");
@@ -157,11 +157,11 @@ namespace FloorF.UI
             "• 문이 열리면: 안에 있는 모두가 그 층의 번호로 판정.\n" +
             "• 문이 닫히면: 안에 있는 모두가 탑승 인원수로 판정.\n" +
             "• 내릴 때: 탄 뒤 움직인 층수로 판정 (돌아가도 다 셈).\n" +
-            "• 목적지에 내려주면 팁. 운이 0이 되면 흉가 엔딩!");
+            "• 목적지에 내려 주면 팁. 운이 0이 되면 흉가 엔딩!");
         public static readonly Loc DayComplete = new Loc("DAY {0} COMPLETE", "{0}일차 종료");
-        public static readonly Loc Delivered = new Loc("Guests delivered", "배달한 손님");
+        public static readonly Loc Delivered = new Loc("Guests delivered", "목적지에 모신 손님");
         public static readonly Loc Left = new Loc("Guests who left", "떠난 손님");
-        public static readonly Loc TipsEarned = new Loc("Tips earned", "번 팁");
+        public static readonly Loc TipsEarned = new Loc("Tips earned", "받은 팁");
         public static readonly Loc LuckLine = new Loc("Luck", "운");
         public static readonly Loc Judgements = new Loc("Lucky / unlucky moments", "행운 / 불길 판정");
 
@@ -176,10 +176,10 @@ namespace FloorF.UI
         public static readonly Loc ResultApplied = new Loc("Floor {0} is now {1}!", "{0}층이 이제 {1}층!");
         /// <summary>{2} = destination (InlineIcon markup: icon + name).</summary>
         public static readonly Loc ResultAppliedAt = new Loc("Floor {0} ({2}) is now {1}!", "{0}층({2})이 이제 {1}층!");
-        public static readonly Loc ResultNotEnough = new Loc("Not enough tips.", "팁이 부족합니다.");
-        public static readonly Loc ResultNotApplicable = new Loc("That sticker does not fit that floor.", "그 층에는 붙일 수 없습니다.");
-        public static readonly Loc ResultOutOfStock = new Loc("Sold out.", "품절입니다.");
-        public static readonly Loc ResultOther = new Loc("Can't do that now.", "지금은 할 수 없습니다.");
+        public static readonly Loc ResultNotEnough = new Loc("Not enough tips.", "팁이 부족해요.");
+        public static readonly Loc ResultNotApplicable = new Loc("That sticker does not fit that floor.", "그 층에는 붙일 수 없어요.");
+        public static readonly Loc ResultOutOfStock = new Loc("Sold out.", "품절이에요.");
+        public static readonly Loc ResultOther = new Loc("Can't do that now.", "지금은 할 수 없어요.");
         /// <summary>Card kind badges (StickerDef.kind) and the one-day tag on every card.</summary>
         public static readonly Loc KindLabel = new Loc("STICKER", "스티커");
         public static readonly Loc KindCharm = new Loc("CHARM", "부적");
@@ -239,15 +239,15 @@ namespace FloorF.UI
         public static readonly Loc EndModestTitle = new Loc("BUSINESS AS USUAL", "평범한 영업");
         public static readonly Loc EndModestText = new Loc(
             "Every day survived. The hotel is fine. Just... fine. Maybe more stickers next season?",
-            "모든 날을 버텼다. 호텔은 괜찮다. 그냥... 괜찮다. 다음 시즌엔 스티커를 더?");
+            "모든 날을 버텼다. 호텔은 괜찮다. 그냥... 괜찮다. 다음 시즌엔 스티커를 좀 더 붙여 볼까?");
         public static readonly Loc EndHauntedTitle = new Loc("THE HAUNTED HOTEL", "흉가 호텔");
         public static readonly Loc EndHauntedText = new Loc(
             "Too many bad numbers, too many screams. Rumour says the elevator is cursed, and nobody checks in anymore.",
-            "나쁜 숫자, 비명이 너무 많았다. 엘리베이터가 저주받았다는 소문에 이제 아무도 체크인하지 않는다.");
+            "나쁜 숫자도, 비명도 너무 많았다. 엘리베이터가 저주받았다는 소문에 이제 아무도 체크인하지 않는다.");
         public static readonly Loc EndFourthTitle = new Loc("THE FOURTH FLOOR", "4층");
         public static readonly Loc EndFourthText = new Loc(
             "You covered the 4. It was still there. The stranger stepped out onto the floor you hid, smiled... and the lights went out.",
-            "4를 가렸지만, 4층은 여전히 거기 있었다. 낯선 손님은 당신이 감춘 그 층에 내려 웃었다... 그리고 불이 꺼졌다.");
+            "4를 가렸지만, 4층은 여전히 거기 있었다. 낯선 손님은 당신이 감춘 그 층에 내려서 미소 지었다... 그리고 불이 꺼졌다.");
         public static readonly Loc EndMiracleTitle = new Loc("A CHRISTMAS MIRACLE", "크리스마스의 기적");
         public static readonly Loc EndMiracleText = new Loc(
             "Snow on every ledge, a sleigh parked on the roof, carols in the lobby. Word of the lucky elevator reached the North Pole - the hotel is booked until next Christmas.",
@@ -256,8 +256,8 @@ namespace FloorF.UI
         public static readonly Loc EndSilentText = new Loc(
             "The last guest is tucked in and the snow hushes the street. The elevator hums alone in the dark. Not a miracle - but a warm, quiet Christmas.",
             "마지막 손님까지 방에 들고, 눈이 거리의 소리를 덮었다. 어둠 속에서 엘리베이터만 조용히 웅웅거린다. 기적은 아니어도, 따뜻하고 고요한 크리스마스.");
-        public static readonly Loc FinalStats =new Loc("Final luck {0}   •   Tips ${1}", "최종 운 {0}   •   팁 ${1}");
-        public static readonly Loc EndDayReached = new Loc("Days run", "버틴 날");
+        public static readonly Loc FinalStats = new Loc("Final luck {0}   •   Tips ${1}", "최종 운 {0}   •   팁 ${1}");
+        public static readonly Loc EndDayReached = new Loc("Days survived", "버틴 날");
         public static readonly Loc EndFinalLuck = new Loc("Final luck", "최종 운");
         public static readonly Loc EndTips = new Loc("Tips", "팁");
         public static readonly Loc ToTitle = new Loc("TITLE", "타이틀");
@@ -312,10 +312,10 @@ namespace FloorF.UI
         public static readonly Loc EndNameSilent = new Loc("SILENT NIGHT", "고요한 밤");
         public static readonly Loc EndShortMiracle = new Loc("Word of the lucky elevator reached the North Pole.", "운 좋은 엘리베이터 소문이 북극까지 닿았다.");
         public static readonly Loc EndShortSilent = new Loc("Not a miracle - but a warm, quiet Christmas.", "기적은 아니어도, 따뜻하고 고요한 크리스마스.");
-        /// <summary>Locked winter slots. {1} = prosperous-ending Luck.</summary>
-        public static readonly Loc EndHintMiracle = new Loc("Keep the hotel open through Christmas Eve with Luck {1}+.", "영업을 이어가 크리스마스 이브를 운 {1} 이상으로 마치기.");
-        public static readonly Loc EndHintSilent = new Loc("Keep the hotel open through Christmas Eve.", "영업을 이어가 크리스마스 이브까지 마치기.");
-        public static readonly Loc EndShortProsperous =new Loc("Guests book months ahead - and ask for you by name.",
+        /// <summary>Locked winter slots. EndHintMiracle {1} = the miracle ending's Luck (RulesDef winterMiracleLuck).</summary>
+        public static readonly Loc EndHintMiracle = new Loc("Keep the hotel open through Christmas Eve with Luck {1}+.", "영업을 이어 가 크리스마스 이브를 운 {1} 이상으로 마치기.");
+        public static readonly Loc EndHintSilent = new Loc("Keep the hotel open through Christmas Eve.", "영업을 이어 가 크리스마스 이브까지 마치기.");
+        public static readonly Loc EndShortProsperous = new Loc("Guests book months ahead - and ask for you by name.",
             "몇 달 치 예약이 꽉 찼고, 다들 당신을 찾는다.");
         public static readonly Loc EndShortModest = new Loc("The hotel is fine. Just... fine.", "호텔은 괜찮다. 그냥... 괜찮다.");
         public static readonly Loc EndShortHaunted = new Loc("Rumour says the elevator is cursed.", "엘리베이터가 저주받았다는 소문이 돈다.");

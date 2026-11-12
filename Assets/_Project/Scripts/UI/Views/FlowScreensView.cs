@@ -257,6 +257,8 @@ namespace FloorF.UI
         /// <summary>Wedding day accents (Day 6): rose on the gold card.</summary>
         public static readonly Color WeddingInk = UIStyle.Hex("#FF8FB8");
         const float InnerInset = 8f, StudSize = 6f, RuleW = 150f, RuleGap = 26f;
+        /// <summary>Space between the title's glyphs and the next line, where the ornamental rule sits.</summary>
+        public const float TitleRuleGap = 16f;
 
         Image[] innerFrame, studs, rules;
         Image ruleGem;
@@ -679,7 +681,11 @@ namespace FloorF.UI
             offer.gameObject.SetActive(canExtend);
             again.Rect.gameObject.SetActive(canExtend);
             layout.spacing = canExtend ? 10f : 16f;
-            ruleRect.anchoredPosition = new Vector2(0f, -Mathf.Round(layout.spacing * 0.5f));
+            // the ornamental rule needs ~16 px between title and body: the tight offer card pads the title's bottom
+            // instead (the rule crossed the body's first line there)
+            float titlePad = Mathf.Max(0f, TitleRuleGap - layout.spacing);
+            if (!Mathf.Approximately(title.margin.w, titlePad)) title.margin = new Vector4(0f, 0f, 0f, titlePad);
+            ruleRect.anchoredPosition = new Vector2(0f, Mathf.Round((titlePad - layout.spacing) * 0.5f));
             if (!canExtend) action.Background.color = UIStyle.Action;
             unlockLine.gameObject.SetActive(phase == DayPhase.Ending && ctx.Endings != null);
             today.gameObject.SetActive(false);
@@ -958,6 +964,34 @@ namespace FloorF.UI
 
         static string Row(string caption, string value) => caption + "<pos=62%><b>" + value + "</b>";
         static string N(int v) => v.ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>The ornamental rule under the title running into the title's or the next line's glyphs, or null.</summary>
+        public string RuleProblem(RectTransform canvas)
+        {
+            if (!dim.gameObject.activeSelf || !ruleRect.gameObject.activeInHierarchy) return null;
+            var rule = UIBuild.CanvasRect(canvas, ruleRect);
+            title.ForceMeshUpdate();
+            var ti = title.textInfo;
+            if (ti.lineCount > 0)
+            {
+                float baseline = CanvasY(canvas, title.rectTransform, ti.lineInfo[ti.lineCount - 1].baseline);
+                if (rule.yMax > baseline + 0.5f) return "rule top " + rule.yMax + " above the title's baseline " + baseline;
+            }
+            // the first line under the title (the layout order: body, today, ...)
+            foreach (var t in new TMP_Text[] { body, today, extra })
+            {
+                if (!t.gameObject.activeInHierarchy || string.IsNullOrEmpty(t.text)) continue;
+                t.ForceMeshUpdate();
+                if (t.textInfo.lineCount == 0) continue;
+                float top = CanvasY(canvas, t.rectTransform, t.textInfo.lineInfo[0].ascender);
+                if (rule.yMin < top - 0.5f) return "rule bottom " + rule.yMin + " under " + t.name + "'s first line top " + top;
+                break;
+            }
+            return null;
+        }
+
+        static float CanvasY(RectTransform canvas, RectTransform local, float y) =>
+            canvas.InverseTransformPoint(local.TransformPoint(new Vector3(0f, y, 0f))).y - canvas.rect.min.y;
 
         public bool HiddenBadgeVisible => dim.gameObject.activeSelf && hiddenBadge.Visible;
         public string HiddenBadgeText => hiddenBadge.Label.text;

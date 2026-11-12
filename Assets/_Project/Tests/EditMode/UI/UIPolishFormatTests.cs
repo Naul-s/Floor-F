@@ -70,7 +70,7 @@ namespace FloorF.Tests.EditMode.UI
 
             var lottery = First(d => d.lottery);
             string l = Plain(DayTwist.Line(lottery, data, false));
-            StringAssert.Contains("drawn " + lottery.lotteryDraws + "x", l);
+            StringAssert.Contains(lottery.lotteryDraws + " winning numbers are drawn tonight", l);
             StringAssert.Contains("tips x" + UIFormat.Factor(data.Rules.lotteryTipMultiplier), l);
             StringAssert.Contains("Luck +" + data.Rules.lotteryLuckBonus, l);
             Assert.AreEqual("2", UIFormat.Factor(2f));
@@ -119,7 +119,7 @@ namespace FloorF.Tests.EditMode.UI
             var star = First(d => d.starNight);
             string s = Plain(DayTwist.Line(star, data, false));
             StringAssert.StartsWith("TODAY: " + StoryRules.StarNightNumber + " is LUCKY", s);
-            StringAssert.Contains("+" + data.Rules.wishLuckBonus + " Luck", s);
+            StringAssert.Contains("Luck +" + data.Rules.wishLuckBonus, s);
             StringAssert.Contains("7이 누구에게나", Plain(DayTwist.Line(star, data, true)));
 
             var wedding = First(d => Has(d, "chinese_wedding_party") && !d.starNight);

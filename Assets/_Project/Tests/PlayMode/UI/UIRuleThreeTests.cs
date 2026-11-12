@@ -306,7 +306,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(ui.FridayBadgeVisible, "HUD badge on Friday the 13th");
             Assert.AreEqual(ko ? "13일의 금요일 · 불운 x1.5" : "FRIDAY 13TH · bad luck x1.5", ui.FridayBadgeText);
             Assert.GreaterOrEqual(ui.FridayBadgeFontSize, 24f, "badge readable (not shrunk)");
-            StringAssert.Contains(ko ? "이동 13 = 모두 불길" : "travelled 13 = unlucky for ALL", ui.RulesText);
+            StringAssert.Contains(ko ? "13층 이동 = 모두 불길" : "13 floors travelled = unlucky for ALL", ui.RulesText);
             StringAssert.Contains(ko ? "움직인 층수" : "FLOORS TRAVELLED", ui.RulesText);
             Assert.IsNull(ui.RulesOverflow(), "rule lines fit the box");
             var rules = ui.RulesBoxRect;

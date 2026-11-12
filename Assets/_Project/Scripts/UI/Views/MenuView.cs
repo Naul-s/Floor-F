@@ -33,6 +33,12 @@ namespace FloorF.UI
         public const float StackTopY = StackCentreY + (76f + 2f * (52f + StackGap)) * 0.5f;
         /// <summary>Pause card's mini logo: canvas units per logo pixel, gap above the card.</summary>
         public const float PauseLogoPixel = 3f, PauseLogoGap = 10f;
+        /// <summary>
+        /// HUD pause button's gap from the right edge. The WebGL page draws its own fullscreen button over the stage's
+        /// bottom-right corner (34 px + 8 px margin, CSS px: ~56 canvas units on a 960-wide embed) - it ate the right
+        /// part of the pause button at -24.
+        /// </summary>
+        public const float PauseRight = 76f;
         public static readonly Vector2 StartSize = new Vector2(400f, 76f), ButtonSize = new Vector2(300f, 52f);
         /// <summary>Gold-to-amber TMP vertex gradient matching the logo face (pause title).</summary>
         public static readonly VertexGradient GoldGradient = new VertexGradient(UIStyle.Hex("#FFE066"), UIStyle.Hex("#FFE066"), UIStyle.Hex("#F0962A"), UIStyle.Hex("#F0962A"));
@@ -192,7 +198,7 @@ namespace FloorF.UI
 
             // ---------------------------------------------------------- HUD pause button (bottom-right corner)
             pauseButton = UIBuild.Button("Pause", canvas, "II", 24f, UIStyle.Btn, OnPause);
-            UIBuild.Place(pauseButton.Rect, new Vector2(1f, 0f), new Vector2(-24f, 16f), new Vector2(56f, 36f));
+            UIBuild.Place(pauseButton.Rect, new Vector2(1f, 0f), new Vector2(-PauseRight, 16f), new Vector2(56f, 36f));
             pauseButton.Label.color = UIStyle.Ink;
 
             titleRoot.gameObject.SetActive(false);
@@ -684,6 +690,8 @@ namespace FloorF.UI
         public void ClickStart() => start.Button.onClick.Invoke();
         public void ClickTitleOptions() => titleOptions.Button.onClick.Invoke();
         public void ClickPauseButton() => pauseButton.Button.onClick.Invoke();
+        public GameObject PauseButtonObject => pauseButton.Rect.gameObject;
+        public float PauseLabelY => pauseButton.Label.rectTransform.offsetMin.y;
         public Rect PauseButtonRect(RectTransform canvas) => UIBuild.CanvasRect(canvas, pauseButton.Rect);
         public void ClickResume() => resume.Button.onClick.Invoke();
         public void ClickQuit() => quit.Button.onClick.Invoke();

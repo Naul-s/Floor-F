@@ -254,7 +254,7 @@ namespace FloorF.Tests.PlayMode.UI
                 Assert.AreEqual(0, ui.WishTargetCount, "target gone");
                 Assert.GreaterOrEqual(GameServices.Get<IScoreQuery>().Luck, luck, "the wish adds Luck");
                 Assert.AreEqual(1, ui.WishGrantCount, "float-up");
-                Assert.AreEqual(ko ? "소원 성취! +" + made[0].LuckGain + " 운" : "Wish granted! +" + made[0].LuckGain + " Luck", ui.WishGrantText);
+                Assert.AreEqual(ko ? "소원 성취! 운 +" + made[0].LuckGain : "Wish granted! Luck +" + made[0].LuckGain, ui.WishGrantText);
                 Assert.IsFalse(ui.WishHintVisible, "hint gone after the first wish");
                 Time.captureDeltaTime = 0.05f;
                 yield return UITestDriver.Frames(4);
