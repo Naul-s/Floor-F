@@ -58,6 +58,16 @@ namespace FloorF.EditorTools
         public static bool TryMeasure(string assetPath, out Level level)
         {
             level = default;
+            if (!TryDecode(assetPath, out var data, out int ch, out int rate)) return false;
+            level = Measure(data, ch, rate);
+            return true;
+        }
+
+        /// <summary>Decodes the source file (not the imported/compressed clip): interleaved samples, channels, rate.</summary>
+        public static bool TryDecode(string assetPath, out float[] data, out int channels, out int rate)
+        {
+            data = null; channels = 1; rate = 0;
+            if (string.IsNullOrEmpty(assetPath)) return false;
             string full = Path.GetFullPath(assetPath).Replace('\\', '/');
             string ext = Path.GetExtension(full).ToLowerInvariant();
             var type = ext == ".wav" ? AudioType.WAV : ext == ".ogg" ? AudioType.OGGVORBIS : ext == ".mp3" ? AudioType.MPEG : AudioType.UNKNOWN;
@@ -77,9 +87,10 @@ namespace FloorF.EditorTools
                 until = System.DateTime.UtcNow.AddSeconds(30);
                 while (clip.loadState == AudioDataLoadState.Loading && System.DateTime.UtcNow < until) { }
                 int ch = Mathf.Max(1, clip.channels), n = clip.samples;
-                var data = new float[n * ch];
-                if (!clip.GetData(data, 0)) { Object.DestroyImmediate(clip); return false; }
-                level = Measure(data, ch, clip.frequency);
+                data = new float[n * ch];
+                if (!clip.GetData(data, 0)) { Object.DestroyImmediate(clip); data = null; return false; }
+                channels = ch;
+                rate = clip.frequency;
                 Object.DestroyImmediate(clip);
                 return true;
             }

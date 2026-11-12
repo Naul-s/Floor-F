@@ -206,6 +206,9 @@ namespace FloorF.EditorTools
                 // (~-24.5) - about where the old main song sat (MacLeod rms -33.2). Its loop seam is a sample step
                 // (0.22 vs a largest natural step of 0.07 = click) inside sustained music: a short 0.12 s fade each side
                 // removes the click without the long dip the mp3 needs.
+                // NOTE (AudioMixAudit): those are the stereo SOURCE file's numbers; the imported clip is the normalized
+                // mono downmix (forceToMono), +5.7 dB: it really plays at max100ms -21.5 (K-weighted: momentary -25.8,
+                // integrated -28.0 LUFS-ish). The day mix is left as is - only the references moved.
                 new TrackDef { track = MusicTrack.Elevator, clip = C(FS + "659889__blondpanda__short-elevator-music-loop.wav"), volume = 0.45f, seamFade = 0.12f },
                 // mp3 -> Vorbis keeps the encoder padding at the loop point: fade 0.3 s each side to hide the click/gap
                 new TrackDef { track = MusicTrack.ShopLoop, clip = C(KM + "Local Forecast - Elevator.mp3"), volume = 1f, seamFade = 0.3f },
