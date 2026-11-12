@@ -217,6 +217,65 @@ namespace FloorF.Tests.PlayMode.Audio
             Assert.IsFalse(root.BellsOn, "no bell layer on the ending music");
         }
 
+        /// <summary>No winter bed survives the screen it belongs to: title, a real ending, Play again (fresh run).</summary>
+        [UnityTest]
+        public IEnumerator ChristmasEve_TitleEndingPlayAgain_LeaveNothingLooping()
+        {
+            yield return LoadMain();
+            var root = Root();
+            var season = new FakeSeason { IsChristmas = true, SnowAmount = 1f };
+            root.SeasonOverride = season;
+            root.ForceRainy = false;
+            yield return null;
+            root.UpdateWinter(WinterBank.WindFadeInSeconds);
+            yield return null;
+            Assert.IsTrue(root.WindOn && root.BellsOn, "Christmas Eve: wind + bells");
+
+            // back to the title (pause menu -> title): both fade out and stop; the title keeps the elevator song
+            GameServices.Get<IMenuFlow>().ReturnToTitle();
+            yield return null;
+            Assert.AreEqual(DayPhase.Title, GameServices.Get<IDayQuery>().Phase);
+            Assert.IsFalse(root.WindWanted);
+            root.UpdateWinter(Mathf.Max(WinterBank.WindFadeOutSeconds, WinterBank.BellsFadeSeconds));
+            yield return null;
+            Assert.IsFalse(root.WindOn, "no wind on the title");
+            Assert.IsFalse(root.BellsOn, "no bells on the title");
+            Assert.IsFalse(root.WindSource.isPlaying);
+            Assert.IsFalse(root.BellsSource.isPlaying);
+
+            // a new game on Christmas Eve again, then its ending: the ending music only
+            Assert.IsTrue(GameServices.Get<IMenuFlow>().StartGameFromTitle());
+            yield return null;
+            root.UpdateWinter(WinterBank.WindFadeInSeconds);
+            yield return null;
+            Assert.IsTrue(root.WindOn && root.BellsOn, "back on the snowy day");
+            var session = Object.FindFirstObjectByType<GameplayRoot>().Session;
+            Assert.IsTrue(session.DebugForceEnding(EndingKind.Modest));
+            yield return null;
+            Assert.AreEqual(DayPhase.Ending, GameServices.Get<IDayQuery>().Phase);
+            yield return new WaitForSecondsRealtime(root.Library.crossfadeSeconds + 0.2f);
+            root.UpdateWinter(Mathf.Max(WinterBank.WindFadeOutSeconds, WinterBank.BellsFadeSeconds));
+            yield return null;
+            Assert.IsFalse(root.WindOn, "no wind on the ending");
+            Assert.IsFalse(root.BellsOn, "no bells on the ending");
+
+            // Play again: a fresh run has no season
+            season.IsChristmas = false;
+            season.SnowAmount = 0f;
+            season.IsSeasonExtended = season.IsExtendedDay = false;
+            GameServices.Get<IGameFlow>().RestartGame();
+            yield return new WaitForSecondsRealtime(root.Library.crossfadeSeconds + 0.3f);
+            root.UpdateWinter(10f);
+            root.UpdateWeather(10f);
+            root.UpdateHum(10f);
+            yield return null;
+            Assert.IsFalse(root.WindOn || root.WindSource.isPlaying, "wind");
+            Assert.IsFalse(root.BellsOn || root.BellsSource.isPlaying, "bells");
+            Assert.IsFalse(root.RainOn || root.RainSource.isPlaying, "rain");
+            Assert.IsFalse(root.HumOn, "hum");
+            Assert.AreEqual(MusicTrack.Elevator, root.CurrentTrack, "the day music, nothing else looping");
+        }
+
         [UnityTest]
         public IEnumerator WinterEndings_PlayTheirProceduralLoops()
         {

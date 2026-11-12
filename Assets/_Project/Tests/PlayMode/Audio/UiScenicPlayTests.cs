@@ -185,6 +185,50 @@ namespace FloorF.Tests.PlayMode.Audio
             Assert.IsTrue(GameServices.Get<IMenuFlow>().SetPaused(false));
         }
 
+        /// <summary>
+        /// The ending scene reuses the player's scenic event (On, not establishing) for its wide city view: during the
+        /// Ending it must not lower the SFX or touch the music, and Play again must not carry it into the next run.
+        /// </summary>
+        [UnityTest]
+        public IEnumerator EndingWideView_KeepsLevels_PlayAgainRestoresTheScenicRules()
+        {
+            yield return LoadMain();
+            var root = Root();
+            var lib = root.Library;
+            var session = Object.FindFirstObjectByType<GameplayRoot>().Session;
+            Assert.IsTrue(session.DebugForceEnding(EndingKind.Modest), "real ending path");
+            yield return null;
+            Assert.AreEqual(DayPhase.Ending, GameServices.Get<IDayQuery>().Phase);
+            GameServices.Events.Publish(new ScenicViewChanged(true, false)); // the ending's wide view (the UI sends it too)
+            Assert.IsTrue(root.ScenicViewOn);
+            Assert.IsFalse(root.Scenic, "the ending's wide view is not the player's scenic mode");
+            Assert.AreEqual(1f, root.SfxScale(false), 1e-5f, "SFX at full level on the ending");
+            Assert.AreEqual(1f, root.SfxScale(true), 1e-5f);
+            yield return new WaitForSecondsRealtime(0.5f);
+            Assert.AreEqual(1f, root.DuckGain, 0.01f, "ending music untouched");
+            root.ClearRecords();
+            Ui(UiSoundKind.Click);
+            Assert.IsTrue(root.TryGetLastPlayed(AudioCue.UiClick, out var click));
+            Assert.AreEqual(lib.Find(AudioCue.UiClick).volume, click.Volume, 1e-4f, "no scenic duck on the ending card's buttons");
+
+            // Play again - even if the view's Off never arrives, the next run starts with normal levels
+            GameServices.Get<IGameFlow>().RestartGame();
+            yield return null;
+            Assert.AreEqual(DayPhase.Intro, GameServices.Get<IDayQuery>().Phase);
+            Assert.IsFalse(root.ScenicViewOn, "the ending's view does not carry over");
+            Assert.AreEqual(1f, root.SfxScale(false), 1e-5f);
+            yield return new WaitForSecondsRealtime(0.3f);
+            Assert.AreEqual(1f, root.DuckGain, 0.01f);
+
+            // the player's own scenic mode still lowers the SFX in the new run
+            Assert.IsTrue(GameServices.Get<IGameFlow>().BeginDay());
+            GameServices.Events.Publish(new ScenicViewChanged(true, false));
+            Assert.IsTrue(root.Scenic);
+            Assert.AreEqual(AudioRules.DbToLinear(lib.scenicSfxDb), root.SfxScale(false), 1e-5f, "V scenic mode ducks again");
+            GameServices.Events.Publish(new ScenicViewChanged(false, false));
+            Assert.AreEqual(1f, root.SfxScale(false), 1e-5f);
+        }
+
         [UnityTest]
         public IEnumerator EstablishingShot_LeavesLevels_WhooshesOnTheZoomIn()
         {

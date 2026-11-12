@@ -31,7 +31,8 @@ namespace FloorF.Audio
     /// UI feedback (UiSound) opens the gesture lock, plays while paused and is not title-scaled; taps go through a
     /// <see cref="TapGuard"/>. Scenic view (ScenicViewChanged): the player's scenic mode pauses the game but keeps the
     /// music/rain unducked and plays SFX <see cref="AudioLibrary.scenicSfxDb"/> lower; the day's establishing shot
-    /// leaves the levels alone and whooshes softly as it zooms back in.
+    /// leaves the levels alone and whooshes softly as it zooms back in; the ending's wide view (same event as the
+    /// player's mode, during DayPhase.Ending) leaves the levels alone too.
     /// Winter season (AudioRoot.Winter.cs, procedural clips from <see cref="WinterBank"/>): snow-day wind on its own voice,
     /// the Christmas Eve sleigh-bell layer synced to the elevator song, Santa / carolers / lottery / season cues.
     /// The AudioListener is on the scene's Main Camera.
@@ -151,8 +152,14 @@ namespace FloorF.Audio
             BellsResyncs = 0;
         }
 
-        /// <summary>The player's scenic mode is on (music not pause-ducked, SFX lowered).</summary>
-        internal bool Scenic => scenic;
+        /// <summary>
+        /// The player's scenic mode is on (music not pause-ducked, SFX lowered). Not on an ending: the ending scene reuses
+        /// the same wide view (ScenicViewChanged, not establishing) for the whole Ending, and that is no "look at the
+        /// city" pause - its music and SFX keep their levels (the player's own view there does not pause either).
+        /// </summary>
+        internal bool Scenic => scenic && phase != DayPhase.Ending;
+        /// <summary>Last ScenicViewChanged (not establishing) said On - also the ending's wide view.</summary>
+        internal bool ScenicViewOn => scenic;
         /// <summary>The day's establishing shot is on (levels untouched; its end whooshes).</summary>
         internal bool Establishing => establishing;
         /// <summary>UiSound(Tap)s dropped by the spam guard (since the last ClearRecords).</summary>
@@ -165,7 +172,7 @@ namespace FloorF.Audio
         }
         /// <summary>Current SFX level multiplier (title demo / scenic) for a game (ui = false) or UI sound.</summary>
         internal float SfxScale(bool ui)
-            => AudioRules.SfxScale(phase == DayPhase.Title, ui, scenic, lib.titleSfxScale, lib.scenicSfxDb);
+            => AudioRules.SfxScale(phase == DayPhase.Title, ui, Scenic, lib.titleSfxScale, lib.scenicSfxDb);
 
         /// <summary>The travel hum's own looping voice (never one of <see cref="SfxSources"/>).</summary>
         internal AudioSource HumSource => humSource;
@@ -368,6 +375,8 @@ namespace FloorF.Audio
             hum.Arrive(); // a new phase starts with the car parked (day start / end, title <-> game): fade the hum out
             if (phase != DayPhase.Running) held = false; // leaving Running always releases the coach-mark hold
             if (phase == DayPhase.Title) scenic = establishing = false; // back to the title: no scenic view survives
+            // leaving the ending (Play again / title): its wide view never carries over, even if its Off comes late or never
+            if (e.Previous == DayPhase.Ending && phase != DayPhase.Ending) scenic = false;
             if (phase == DayPhase.Ending && GameServices.TryGet<IDayQuery>(out var day)) ending = day.Ending;
             else if (phase != DayPhase.Ending) ending = EndingKind.None;
             SetMusic(AudioRules.MusicFor(phase, ending));
@@ -700,7 +709,7 @@ namespace FloorF.Audio
         void UpdateMusic(float now, float dt)
         {
             duck = Mathf.MoveTowards(duck,
-                AudioRules.DuckTarget(paused, held, scenic, lib.pauseDuckDb, lib.holdDuckDb, lib.scenicMusicDb), dt * 4f);
+                AudioRules.DuckTarget(paused, held, Scenic, lib.pauseDuckDb, lib.holdDuckDb, lib.scenicMusicDb), dt * 4f);
             basePitch = Mathf.MoveTowards(basePitch, spec.Pitch, dt * 0.5f);
             float pitch = basePitch * dip.Evaluate(now, lib.dipPitch, lib.dipDownSeconds, lib.dipUpSeconds);
             float fadeStep = dt / Mathf.Max(0.01f, lib.crossfadeSeconds);
