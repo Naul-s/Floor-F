@@ -156,7 +156,7 @@ namespace FloorF.UI
             {
                 var p = riders[i];
                 if (p == null) continue;
-                var v = p.Judge(occupancy);
+                var v = HeadcountRules.Judge(p, occupancy);
                 if (v == LuckVerdict.Unlucky) return LuckVerdict.Unlucky;
                 if (v == LuckVerdict.Lucky) lucky = true;
             }

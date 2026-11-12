@@ -385,7 +385,7 @@ namespace FloorF.Tests.EditMode.Content
             {
                 if (g.lucky.Any(n => n >= 1 && n <= data.Capacity))
                     Assert.IsNotNull(g.FindLine(GuestLineTriggers.LuckyOccupancy), g.id + ": lucky headcount possible but no line");
-                if (g.unlucky.Any(n => n >= 1 && n <= data.Capacity))
+                if (g.unlucky.Any(n => HeadcountRules.CanBeUnlucky(n) && n <= data.Capacity))
                     Assert.IsNotNull(g.FindLine(GuestLineTriggers.UnluckyOccupancy), g.id + ": unlucky headcount possible but no line");
             }
         }
@@ -402,7 +402,7 @@ namespace FloorF.Tests.EditMode.Content
                 var reachableLucky = g.lucky.Where(n => n <= data.Capacity).ToArray();
                 if (reachableLucky.Length > 0)
                     AssertAllName(g, GuestLineTriggers.LuckyOccupancy, reachableLucky, "lucky_occupancy line should name the headcount");
-                var reachableUnlucky = g.unlucky.Where(n => n <= data.Capacity).ToArray();
+                var reachableUnlucky = g.unlucky.Where(n => HeadcountRules.CanBeUnlucky(n) && n <= data.Capacity).ToArray();
                 if (reachableUnlucky.Length > 0)
                     AssertAllName(g, GuestLineTriggers.UnluckyOccupancy, reachableUnlucky, "unlucky_occupancy line should name the headcount");
             }

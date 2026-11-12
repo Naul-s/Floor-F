@@ -143,4 +143,24 @@ namespace FloorF.Core
 
         public override string ToString() => "lucky[" + Lucky + "] unlucky[" + Unlucky + "]";
     }
+
+    /// <summary>
+    /// GDD rule 2 (headcount when the doors close), with one exception: a pair is unavoidable (any shared ride, every
+    /// couple), so a headcount below <see cref="MinUnluckyHeadcount"/> is never unlucky. It can still be lucky.
+    /// Floor labels and ride distances are judged as before (the solo traveller still dislikes floor 2).
+    /// </summary>
+    public static class HeadcountRules
+    {
+        public const int MinUnluckyHeadcount = 3;
+
+        public static LuckVerdict Judge(LuckProfile profile, int headcount)
+        {
+            if (profile == null) return LuckVerdict.Neutral;
+            var v = profile.Judge(headcount);
+            return v == LuckVerdict.Unlucky && headcount < MinUnluckyHeadcount ? LuckVerdict.Neutral : v;
+        }
+
+        /// <summary>Can <paramref name="headcount"/> ever be an unlucky headcount (ignoring who rides)?</summary>
+        public static bool CanBeUnlucky(int headcount) => headcount >= MinUnluckyHeadcount;
+    }
 }

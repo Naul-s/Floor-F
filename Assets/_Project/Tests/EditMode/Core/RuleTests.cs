@@ -125,6 +125,34 @@ namespace FloorF.Tests.EditMode.Core
             Assert.AreEqual(50 - 4 * 5, sim.S.Score.Luck);
         }
 
+        /// <summary>A pair is unavoidable: headcount 2 is never unlucky (3 still is), floor 2 still is.</summary>
+        [Test]
+        public void DoorClose_TwoRiders_NeverUnlucky()
+        {
+            var sim = Running(d =>
+            {
+                var list = d.Guests.guests.ToList();
+                list.Add(new GuestDef { id = "pairhater", lucky = new[] { 1 }, unlucky = new[] { 2, 3 }, patienceSeconds = 1000f, baseTip = 10, partySize = 1, traits = new string[0], color = "#FFFFFF" });
+                d.Guests.guests = list.ToArray();
+            });
+            sim.Spawn("pairhater", 1, 6);
+            sim.Spawn("pairhater", 1, 6);
+            sim.Open();
+            Assert.AreEqual(2, sim.S.Elevator.Occupancy);
+            sim.Close();
+            Assert.IsFalse(sim.Events<LuckJudged>().Any(j => j.Source == LuckSource.Occupancy), "2 riders: no headcount verdict");
+            Assert.AreEqual(50, sim.S.Score.Luck);
+
+            sim.Spawn("pairhater", 1, 6);
+            sim.Open();
+            sim.Close();
+            Assert.AreEqual(3, sim.Events<LuckJudged>().Count(j => j.Source == LuckSource.Occupancy && j.Number == 3 && j.Verdict == LuckVerdict.Unlucky), "3 riders still judged");
+
+            Assert.AreEqual(LuckVerdict.Neutral, HeadcountRules.Judge(LuckProfile.Of(new int[0], new[] { 2 }), 2));
+            Assert.AreEqual(LuckVerdict.Lucky, HeadcountRules.Judge(LuckProfile.Of(new[] { 2 }, new int[0]), 2), "a lucky pair stays lucky");
+            Assert.AreEqual(LuckVerdict.Unlucky, HeadcountRules.Judge(LuckProfile.Of(new int[0], new[] { 4 }), 4));
+        }
+
         [Test]
         public void DoorReopen_SameFloorAndHeadcount_JudgedOnce()
         {

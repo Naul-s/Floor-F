@@ -814,7 +814,7 @@ namespace FloorF.Core
         void JudgeOccupancy(GuestRuntime g, int occupancy, FloorIndex floor)
         {
             if (!g.SeenOccupancies.Add(occupancy)) return;
-            var verdict = g.JudgeLuck.Judge(occupancy);
+            var verdict = HeadcountRules.Judge(g.JudgeLuck, occupancy);
             if (verdict == LuckVerdict.Lucky)
             {
                 dayLucky++;
@@ -823,7 +823,7 @@ namespace FloorF.Core
                 Score.AddLuck(rules.luckyOccupancyLuckBonus, LuckSource.Occupancy);
                 if (!g.OccupancyTipBonusApplied) { g.OccupancyTipBonusApplied = true; g.TipMultiplier *= rules.luckyOccupancyTipMultiplier; }
                 SetMood(g, g.Mood == GuestMood.Happy || g.Mood == GuestMood.Delighted ? GuestMood.Delighted : GuestMood.Happy);
-                if (!IsStarOverride(g.Luck.Judge(occupancy), verdict)) Speak(g, GuestLineTriggers.LuckyOccupancy);
+                if (!IsStarOverride(HeadcountRules.Judge(g.Luck, occupancy), verdict)) Speak(g, GuestLineTriggers.LuckyOccupancy);
             }
             else if (verdict == LuckVerdict.Unlucky)
             {

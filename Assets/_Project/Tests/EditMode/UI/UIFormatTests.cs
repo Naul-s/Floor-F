@@ -67,6 +67,8 @@ namespace FloorF.Tests.EditMode.UI
             Assert.AreEqual(LuckVerdict.Neutral, UIFormat.OccupancyPreview(5, riders, 3));
             Assert.AreEqual(LuckVerdict.Lucky, UIFormat.OccupancyPreview(7, riders, 2));
             Assert.AreEqual(LuckVerdict.Neutral, UIFormat.OccupancyPreview(3, riders, 0));
+            var solo = new[] { LuckProfile.Of(new[] { 1 }, new[] { 2 }), tourist };
+            Assert.AreEqual(LuckVerdict.Neutral, UIFormat.OccupancyPreview(2, solo, 2), "a pair is never an unlucky headcount");
         }
 
         [Test]
