@@ -342,7 +342,11 @@ namespace FloorF.UI
             bool attractUsed = menu.HandleAttractPress(press);
             bool used = attractUsed;
             // the ending scene's beat: any key / click brings the card - and does nothing else
-            if (!used && press.Any && flow.InEndingBeat && !ctx.Paused) { flow.SkipEndingBeat(); used = true; }
+            if (!used && press.Any && flow.InEndingBeat && !ctx.Paused)
+            {
+                if (flow.EndingBeatAge >= FlowScreensView.BeatSkipGrace) flow.SkipEndingBeat();
+                used = true; // too early: still swallowed, so it reaches nothing under the hidden card
+            }
             if (scenic.Tick(UIClock.UnscaledDt, used ? default : press)) used = true;
             if (!used && press.H && ctx.Phase == DayPhase.Running && !OnTitle && !ctx.Paused) hud.ToggleRules();
             // the offer only takes Enter once it has been on screen a moment: the Enter that closed the summary (same

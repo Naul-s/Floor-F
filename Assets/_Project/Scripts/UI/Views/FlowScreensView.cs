@@ -27,6 +27,9 @@ namespace FloorF.UI
         /// (1.5 s in, 7 s long, past the moon top-left).
         /// </summary>
         public const float EndingBeat = 5f, MiracleBeat = 8.5f, CardFadeIn = 0.4f;
+        /// <summary>A press this early in the beat cannot skip it: the Enter / click that closed the summary lands in
+        /// the same frame the Ending starts and used to skip the whole scene at once.</summary>
+        public const float BeatSkipGrace = 0.5f;
         public static float BeatFor(EndingKind k) => k == EndingKind.WinterMiracle ? MiracleBeat : EndingBeat;
         float beatAge = -1f, fadeAge = -1f;
         int enterHeldUntilFrame = -1;
