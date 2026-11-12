@@ -112,6 +112,19 @@ namespace FloorF.Tests.EditMode.Rendering
                 for (int l = 0; l < 5; l++) sum += LightSchedule.SignLetterLevel(seed, l, 5, t, friday13);
                 return sum / 5f;
             }, 900f, "HOTEL sign");
+            // TV windows: the window's on/off schedule (incl. its fluorescent start + drop-outs) times the hue changes,
+            // as absolute luminance of the TV blue - the picture changes never add a counted transition
+            var tvBlue = new Color(0.42f, 0.55f, 0.95f) * 0.7f;
+            for (int i = 0; i < 60; i++)
+            {
+                int index = i;
+                Check(t =>
+                {
+                    if (!LightSchedule.WindowLit(seed, index, t, ratio)) return 0f;
+                    var c = tvBlue * LightSchedule.TvTint(seed, index, t);
+                    return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
+                }, 900f, "TV window " + i);
+            }
             Check(t => B(LightSchedule.BulbPhase(t) == 0), 60f, "marquee bulbs");
             Check(t => B(LightSchedule.BeaconLit(t)), 60f, "beacon");
             Check(t => B(LightSchedule.StartFlicker(t)), 3f, "fluorescent start");

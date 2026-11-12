@@ -157,11 +157,18 @@ namespace FloorF.Rendering
         public static Color MoodMoon(float mood) => Color.Lerp(RenderingStyle.MoonColor, WinterMoon, mood);
         public static Color MoodSky(float mood) => Color.Lerp(RenderingStyle.Background, WinterSky, mood);
 
+        float snowBuiltTime = float.NaN, snowBuiltCalm;
+        int snowBuiltCount;
+        Rect snowBuiltHotel;
+        /// <summary>Snowfall mesh rebuilds so far (tests: none while the clock is frozen).</summary>
+        public int SnowRebuilds { get; private set; }
+
         void UpdateSnow(float time, CameraFrame frame)
         {
             int count = WinterSchedule.FlakeCount(SnowAmount);
             if (count == 0)
             {
+                snowBuiltTime = float.NaN;
                 if (snowQuads.Count > 0) { snowQuads.Clear(); snowQuads.Apply(snowMesh); }
                 SnowRenderer.enabled = false;
                 return;
@@ -169,6 +176,13 @@ namespace FloorF.Rendering
             Place(snowLayer, frame, SkyView.FxDepth);
             HotelPixels = HotelRect(frame);
             var hotel = HotelPixels;
+            // frozen clock (pause, the summary card) and the same view: the flakes have not moved - keep the mesh
+            if (time == snowBuiltTime && count == snowBuiltCount && Calm == snowBuiltCalm && hotel == snowBuiltHotel && SnowRenderer.enabled) return;
+            snowBuiltTime = time;
+            snowBuiltCount = count;
+            snowBuiltCalm = Calm;
+            snowBuiltHotel = hotel;
+            SnowRebuilds++;
             snowQuads.Clear();
             for (int i = 0; i < count; i++)
             {

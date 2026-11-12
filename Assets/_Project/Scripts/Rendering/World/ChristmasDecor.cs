@@ -516,7 +516,9 @@ namespace FloorF.Rendering
                 foreach (var sb in d.SignBoards)
                 {
                     if (sb.Text != "FORTUNE") continue;
-                    MerryXmas(p, Screen((sb.Screen.xMin + sb.Screen.xMax) * 0.5f, sb.Screen.yMin, sb.Z - 0.03f), sb.Z - 0.03f);
+                    // hung in front of the shop's star blade sign (z - 0.37): the wider board's last letter overlaps it
+                    float xz = sb.Z - XmasBoardOffset;
+                    MerryXmas(p, Screen((sb.Screen.xMin + sb.Screen.xMax) * 0.5f, sb.Screen.yMin, xz), xz);
                     XmasSign = sb.Screen;
                 }
             }
@@ -535,6 +537,9 @@ namespace FloorF.Rendering
             }
             CandleCount = candles;
         }
+
+        /// <summary>MERRY XMAS board in front of the FORTUNE wall (the blade sign beside it stands 0.36 out).</summary>
+        public const float XmasBoardOffset = 0.42f;
 
         int xmasRed = -1, xmasGreen = -1;
 

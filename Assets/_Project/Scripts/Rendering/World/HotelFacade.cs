@@ -102,6 +102,8 @@ namespace FloorF.Rendering
         public float CanopyRight { get; private set; }
         public float CanopyTop { get; private set; }
         public float CanopyFrontZ { get; private set; }
+        /// <summary>Centre of the roof chimney's mouth (the smoke rises from here).</summary>
+        public Vector3 ChimneyTop { get; private set; }
 
         public HotelFacade(Transform parent, RenderAssets assets, IWorldLayout layout, BuildingView building, PaletteAtlas atlas, LivingLights lights)
         {
@@ -234,6 +236,7 @@ namespace FloorF.Rendering
             lit.BoxMinMax(new Vector3(dishX - 0.2f, roof, -0.6f), new Vector3(dishX + 0.29f, roof + 0.08f, -0.2f), metal);
 
             float chimX = dishX + 0.6f;
+            ChimneyTop = new Vector3(chimX + 0.25f, roof + 1.15f, 1.25f);
             lit.BoxMinMax(new Vector3(chimX, roof, 1.0f), new Vector3(chimX + 0.5f, roof + 1.05f, 1.5f), brick);
             lit.BoxMinMax(new Vector3(chimX - 0.06f, roof + 1.05f, 0.94f), new Vector3(chimX + 0.56f, roof + 1.15f, 1.56f), trim);
             self.Flat(chimX + 0.08f, 1.08f, chimX + 0.42f, 1.42f, roof + 1.151f, atlas.Static(new Color(0.05f, 0.04f, 0.04f)));

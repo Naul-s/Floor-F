@@ -111,6 +111,34 @@ namespace FloorF.Rendering
         /// <summary>Marquee bulbs: two interleaved sets swap every <see cref="BulbStep"/> s (gentle chase).</summary>
         public static int BulbPhase(float time) => Mathf.FloorToInt(Mathf.Max(0f, time) / BulbStep) & 1;
 
+        /// <summary>Someone watching TV: the blue window changes its tint (the picture cuts) every <see cref="TvStep"/> s.</summary>
+        public const float TvStep = 0.45f;
+        /// <summary>Seconds of the soft blend from one TV tint to the next (never a hard cut).</summary>
+        public const float TvBlend = 0.15f;
+
+        /// <summary>
+        /// Tints multiplied onto the TV window's blue: blue, teal, lavender, pale - a change of HUE at almost the same
+        /// luminance (within ~0.06 of each other on the window's blue), so the picture lives without ever flashing.
+        /// </summary>
+        public static readonly Color[] TvTints =
+        {
+            new Color(1f, 1f, 1f), new Color(0.75f, 1.17f, 0.90f), new Color(1.24f, 0.94f, 1.00f), new Color(1.24f, 1.14f, 0.93f),
+        };
+
+        static Color TvTarget(int seed, int index, int k) => TvTints[Mathf.Min(TvTints.Length - 1, (int)(Hash(seed, index, 40, k) * TvTints.Length))];
+
+        /// <summary>
+        /// TV tint of window <paramref name="index"/>: a new hashed tint every <see cref="TvStep"/> s, blended over
+        /// <see cref="TvBlend"/> s (pure, seeded; PhotosensitivityTests).
+        /// </summary>
+        public static Color TvTint(int seed, int index, float time)
+        {
+            float t = Mathf.Max(0f, time) / TvStep + Hash(seed, index, 41, 0);
+            int k = Mathf.FloorToInt(t);
+            float u = (t - k) * TvStep / TvBlend;
+            return Color.Lerp(TvTarget(seed, index, k - 1), TvTarget(seed, index, k), Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(u)));
+        }
+
         /// <summary>Rooftop aircraft beacon: on 0.9 s every 2.4 s.</summary>
         public static bool BeaconLit(float time) => Mathf.Repeat(Mathf.Max(0f, time), 2.4f) < 0.9f;
     }
@@ -121,7 +149,8 @@ namespace FloorF.Rendering
     /// </summary>
     sealed class LivingLights
     {
-        public enum Kind { Window, Lamp, BulbA, BulbB, Beacon }
+        /// <summary>Tv = a window (same on/off schedule) whose blue light changes tint while lit (<see cref="LightSchedule.TvTint"/>).</summary>
+        public enum Kind { Window, Lamp, BulbA, BulbB, Beacon, Tv }
 
         struct Light
         {
@@ -146,6 +175,8 @@ namespace FloorF.Rendering
         public int Seed => seed;
         public int Count => lights.Count;
         public int WindowCount { get; private set; }
+        /// <summary>Windows with a TV on (a subset of <see cref="WindowCount"/>).</summary>
+        public int TvCount { get; private set; }
         /// <summary>Texel changes applied by Tick so far.</summary>
         public int Changes { get; private set; }
 
@@ -153,7 +184,8 @@ namespace FloorF.Rendering
         {
             int texel = atlas.Dynamic(on);
             lights.Add(new Light { Texel = texel, On = on, Off = off, OnRatio = onRatio, Kind = kind, Lit = true });
-            if (kind == Kind.Window) WindowCount++;
+            if (kind == Kind.Window || kind == Kind.Tv) WindowCount++;
+            if (kind == Kind.Tv) TvCount++;
             return texel;
         }
 
@@ -166,7 +198,7 @@ namespace FloorF.Rendering
             get
             {
                 int n = 0;
-                foreach (var l in lights) if (l.Kind == Kind.Window && l.Lit) n++;
+                foreach (var l in lights) if ((l.Kind == Kind.Window || l.Kind == Kind.Tv) && l.Lit) n++;
                 return n;
             }
         }
@@ -178,7 +210,8 @@ namespace FloorF.Rendering
                 case Kind.BulbA: return LightSchedule.BulbPhase(time) == 0;
                 case Kind.BulbB: return LightSchedule.BulbPhase(time) == 1;
                 case Kind.Beacon: return LightSchedule.BeaconLit(time);
-                case Kind.Window: return LightSchedule.WindowLit(seed, i, time, Eerie ? l.OnRatio * LightSchedule.EerieWindowFactor : l.OnRatio);
+                case Kind.Window:
+                case Kind.Tv: return LightSchedule.WindowLit(seed, i, time, Eerie ? l.OnRatio * LightSchedule.EerieWindowFactor : l.OnRatio);
                 default: return LightSchedule.WindowLit(seed, i, time, l.OnRatio);
             }
         }
@@ -192,11 +225,17 @@ namespace FloorF.Rendering
             {
                 var l = lights[i];
                 bool lit = Evaluate(i, l, time);
+                // a TV wavers while it is on (Set skips texels whose colour did not change)
+                if (l.Kind == Kind.Tv && lit && l.Lit && !first)
+                {
+                    atlas.Set(l.Texel, l.On * LightSchedule.TvTint(seed, i, time));
+                    continue;
+                }
                 if (lit == l.Lit && !first) continue;
                 if (lit != l.Lit) Changes++;
                 l.Lit = lit;
                 lights[i] = l;
-                atlas.Set(l.Texel, lit ? l.On : l.Off);
+                atlas.Set(l.Texel, lit ? (l.Kind == Kind.Tv ? l.On * LightSchedule.TvTint(seed, i, time) : l.On) : l.Off);
             }
             first = false;
         }
