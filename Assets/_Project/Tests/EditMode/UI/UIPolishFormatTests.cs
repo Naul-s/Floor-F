@@ -119,7 +119,7 @@ namespace FloorF.Tests.EditMode.UI
             var star = First(d => d.starNight);
             string s = Plain(DayTwist.Line(star, data, false));
             StringAssert.StartsWith("TODAY: " + StoryRules.StarNightNumber + " is LUCKY", s);
-            StringAssert.Contains("+" + data.Rules.wishLuckBonus + " Luck", s);
+            StringAssert.Contains("Luck +" + data.Rules.wishLuckBonus, s);
             StringAssert.Contains("7이 누구에게나", Plain(DayTwist.Line(star, data, true)));
 
             var wedding = First(d => Has(d, "chinese_wedding_party") && !d.starNight);
