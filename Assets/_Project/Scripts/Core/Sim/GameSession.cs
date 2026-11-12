@@ -744,7 +744,8 @@ namespace FloorF.Core
         void JudgeFloor(GuestRuntime g, FloorIndex floor, FloorLabel label)
         {
             if (!g.SeenFloors.Add(floor.Value)) return;
-            var verdict = LabelNumbers.Judge(g.JudgeLuck, label, out int number);
+            // a lucky-for-all whole number (star night 7, Christmas Eve 12) beats a feared digit ("12" vs an unlucky 2)
+            var verdict = LuckyForAllRules.JudgeLabel(g.JudgeLuck, label, out int number, IsStarNight, LuckyForAll);
             if (verdict == LuckVerdict.Lucky)
             {
                 dayLucky++;

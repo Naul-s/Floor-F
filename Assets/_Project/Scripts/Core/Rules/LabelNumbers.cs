@@ -87,6 +87,23 @@ namespace FloorF.Core
             foreach (var n in own.Unlucky) if (n != number) unlucky.Add(n);
             return new LuckProfile(NumberSet.From(lucky), NumberSet.From(unlucky));
         }
+
+        /// <summary>
+        /// Rule 1 on a night with lucky-for-all numbers: <see cref="LabelNumbers.Judge"/> with <paramref name="judging"/>
+        /// (the guest's numbers after <see cref="Apply"/>), except that a label whose WHOLE number is lucky for everyone
+        /// tonight (<paramref name="starNight"/>'s 7, <paramref name="luckyForAll"/>) is Lucky even when one of its digits
+        /// is the guest's own unlucky number: a "12" sticker on Christmas Eve is lucky for the solo traveller who fears 2.
+        /// </summary>
+        public static LuckVerdict JudgeLabel(LuckProfile judging, FloorLabel label, out int number, bool starNight, int luckyForAll)
+        {
+            var verdict = LabelNumbers.Judge(judging, label, out number);
+            if (verdict != LuckVerdict.Unlucky) return verdict;
+            int whole = LabelNumbers.PrimaryNumber(label);
+            bool forAll = whole > 0 && ((starNight && whole == StoryRules.StarNightNumber) || (luckyForAll > 0 && whole == luckyForAll));
+            if (!forAll) return verdict;
+            number = whole;
+            return LuckVerdict.Lucky;
+        }
     }
 
     /// <summary>Star-night luck: a guest's own numbers with <see cref="StoryRules.StarNightNumber"/> forced Lucky.</summary>
