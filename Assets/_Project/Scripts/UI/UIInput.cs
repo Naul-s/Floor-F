@@ -31,6 +31,7 @@ namespace FloorF.UI
             injected = default;
             hasInjected = false;
             blockedByUs = false;
+            spaceBlockedByUs = false;
         }
 
         /// <summary>Test hook: the next <see cref="Poll"/> also reports these presses.</summary>
@@ -88,9 +89,9 @@ namespace FloorF.UI
 
         // ------------------------------------------------------------------ Enter gate (Gameplay KeyboardInput)
 
-        static bool blockedByUs;
+        static bool blockedByUs, spaceBlockedByUs;
 
-        sealed class FlowGate : IUiFlowGate { public bool OwnsEnter => blockedByUs; }
+        sealed class FlowGate : IUiFlowGate { public bool OwnsEnter => blockedByUs; public bool OwnsSpace => spaceBlockedByUs; }
         static readonly FlowGate gate = new FlowGate();
 
         /// <summary>
@@ -102,6 +103,13 @@ namespace FloorF.UI
         {
             if (!GameServices.TryGet<IUiFlowGate>(out var g) || !ReferenceEquals(g, gate)) GameServices.Register<IUiFlowGate>(gate);
             blockedByUs = block;
+        }
+
+        /// <summary>While a coach card waits for "continue", Space only continues (never also opens / closes the doors).</summary>
+        public static void BlockFlowSpace(bool block)
+        {
+            if (!GameServices.TryGet<IUiFlowGate>(out var g) || !ReferenceEquals(g, gate)) GameServices.Register<IUiFlowGate>(gate);
+            spaceBlockedByUs = block;
         }
 
         /// <summary>Test hook: true when Enter advances the game flow (the UI does not own it right now).</summary>

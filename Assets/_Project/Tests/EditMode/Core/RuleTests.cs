@@ -125,6 +125,22 @@ namespace FloorF.Tests.EditMode.Core
             Assert.AreEqual(50 - 4 * 5, sim.S.Score.Luck);
         }
 
+        /// <summary>OPEN while the doors close under a requested floor keeps it lit: pressing that floor again re-arms the trip.</summary>
+        [Test]
+        public void ReopenWhileClosing_SameFloorAgain_Departs()
+        {
+            var sim = Running(d => d.Hotel.rules.doorSeconds = 0.5f);
+            sim.Open();
+            Assert.IsTrue(sim.S.RequestFloor(F(5)));
+            sim.RunUntil(() => sim.S.Elevator.Doors == DoorState.Closing);
+            Assert.IsTrue(sim.S.OpenDoors(), "OPEN while closing");
+            sim.RunUntil(() => sim.S.Elevator.Doors == DoorState.Open);
+            Assert.IsTrue(sim.S.Elevator.HasTarget, "floor 5 still lit");
+            Assert.IsTrue(sim.S.RequestFloor(F(5)), "pressing the lit floor again is accepted");
+            Assert.IsFalse(sim.S.RequestFloor(F(5)), "a third press while the close is pending is refused");
+            sim.RunUntil(() => sim.S.Elevator.CurrentFloor == F(5) && sim.S.Elevator.Motion == ElevatorMotion.Idle);
+        }
+
         /// <summary>A pair is unavoidable: headcount 2 is never unlucky (3 still is), floor 2 still is.</summary>
         [Test]
         public void DoorClose_TwoRiders_NeverUnlucky()

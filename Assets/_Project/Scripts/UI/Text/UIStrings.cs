@@ -70,8 +70,8 @@ namespace FloorF.UI
         public static readonly Loc TodayLottery = new Loc("{0} winning numbers are drawn tonight. Drop a guest on a floor showing the latest: tips x{1}, Luck +{2}!",
             "당첨 번호를 {0}번 뽑아요. 그 번호 층에 내려 주면 팁 x{1}, 운 +{2}!");
         /// <summary>Intro "TODAY:" line, Christmas Eve. {0} = DayDef.luckyForAll.</summary>
-        public static readonly Loc TodayLuckyForAll = new Loc("{0} is LUCKY for everyone - floor, head count or floors travelled.",
-            "{0:은} 누구에게나 행운 - 층 번호, 인원수, 이동한 층수 모두!");
+        public static readonly Loc TodayLuckyForAll = new Loc("{0} is LUCKY for everyone - on a floor sign or as floors travelled.",
+            "{0:은} 누구에게나 행운 - 층 번호도, 이동한 층수도!");
         /// <summary>Intro "TODAY:" line, a new guest's first day. {0} = name, {1} = lucky numbers, {2} = unlucky numbers.</summary>
         public static readonly Loc TodayNewGuest = new Loc("new guest - the {0} loves {1} and sulks at {2}.",
             "새 손님 {0} - {1:을} 좋아하고 {2:을} 싫어해요.");
@@ -227,7 +227,7 @@ namespace FloorF.UI
         public static readonly Loc EffectRelabelFrom = new Loc("Renumbers floor {1} to {0} for a day", "{1}층의 번호를 하루 동안 {0:로} 바꿈");
 
         // ---- day end: one-day purchases ran out (StickersExpired)
-        public static readonly Loc StickersExpired = new Loc("Stickers and charms wore off - the shop has new ones.", "스티커와 부적은 오늘로 끝 - 상점에 새 상품이 있어요.");
+        public static readonly Loc StickersExpired = new Loc("Stickers and charms wore off.", "스티커와 부적은 오늘로 끝.");
         public static readonly Loc StickersExpiredLabels = new Loc("Stickers wore off: every floor shows its real number again.", "스티커는 오늘로 끝: 모든 층이 원래 번호로 돌아갔어요.");
         public static readonly Loc CharmsExpired = new Loc("Charms wore off.", "부적은 오늘로 끝.");
 

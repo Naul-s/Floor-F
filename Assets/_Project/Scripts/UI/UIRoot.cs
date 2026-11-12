@@ -320,7 +320,20 @@ namespace FloorF.UI
             FadeHud(UIClock.UnscaledDt);
             // an open title card (CREDITS / ENDINGS / OPTIONS) keeps Enter from starting a game behind it
             // the ending card's "keep the hotel open" offer: Enter = that button, not the Gameplay PLAY AGAIN shortcut
-            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || (OnTitle && menu.TitleCardOpen) || scenic.HoldsEnter || flow.OwnsEnter || flow.HoldsEnter);
+            UIInput.BlockFlowEnter(menu.Attract || menu.Revealing || (OnTitle && menu.TitleCardOpen) || scenic.HoldsEnter || flow.OwnsEnter || flow.HoldsEnter || ShopJustOpened());
+            UIInput.BlockFlowSpace(tutorial.AwaitingContinue);
+        }
+
+        /// <summary>Enter tapped twice through the summary: the second press must not also close the shop it just opened
+        /// (the whole visit - and the 4 -> F sticker - lost).</summary>
+        public const float ShopEnterGrace = 0.6f;
+        float shopOpenedAt = -1f;
+
+        bool ShopJustOpened()
+        {
+            if (ctx.Phase != DayPhase.Shop) { shopOpenedAt = -1f; return false; }
+            if (shopOpenedAt < 0f) shopOpenedAt = Time.unscaledTime;
+            return Time.unscaledTime - shopOpenedAt < ShopEnterGrace;
         }
 
         void LateUpdate()
