@@ -445,6 +445,7 @@ namespace FloorF.Core
         /// <summary>Spawns <c>def.partySize</c> guests waiting at <paramref name="floor"/>. Returns the first id. (Tests call this directly.)</summary>
         internal GuestId SpawnParty(GuestDef def, FloorIndex floor, DestinationId dest, FloorIndex destFloor)
         {
+            if (def.HasTrait(GuestTraits.Mystery)) OnMysteryArrives(); // the pity counter resets when it really comes
             int size = Math.Max(1, def.partySize);
             var party = size > 1 ? new PartyId(nextPartyId++) : PartyId.None;
             GuestId first = GuestId.None;
@@ -744,7 +745,8 @@ namespace FloorF.Core
         void JudgeFloor(GuestRuntime g, FloorIndex floor, FloorLabel label)
         {
             if (!g.SeenFloors.Add(floor.Value)) return;
-            var verdict = LabelNumbers.Judge(g.JudgeLuck, label, out int number);
+            // a lucky-for-all whole number (star night 7, Christmas Eve 12) beats a feared digit ("12" vs an unlucky 2)
+            var verdict = LuckyForAllRules.JudgeLabel(g.JudgeLuck, label, out int number, IsStarNight, LuckyForAll);
             if (verdict == LuckVerdict.Lucky)
             {
                 dayLucky++;
@@ -1022,6 +1024,8 @@ namespace FloorF.Core
                     g.Floor = floor;
                     Elevator.AddRider(g);
                     bus.Publish(new GuestBoarded(g.Id, floor, Elevator.Occupancy));
+                    // picked up at last: an impatient guest stops stomping (patience does not run in the car)
+                    if (g.Mood == GuestMood.Impatient) SetMood(g, GuestMood.Neutral);
                     Speak(g, GuestLineTriggers.Board);
                 }
             }

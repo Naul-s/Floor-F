@@ -10,7 +10,7 @@ namespace FloorF.Gameplay
         Up = 1,
         /// <summary>S / Down arrow: one floor below.</summary>
         Down = 2,
-        /// <summary>Space: open if closed/closing, close if open/opening.</summary>
+        /// <summary>Space: open if closed/closing, close if open/opening (pressed again while that close waits: hold the doors).</summary>
         ToggleDoors = 3,
         /// <summary>Enter: advance the flow (Title -> new game, Intro -> Running, Summary -> Shop/next, Shop -> next day, Ending -> restart).</summary>
         Advance = 4,
@@ -61,9 +61,10 @@ namespace FloorF.Gameplay
                 }
                 case PlayerIntent.ToggleDoors:
                     if (!control.AcceptsInput) return false;
-                    return elevator.Doors == DoorState.Closed || elevator.Doors == DoorState.Closing
-                        ? control.OpenDoors()
-                        : control.CloseDoors();
+                    if (elevator.Doors == DoorState.Closed || elevator.Doors == DoorState.Closing) return control.OpenDoors();
+                    // open/opening: close - or, when a close is already pending (someone is still walking in), a second
+                    // press holds the doors again (OpenDoors cancels a pending close; refused while a floor is requested)
+                    return control.CloseDoors() || control.OpenDoors();
                 case PlayerIntent.Advance:
                     switch (day.Phase)
                     {

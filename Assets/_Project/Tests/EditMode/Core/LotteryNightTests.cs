@@ -316,6 +316,65 @@ namespace FloorF.Tests.EditMode.Core
             Assert.IsTrue(floor.All(e => e.Verdict == LuckVerdict.Lucky));
         }
 
+        /// <summary>
+        /// Bug (polish pass, found auditing Christmas Eve's data): the solo traveller fears 2, so the "12" sticker read
+        /// Unlucky through its digit 2 although tonight 12 is lucky for EVERYONE. The whole lucky-for-all number wins;
+        /// a label that only CONTAINS a feared digit without being the number ("2" itself, "21") is still feared.
+        /// </summary>
+        [Test]
+        public void LuckyForAll_WholeNumberLabel_BeatsAFearedDigit_NoOwnLine()
+        {
+            var sim = new Sim(SimFixture.Create(d =>
+            {
+                Talkers(d);
+                var list = d.Guests.guests.ToList();
+                list.Add(new GuestDef
+                {
+                    id = "hater2", lucky = new[] { 99 }, unlucky = new[] { 2 }, patienceSeconds = 1000f, baseTip = 10, partySize = 1,
+                    traits = new string[0], color = "#FFFFFF",
+                    lines = new[] { Line(GuestLineTriggers.LuckyFloor), Line(GuestLineTriggers.UnluckyFloor) },
+                });
+                d.Guests.guests = list.ToArray();
+                d.Days.days[0].luckyForAll = 12;
+            }));
+            sim.S.StartNewGame();
+            Assert.IsTrue(sim.S.BeginDay());
+            sim.S.Building.SetLabel(F(5), new FloorLabel("12"));
+            sim.S.Building.SetLabel(F(6), new FloorLabel("21"));
+            sim.Spawn("hater2", 1, 9);
+            sim.Open();
+            sim.Close();
+            sim.GoTo(5);
+            sim.Open();
+            var twelve = sim.Events<LuckJudged>().Single(e => e.Source == LuckSource.FloorLabel);
+            Assert.AreEqual(LuckVerdict.Lucky, twelve.Verdict, "12 is lucky for all tonight, its digit 2 does not count against it");
+            Assert.AreEqual(12, twelve.Number);
+            var said = sim.Events<GuestSpoke>().Select(e => e.LineTrigger).ToList();
+            CollectionAssert.DoesNotContain(said, GuestLineTriggers.UnluckyFloor);
+            CollectionAssert.DoesNotContain(said, GuestLineTriggers.LuckyFloor, "not their own number: no own-number line");
+            sim.Close();
+            sim.GoTo(6);
+            sim.Open();
+            var twentyOne = sim.Events<LuckJudged>().Where(e => e.Source == LuckSource.FloorLabel).Last();
+            Assert.AreEqual(LuckVerdict.Unlucky, twentyOne.Verdict, "21 is not tonight's number: the feared 2 still counts");
+            Assert.AreEqual(2, twentyOne.Number);
+        }
+
+        [Test]
+        public void LuckyForAllRules_JudgeLabel_StarNightSeven_AndPlainNights()
+        {
+            var fearsOne = LuckProfile.Of(new[] { 3 }, new[] { 1 });
+            var star = StarNightRules.Apply(fearsOne);
+            Assert.AreEqual(LuckVerdict.Unlucky, LuckyForAllRules.JudgeLabel(star, new FloorLabel("17"), out int n, true, 0), "17 is not 7");
+            Assert.AreEqual(1, n);
+            Assert.AreEqual(LuckVerdict.Lucky, LuckyForAllRules.JudgeLabel(star, new FloorLabel("7"), out n, true, 0));
+            Assert.AreEqual(7, n);
+            Assert.AreEqual(LuckVerdict.Unlucky, LuckyForAllRules.JudgeLabel(fearsOne, new FloorLabel("12"), out n, false, 0), "no lucky-for-all number: as LabelNumbers.Judge");
+            Assert.AreEqual(LuckVerdict.Lucky, LuckyForAllRules.JudgeLabel(LuckyForAllRules.Apply(fearsOne, 12), new FloorLabel("12"), out n, false, 12));
+            Assert.AreEqual(12, n);
+            Assert.AreEqual(LuckVerdict.Neutral, LuckyForAllRules.JudgeLabel(fearsOne, new FloorLabel("F"), out n, true, 12));
+        }
+
         [Test]
         public void NoLuckyForAll_OwnUnluckyStays()
         {

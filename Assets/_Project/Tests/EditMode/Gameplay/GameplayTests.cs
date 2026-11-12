@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FloorF.Core;
 using FloorF.Gameplay;
 using FloorF.Tests.EditMode.Core;
@@ -74,6 +75,59 @@ namespace FloorF.Tests.EditMode.Gameplay
             Assert.IsTrue(Press(s, KeyPress.W));
 
             Assert.IsFalse(PlayerCommands.Apply(PlayerIntent.TogglePause, s.Elevator, s, s.Building, s, s), "no menu: refused");
+        }
+
+        /// <summary>
+        /// Polish: Space pressed while the doors are open asks them to close, but they wait for the guest walking in. A
+        /// second Space in that moment did nothing; now it holds the doors open again (cancels the pending close).
+        /// </summary>
+        [Test]
+        public void Space_WhileACloseWaitsForAWalker_HoldsTheDoors()
+        {
+            var s = new GameSession(SimFixture.Create(d => d.Hotel.rules.boardSeconds = 1f), new EventBus(), new System.Random(1));
+            s.StartNewGame();
+            Assert.IsTrue(s.BeginDay());
+            s.SpawnGuest("plain", 1, 6);
+            s.SpawnGuest("plain", 1, 6);
+            Assert.IsTrue(Press(s, KeyPress.Space), "open");
+            s.Tick(0.5f); // the first guest is walking in
+            Assert.IsTrue(s.IsTransferring);
+            Assert.IsTrue(Press(s, KeyPress.Space), "close (after the walker)");
+            Assert.IsTrue(Press(s, KeyPress.Space), "again: hold the doors");
+            s.Tick(3f);
+            Assert.AreEqual(DoorState.Open, s.Elevator.Doors, "still open");
+            Assert.AreEqual(2, s.Elevator.Occupancy, "so the second guest boarded too");
+            Assert.IsTrue(Press(s, KeyPress.Space), "close");
+            s.Tick(1f);
+            Assert.AreEqual(DoorState.Closed, s.Elevator.Doors);
+
+            // with a floor requested the doors must close: a second Space cannot hold them
+            Assert.IsTrue(Press(s, KeyPress.Space));
+            s.Tick(0.1f);
+            Assert.IsTrue(Press(s, KeyPress.W), "request the next floor (closes the doors)");
+            Assert.IsFalse(Press(s, KeyPress.Space), "refused: the car is about to leave");
+        }
+
+        /// <summary>Polish: an impatient guest (foot stomping) calms down once picked up - patience does not run in the car.</summary>
+        [Test]
+        public void ImpatientGuest_CalmsDown_WhenItBoards()
+        {
+            var bus = new EventBus();
+            var s = new GameSession(SimFixture.Create(), bus, new System.Random(1));
+            var moods = new List<GuestMoodChanged>();
+            bus.Subscribe<GuestMoodChanged>(e => moods.Add(e));
+            s.StartNewGame();
+            Assert.IsTrue(s.BeginDay());
+            var g = s.SpawnGuest("impatient", 1, 6);
+            s.Tick(4f);
+            Assert.IsTrue(s.Guests.TryGet(g, out var waiting));
+            Assert.AreEqual(GuestMood.Impatient, waiting.Mood);
+            Assert.IsTrue(s.OpenDoors());
+            s.Tick(0.1f);
+            Assert.IsTrue(s.Guests.TryGet(g, out var riding));
+            Assert.AreEqual(GuestState.Riding, riding.State);
+            Assert.AreEqual(GuestMood.Neutral, riding.Mood);
+            Assert.AreEqual(GuestMood.Impatient, moods.Last().Previous);
         }
 
         [Test]

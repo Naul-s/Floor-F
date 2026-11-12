@@ -28,8 +28,9 @@ namespace FloorF.Core
     /// Mystery guest (spawns whose archetype has the mystery trait): whether it comes tonight is decided when such a day's
     /// Intro is entered (next day, new run, skipped tutorial, debug jump): never while <see cref="FinishedRuns"/> is 0,
     /// guaranteed once <see cref="MysteryMisses"/> &gt;= rules.mysteryPityRuns (&gt; 0), else random &lt; rules.mysteryChance.
-    /// Not tonight = that day's mystery spawns are skipped. The counter is settled at that day's BeginDay (came: misses 0,
-    /// did not: +1; the first run never counts). <see cref="FinishedRuns"/> +1 at a run's first EndingReached (the winter
+    /// Not tonight = that day's mystery spawns are skipped. The counter (the first run never counts): a night without it
+    /// = +1 at that day's BeginDay; the night it comes = 0 when it actually appears (RunHistoryChanged right before its
+    /// GuestSpawned) - a night it was due but the day ended first (Haunted, a quit to the title) keeps the pity. <see cref="FinishedRuns"/> +1 at a run's first EndingReached (the winter
     /// ending after an extension is the same run). Each change publishes RunHistoryChanged (the owner saves it).
     /// </summary>
     public sealed partial class GameSession : ISeasonQuery, ISeasonFlow, IRunHistory
@@ -135,13 +136,19 @@ namespace FloorF.Core
             mysteryTonight = random.NextDouble() < chance;
         }
 
-        /// <summary>BeginDay of an eligible night: settles the pity counter (not on the first run).</summary>
+        /// <summary>BeginDay of an eligible night without the mystery guest: one more miss (not on the first run).</summary>
         void SettleMysteryNight()
         {
-            if (onTitle || !HasMysterySpawn(dayDef) || finishedRuns <= 0) return;
-            int next = mysteryTonight ? 0 : mysteryMisses + 1;
-            if (next == mysteryMisses) return;
-            mysteryMisses = next;
+            if (onTitle || mysteryTonight || !HasMysterySpawn(dayDef) || finishedRuns <= 0) return;
+            mysteryMisses++;
+            PublishRunHistory();
+        }
+
+        /// <summary>The mystery guest is about to appear: the pity counter starts over (not on the first run / the demo).</summary>
+        void OnMysteryArrives()
+        {
+            if (onTitle || !mysteryTonight || finishedRuns <= 0 || mysteryMisses == 0) return;
+            mysteryMisses = 0;
             PublishRunHistory();
         }
 

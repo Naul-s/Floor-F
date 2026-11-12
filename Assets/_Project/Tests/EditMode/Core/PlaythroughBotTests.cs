@@ -208,6 +208,7 @@ namespace FloorF.Tests.EditMode.Core
                     bool tonight = s.MysteryTonight;
                     if (i == 0) Assert.IsFalse(tonight, "never on the first run");
                     Assert.IsTrue(s.BeginDay());
+                    if (tonight) Assert.IsFalse(s.DebugSpawnMystery().IsNone, "it appears (the pity resets when it really comes)");
                     Assert.IsTrue(s.DebugForceEnding(EndingKind.Modest));
                     if (tonight) { came++; if (first > N) first = i + 1; gap = 0; }
                     else if (i > 0) longestGap = Math.Max(longestGap, ++gap);

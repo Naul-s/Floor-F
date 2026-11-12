@@ -402,10 +402,12 @@ namespace FloorF.Core
             var label = building.GetLabel(floor);
             bool relabelled = building.IsRelabelled(floor);
             float score = 0f;
+            bool star = dayQuery != null && dayQuery.IsStarNight;
+            int all = seasonQuery != null ? seasonQuery.LuckyForAll : 0;
             foreach (var r in riders)
             {
                 if (seenFloors.TryGetValue(r.Id, out var seen) && seen.Contains(floor.Value)) continue;
-                var v = LabelNumbers.Judge(Judging(r), label, out _);
+                var v = LuckyForAllRules.JudgeLabel(Judging(r), label, out _, star, all);
                 if (v == LuckVerdict.Lucky) score += LabelLucky;
                 else if (v == LuckVerdict.Unlucky) score += LabelUnlucky;
                 if (relabelled && HasTrait(r, GuestTraits.Honest)) score += HonestRelabelled;
