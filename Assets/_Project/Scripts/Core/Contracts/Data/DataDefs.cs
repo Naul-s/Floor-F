@@ -205,6 +205,27 @@ namespace FloorF.Core
             foreach (var l in lines) if (l != null && string.Equals(l.trigger, trigger, StringComparison.OrdinalIgnoreCase)) return l;
             return null;
         }
+
+        /// <summary>Number of lines for a trigger (variants: the same trigger may appear more than once).</summary>
+        public int LineCount(string trigger)
+        {
+            if (lines == null) return 0;
+            int n = 0;
+            foreach (var l in lines) if (l != null && string.Equals(l.trigger, trigger, StringComparison.OrdinalIgnoreCase)) n++;
+            return n;
+        }
+
+        /// <summary>The <paramref name="pick"/>-th line for a trigger, wrapping (pick mod count); null when there is none.
+        /// FindLine(trigger) == FindLine(trigger, 0).</summary>
+        public GuestLineDef FindLine(string trigger, int pick)
+        {
+            int count = LineCount(trigger);
+            if (count == 0) return null;
+            int want = ((pick % count) + count) % count;
+            foreach (var l in lines)
+                if (l != null && string.Equals(l.trigger, trigger, StringComparison.OrdinalIgnoreCase) && want-- == 0) return l;
+            return null;
+        }
     }
 
     [Serializable]
