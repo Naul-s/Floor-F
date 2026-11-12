@@ -37,6 +37,7 @@ namespace FloorF.Rendering
         WinterView winter;
         ChristmasDecor christmas;
         LotteryView lottery;
+        ChimneySmoke smoke;
         ISeasonQuery season;
         Light moonLight;
         float appliedMood = -1f;
@@ -92,6 +93,7 @@ namespace FloorF.Rendering
         internal WinterView Winter => winter;
         internal ChristmasDecor Christmas => christmas;
         internal LotteryView Lottery => lottery;
+        internal ChimneySmoke Smoke => smoke;
         /// <summary>Wish stars freeze with the simulation: menu pause or the Day 0 coach-mark hold.</summary>
         internal bool IsSimHeld => IsPaused || eventHeld || (gameFlow != null && gameFlow.TutorialHold);
         /// <summary>Seconds of street/city time before the first frame (busy street, lights already mixed).</summary>
@@ -245,6 +247,7 @@ namespace FloorF.Rendering
             winter.Build();
             christmas = new ChristmasDecor(world, assets, layout, building, facade, winter.Atlas, lobby, RenderingStyle.CitySeed, city);
             lottery = new LotteryView(world, assets, layout, building, lobby);
+            smoke = new ChimneySmoke(world, assets, palette, facade.ChimneyTop, frame.PixelsPerUnit, RenderingStyle.CitySeed);
             ending.Winter = winter;
             ending.Christmas = christmas;
             TickWeather(StreetPrewarmSeconds);
@@ -339,6 +342,7 @@ namespace FloorF.Rendering
             christmas.Tick(time, s != null && s.IsChristmas, rig.Current.Grid);
             lottery.Tick(jdt, juiceTime, s);
             street.Snowy = winter.HeavyCover;
+            smoke.Tick(time, rig.Current, winter.Winter);
             ApplyMood(winter.Mood);
         }
 

@@ -268,7 +268,9 @@ namespace FloorF.Rendering
                 {
                     float hue = LightSchedule.Hash(RenderingStyle.CitySeed, x * 97 + y, 13, 0);
                     var on = WindowWarm[hue < 0.55f ? 0 : hue < 0.8f ? 1 : hue < 0.93f ? 2 : 3] * (back ? 0.8f : 1f);
-                    int texel = ledger.Take(() => lights.Add(LivingLights.Kind.Window, on, off, onRatio));
+                    // the blue ones are TVs: their light wavers softly while someone watches (LightSchedule.TvLevel)
+                    var kind = hue >= 0.93f ? LivingLights.Kind.Tv : LivingLights.Kind.Window;
+                    int texel = ledger.Take(() => lights.Add(kind, on, off, onRatio));
                     b.Front(WX(x, wz), WY(y, wz), WX(x + winW, wz), WY(y + 1, wz), wz, texel);
                     // near row: a 1-px sill under each window, a mullion splitting the wide ones
                     if (sill >= 0) b.Front(WX(x - px, wz - 0.002f), WY(y - px, wz - 0.002f), WX(x + winW + px, wz - 0.002f), WY(y, wz - 0.002f), wz - 0.002f, sill);
