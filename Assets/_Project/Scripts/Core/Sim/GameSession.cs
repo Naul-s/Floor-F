@@ -115,6 +115,8 @@ namespace FloorF.Core
 
         // ---- speech throttle: "archetype|trigger" -> day time it was last said
         readonly Dictionary<string, float> lastLineAt = new Dictionary<string, float>();
+        // ---- line variants: "archetype|trigger" -> lines said this run (picks the next variant; reset per run, not per day)
+        readonly Dictionary<string, int> lineTurn = new Dictionary<string, int>();
 
         public GameSession(GameData data, IEventBus bus, Random random)
         {
@@ -185,6 +187,7 @@ namespace FloorF.Core
                 Score.ResetForNewGame();
             }
             started = true;
+            lineTurn.Clear();
             ending = EndingKind.None;
             ResetSeason();
             lastSummary = default;
@@ -541,20 +544,26 @@ namespace FloorF.Core
             bus.Publish(new GuestMoodChanged(g.Id, prev, mood));
         }
 
-        /// <summary>Publishes the guest's line for <paramref name="trigger"/>; false when nothing was said (no line, not the speaker, throttled).</summary>
+        /// <summary>
+        /// Publishes the guest's line for <paramref name="trigger"/>; false when nothing was said (no line, not the speaker, throttled).
+        /// Variants (the same trigger more than once in guests.json) take turns per archetype+trigger: each line actually
+        /// said advances <see cref="lineTurn"/>, so a run cycles 0, 1, 2, 0 ... (deterministic, no RNG). One line = always it.
+        /// </summary>
         bool Speak(GuestRuntime g, string trigger)
         {
             if (!g.IsSpeaker) return false;
-            var line = g.Def.FindLine(trigger);
+            var key = g.Def.id + "|" + trigger;
+            lineTurn.TryGetValue(key, out int turn);
+            var line = g.Def.FindLine(trigger, turn);
             if (line == null) return false;
             var text = line.Get(UseKorean);
             if (string.IsNullOrEmpty(text)) return false;
             if (trigger != GuestLineTriggers.Special)
             {
-                var key = g.Def.id + "|" + trigger;
                 if (lastLineAt.TryGetValue(key, out var at) && elapsed - at < SameLineCooldownSeconds - 1e-4f) return false;
                 lastLineAt[key] = elapsed;
             }
+            lineTurn[key] = turn + 1;
             bus.Publish(new GuestSpoke(g.Id, trigger, text));
             return true;
         }
