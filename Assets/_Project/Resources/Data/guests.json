@@ -363,7 +363,6 @@
         { "trigger": "lucky_floor", "text": "A 1! Solo and proud.", "textKo": "1이다! 혼자라서 당당해요." },
         { "trigger": "unlucky_floor", "text": "A 2? Don't remind me.", "textKo": "2? 아픈 데 찌르지 마세요." },
         { "trigger": "lucky_occupancy", "text": "Just me - a ride for 1. Perfect.", "textKo": "저 혼자네요. 1인용, 완벽해요." },
-        { "trigger": "unlucky_occupancy", "text": "Two of us... feels like a date. Awkward.", "textKo": "둘이 타니까 꼭 데이트 같네요... 어색해." },
         { "trigger": "lucky_distance", "text": "1 floor or 11 - lonely numbers, lucky me!", "textKo": "한 층이든 열한 층이든, 외로운 1이 내 행운!" },
         { "trigger": "unlucky_distance", "text": "2 floors. Even the ride came in a pair.", "textKo": "두 층이라니. 층수까지 짝을 지었네." },
         { "trigger": "delivered", "text": "Thanks! I'll treat myself tonight.", "textKo": "고마워요! 오늘 밤엔 나한테 한턱 쏴야지." },

@@ -33,8 +33,9 @@ namespace FloorF.Gameplay
             else if (kb.upArrowKey.wasPressedThisFrame) Press(KeyPress.UpArrow);
             if (kb.sKey.wasPressedThisFrame) Press(KeyPress.S);
             else if (kb.downArrowKey.wasPressedThisFrame) Press(KeyPress.DownArrow);
-            if (kb.spaceKey.wasPressedThisFrame) Press(KeyPress.Space);
-            bool enter = AdvanceWithEnter && !(GameServices.TryGet<IUiFlowGate>(out var gate) && gate.OwnsEnter);
+            bool gated = GameServices.TryGet<IUiFlowGate>(out var gate);
+            if (kb.spaceKey.wasPressedThisFrame && !(gated && gate.OwnsSpace)) Press(KeyPress.Space);
+            bool enter = AdvanceWithEnter && !(gated && gate.OwnsEnter);
             if (enter && kb.enterKey.wasPressedThisFrame) Press(KeyPress.Enter);
             else if (enter && kb.numpadEnterKey.wasPressedThisFrame) Press(KeyPress.NumpadEnter);
         }

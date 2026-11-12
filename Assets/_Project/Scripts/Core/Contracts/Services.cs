@@ -108,6 +108,8 @@ namespace FloorF.Core
     public interface IUiFlowGate
     {
         bool OwnsEnter { get; }
+        /// <summary>Space belongs to the UI (a training-shift card waiting for "continue"): it must not also toggle the doors.</summary>
+        bool OwnsSpace { get; }
     }
 
     /// <summary>The building: floors, their CURRENT labels and destinations.</summary>

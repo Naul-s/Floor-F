@@ -427,7 +427,7 @@ namespace FloorF.Core
         float Headcount(GuestInfo g, int headcount)
         {
             if (seenHeadcounts.TryGetValue(g.Id, out var seen) && seen.Contains(headcount)) return 0f;
-            var v = Judging(g).Judge(headcount);
+            var v = HeadcountRules.Judge(Judging(g), headcount);
             return v == LuckVerdict.Lucky ? HeadcountLucky : v == LuckVerdict.Unlucky ? HeadcountUnlucky : 0f;
         }
     }
