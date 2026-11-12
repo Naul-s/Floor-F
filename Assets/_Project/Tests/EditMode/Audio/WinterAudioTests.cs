@@ -18,10 +18,11 @@ namespace FloorF.Tests.EditMode.Audio
             { AudioCue.SleighBells, AudioCue.CarolChime, AudioCue.LotteryDraw, AudioCue.LotteryJackpot, AudioCue.WinterStart };
 
         /// <summary>
-        /// The elevator song as played (AudioLevelProbe, AudioLibraryBuilder: max100ms -27.2 dBFS at musicVolume x track
-        /// volume). Its clip is Compressed In Memory, so GetData cannot read it here.
+        /// The elevator song as played (max100ms dBFS at musicVolume x track volume). Its clip is Compressed In Memory, so
+        /// GetData cannot read it here: AudioMixAudit decodes the stereo source and normalizes the mono downmix like the
+        /// importer (forceToMono) - -21.5, not the -27.2 of the raw source file (MixAuditTests checks it).
         /// </summary>
-        const float ElevatorPlayedDb = -27.2f;
+        internal const float ElevatorPlayedDb = -21.5f;
 
         static AudioLibrary LoadLibrary()
         {

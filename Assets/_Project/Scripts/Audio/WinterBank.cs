@@ -15,27 +15,31 @@ namespace FloorF.Audio
     static class WinterBank
     {
         // As played (max100ms dBFS). References (AudioLibraryBuilder): ding -17.8, door -17.7, Lucky twinkle -24.8,
-        // wish chime -18.5, charm bell -20.1, shield chime -18.7, wish-star shimmer -23.2, music max100ms -27.2.
-        /// <summary>Santa's sleigh shake: bright and busy - a little under the wish-star shimmer.</summary>
-        public const float SleighDb = -24f;
+        // wish chime -18.5, charm bell -20.1, shield chime -18.7, wish-star shimmer -23.2. The elevator song plays at
+        // max100ms -21.5 (NOT the -27.2 the builder notes: that was the stereo source file; the imported clip is its
+        // normalized mono downmix, +5.7 dB). The targets below were checked by ear-proxy with AudioMixAudit (K-weighted,
+        // "LUFS-ish", MixAuditTests): each winter cue against the existing cue it sits next to.
+        /// <summary>Santa's sleigh shake: bright and busy - ~1 LU under the wish-star shimmer (momentary).</summary>
+        public const float SleighDb = -26f;
         /// <summary>Carolers' handbells: like the charm bell.</summary>
         public const float CarolDb = -21f;
         /// <summary>Lottery reveal (roll + ding): the event of the night - just under the arrival ding.</summary>
         public const float LotteryDrawDb = -19.5f;
-        /// <summary>Jackpot: flashier than a tip, as loud as the ding (it plays before that guest's tip).</summary>
-        public const float JackpotDb = -18f;
+        /// <summary>Jackpot: flashier than a tip, as loud as the ding (momentary; it plays before that guest's tip).</summary>
+        public const float JackpotDb = -19f;
         /// <summary>Winter-season stinger on the ending screen: like the wish chime.</summary>
         public const float WinterStartDb = -19f;
         /// <summary>Winter wind at full snow, rms (dBFS) as played: a breath under the rain bed (-38.3), far under the music.</summary>
         public const float WindRmsDb = -40f;
-        /// <summary>Christmas bell layer (max100ms as played at full music level): ~9 dB under the song it rides on.</summary>
-        public const float BellsLayerDb = -36.5f;
+        /// <summary>Christmas bell layer (max100ms as played at full music level): ~9 LU under the song it rides on (short-term).</summary>
+        public const float BellsLayerDb = -33.5f;
         /// <summary>
-        /// Ending tracks, max100ms as played (file x musicVolume x track volume): the warm bells sit with the elevator
-        /// song (-27.2); the music box is a "silent night" - softer.
+        /// Ending tracks, max100ms as played (file x musicVolume x track volume). The warm bells are peakier than the dense
+        /// elevator song: at -21 they match it (and the Prosperous ending) in integrated loudness; the music box is a
+        /// "silent night" - ~3 LU softer, like the Modest ending.
         /// </summary>
-        public const float MiracleTrackDb = -27f;
-        public const float MusicBoxTrackDb = -30f;
+        public const float MiracleTrackDb = -21f;
+        public const float MusicBoxTrackDb = -25f;
         /// <summary>The music bus level the track volumes are computed for (AudioLibraryBuilder sets musicVolume 0.45).</summary>
         public const float AssumedMusicBus = 0.45f;
 
