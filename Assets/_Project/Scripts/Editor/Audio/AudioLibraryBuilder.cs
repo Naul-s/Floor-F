@@ -212,8 +212,11 @@ namespace FloorF.EditorTools
                 new TrackDef { track = MusicTrack.Elevator, clip = C(FS + "659889__blondpanda__short-elevator-music-loop.wav"), volume = 0.45f, seamFade = 0.12f },
                 // mp3 -> Vorbis keeps the encoder padding at the loop point: fade 0.3 s each side to hide the click/gap
                 new TrackDef { track = MusicTrack.ShopLoop, clip = C(KM + "Local Forecast - Elevator.mp3"), volume = 1f, seamFade = 0.3f },
-                // mystery loop is ~10 dB hotter than the rest (rms -14.3): 0.6 -> rms -25.6, a step up for the ending, not a jump
-                new TrackDef { track = MusicTrack.Mystery, clip = C(FS + "665215__danlucaz__mystery-loop-3.wav"), volume = 0.6f, seamFade = 0f },
+                // mystery loop is ~10 dB hotter than the rest (rms -14.3): 0.6 -> rms -25.6, a step up for the ending, not a jump.
+                // Its loop point steps +5.9 dB (quiet tail -> loud head, AudioMixAudit) on a DC offset (~-23 dBFS in the
+                // file; only Vorbis-compressed samples at runtime, so it cannot be removed without editing the file):
+                // a short 0.15 s fade each side turns both into a smooth dip instead of a bump/thump.
+                new TrackDef { track = MusicTrack.Mystery, clip = C(FS + "665215__danlucaz__mystery-loop-3.wav"), volume = 0.6f, seamFade = 0.15f },
             };
             lib.musicVolume = 0.45f;
             lib.pauseDuckDb = -12f;

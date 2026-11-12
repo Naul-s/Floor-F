@@ -75,6 +75,30 @@ namespace FloorF.Tests.EditMode.Audio
             }
         }
 
+        /// <summary>
+        /// Imported music loops whose loop point steps (sample click, a level jump - e.g. the mystery loop's +5.9 dB - or
+        /// sits on a DC offset) get the game's seam fade (AudioRules.SeamGain). The procedural winter loops start on a
+        /// note by design and are wrapped seamlessly (no fade, checked above).
+        /// </summary>
+        [Test]
+        public void ImportedMusicLoops_WithASteppedSeam_AreFaded()
+        {
+            int checkedLoops = 0;
+            foreach (var r in rows)
+            {
+                if (!r.Loop || (r.Group != "music" && r.Group != "ending") || string.IsNullOrEmpty(r.Path)) continue;
+                checkedLoops++;
+                var f = r.File;
+                bool stepped = f.SeamRatio > 1.5f || Mathf.Abs(f.SeamJumpDb) > 3f || f.DcDb > -50f;
+                if (stepped) Assert.GreaterOrEqual(r.SeamFade, 0.1f, r.Group + "/" + r.Name + ": stepped seam must be faded");
+            }
+            Assert.Greater(checkedLoops, 3);
+            var mystery = AudioMixAudit.Find(rows, "ending", "Haunted");
+            Assert.IsNotNull(mystery);
+            Assert.Greater(Mathf.Abs(mystery.File.SeamJumpDb), 3f, "the mystery loop's seam steps (why it is faded)");
+            Assert.That(mystery.SeamFade, Is.InRange(0.1f, 0.3f), "short fade: a dip, not a gap");
+        }
+
         [Test]
         public void WinterCues_AsLoudAsTheirNeighbours()
         {

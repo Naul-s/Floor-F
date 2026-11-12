@@ -264,7 +264,7 @@ MonoBehaviour:
   - track: 3
     clip: {fileID: 8300000, guid: a5217015b78f465a85fb7c5c2f466244, type: 3}
     volume: 0.6
-    seamFade: 0
+    seamFade: 0.15
   musicVolume: 0.45
   pauseDuckDb: -12
   holdDuckDb: -6
