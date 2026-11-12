@@ -15,18 +15,18 @@
       "color": "#C9A0DC",
       "accessory": "perm_hair",
       "lines": [
-        { "trigger": "spawn", "text": "Anywhere but the 4th floor, dear!", "textKo": "4층만 빼고, 아무 데나!" },
+        { "trigger": "spawn", "text": "Anywhere but the 4th floor, dear!", "textKo": "4층만 빼고 아무 데나 가자!" },
         { "trigger": "board", "text": "The doors count us when they close. Three is lucky!", "textKo": "문 닫힐 때 몇 명인지 세는 거야. 셋이면 좋지!" },
         { "trigger": "lucky_floor", "text": "Three! Third time's the charm.", "textKo": "3층이네! 삼세판이지~" },
         { "trigger": "unlucky_floor", "text": "Aigoo! Four - 'sa' sounds like death!", "textKo": "아이고! 4(사)는 죽을 사(死)야!" },
         { "trigger": "lucky_occupancy", "text": "Three of us! Lucky, lucky.", "textKo": "셋이네! 좋다 좋아." },
         { "trigger": "unlucky_occupancy", "text": "Four of us? 'Sa'... someone get off!", "textKo": "넷이라니? 사(死)야... 누가 좀 내려!" },
-        { "trigger": "lucky_distance", "text": "Three floors exactly - third time's the charm!", "textKo": "딱 세 층 탔네! 삼세판이지~" },
+        { "trigger": "lucky_distance", "text": "Three floors exactly - good things come in threes!", "textKo": "딱 세 층 왔네! 역시 삼세번이야~" },
         { "trigger": "unlucky_distance", "text": "Four floors?! Even the ride says 'sa' - death!", "textKo": "네 층이나 탔어?! 타는 것까지 사(死)라니!" },
-        { "trigger": "delivered", "text": "Thank you, young one.", "textKo": "고마워요, 젊은이." },
+        { "trigger": "delivered", "text": "Thank you, young one.", "textKo": "고맙네, 젊은이." },
         { "trigger": "impatient", "text": "My knees, dear... is it coming?", "textKo": "아이고 무릎이야... 언제 와?" },
         { "trigger": "left", "text": "I'll take the stairs. Slowly.", "textKo": "계단으로 갈란다. 천천히." },
-        { "trigger": "relabelled", "text": "New numbers? My mother always said: hide the 4 and death can't find you.", "textKo": "숫자를 바꿨네? 우리 엄마가 그랬지, 4를 가리면 죽음도 못 찾아온다고." }
+        { "trigger": "relabelled", "text": "New numbers? My mother always said: hide the 4 and death can't find you.", "textKo": "숫자를 바꿨네? 우리 어머니가 그러셨지. 4를 가리면 저승사자도 못 찾아온다고." }
       ]
     },
     {
@@ -48,11 +48,11 @@
         { "trigger": "board", "text": "Room for eight? An excellent sign.", "textKo": "정원 8명? 아주 좋은 징조요." },
         { "trigger": "lucky_floor", "text": "Eight for fortune, nine for long life!", "textKo": "8은 돈(發), 9는 장수(久)! 좋소!" },
         { "trigger": "unlucky_floor", "text": "Four?! 'Si' sounds like death! Bad for business!", "textKo": "4?! 쓰(四)는 죽을 사(死)요! 사업 망하오!" },
-        { "trigger": "lucky_occupancy", "text": "Eight of us - full car, full wallet!", "textKo": "여덟 명! 꽉 찬 차, 꽉 찬 지갑!" },
-        { "trigger": "unlucky_occupancy", "text": "Four passengers? Terrible numbers!", "textKo": "네 명? 숫자가 최악이오!" },
-        { "trigger": "lucky_distance", "text": "Eight floors - 'fa', fortune all the way up!", "textKo": "여덟 층! 발(發), 오는 내내 돈복이오!" },
+        { "trigger": "lucky_occupancy", "text": "Eight of us - full car, full wallet!", "textKo": "여덟 명이오! 엘리베이터도 꽉, 지갑도 두둑!" },
+        { "trigger": "unlucky_occupancy", "text": "Four passengers? 'Si' - terrible for business!", "textKo": "네 명? 쓰(四)... 장사에 최악이오!" },
+        { "trigger": "lucky_distance", "text": "Eight or nine floors - fortune and long life all the way!", "textKo": "여덟이든 아홉이든! 재물에 장수까지, 좋소!" },
         { "trigger": "unlucky_distance", "text": "Four floors? 'Si' - a deadly journey!", "textKo": "네 층? 쓰(四)... 죽음의 여정이오!" },
-        { "trigger": "delivered", "text": "Good service. A lucky tip for you.", "textKo": "서비스 좋군. 행운의 팁이오." },
+        { "trigger": "delivered", "text": "Good service. A lucky tip for you.", "textKo": "서비스 좋구려. 행운의 팁이오." },
         { "trigger": "impatient", "text": "Time is money!", "textKo": "시간이 돈이오!" },
         { "trigger": "left", "text": "Too slow! I take my business elsewhere.", "textKo": "너무 느리오! 딴 데로 가겠소." },
         { "trigger": "relabelled", "text": "New numbers? A good number is good business.", "textKo": "번호를 바꿨소? 좋은 숫자가 곧 좋은 장사요." }
@@ -76,15 +76,15 @@
         { "trigger": "spawn", "text": "Hi! Is this the elevator?", "textKo": "안녕하세요! 여기 엘리베이터 맞죠?" },
         { "trigger": "board", "text": "Whoa, an elevator operator! So retro.", "textKo": "와, 엘리베이터 안내원! 완전 레트로!" },
         { "trigger": "lucky_floor", "text": "Seven! Lucky seven, baby!", "textKo": "7층! 럭키 세븐!" },
-        { "trigger": "unlucky_floor", "text": "Yikes. This floor gives me 13th-floor vibes.", "textKo": "으, 이 층 13층 같은 느낌이야." },
-        { "trigger": "lucky_occupancy", "text": "Seven of us - jackpot!", "textKo": "일곱 명이다, 잭팟!" },
+        { "trigger": "unlucky_floor", "text": "Floor 13?! Back home, lots of buildings skip it!", "textKo": "13층?! 우리 나라엔 13층을 아예 빼는 건물도 많아요!" },
+        { "trigger": "lucky_occupancy", "text": "Seven of us - jackpot!", "textKo": "일곱 명이네요, 잭팟!" },
         { "trigger": "unlucky_occupancy", "text": "Bit of a crowd, huh?", "textKo": "좀 붐비네요?" },
-        { "trigger": "lucky_distance", "text": "Seven floors on the dot - lucky seven ride!", "textKo": "딱 일곱 층! 럭키 세븐 드라이브!" },
-        { "trigger": "unlucky_distance", "text": "13 floors?! Worst. Ride. Ever.", "textKo": "열세 층이나?! 13이라니, 최악의 탑승!" },
+        { "trigger": "lucky_distance", "text": "Seven floors on the dot - lucky seven!", "textKo": "딱 일곱 층! 럭키 세븐이에요!" },
+        { "trigger": "unlucky_distance", "text": "13 floors?! Worst. Ride. Ever.", "textKo": "열세 층이나?! 13이라니, 최악이에요!" },
         { "trigger": "delivered", "text": "Awesome! Five stars!", "textKo": "최고! 별 다섯 개!" },
         { "trigger": "impatient", "text": "Uh, hello? Anybody driving this thing?", "textKo": "저기요? 운전하는 사람 있어요?" },
         { "trigger": "left", "text": "Guess I'll get my steps in.", "textKo": "운동 삼아 계단 타지 뭐." },
-        { "trigger": "relabelled", "text": "Ha! You can just... stick a new number on?", "textKo": "하! 숫자를 그냥 붙여서 바꿔요?" }
+        { "trigger": "relabelled", "text": "Ha! You can just... stick a new number on?", "textKo": "와! 숫자를 그냥... 스티커로 바꿔요?" }
       ]
     },
     {
@@ -107,9 +107,9 @@
         { "trigger": "lucky_floor", "text": "Seven! Like the Seven Lucky Gods!", "textKo": "7층! 칠복신처럼 좋아요!" },
         { "trigger": "unlucky_floor", "text": "Four is 'shi', nine is 'ku'... death and suffering!", "textKo": "4는 시(死), 9는 쿠(苦)... 죽음과 괴로움이에요!" },
         { "trigger": "lucky_occupancy", "text": "Seven of us? What a blessing!", "textKo": "일곱 명? 축복이네요!" },
-        { "trigger": "unlucky_occupancy", "text": "Four people? 'Shi'... let's not.", "textKo": "넷이서? 시(死)... 좀 그런데." },
+        { "trigger": "unlucky_occupancy", "text": "Four people? 'Shi'... let's not.", "textKo": "넷이요? 시(死)... 좀 꺼려지네요." },
         { "trigger": "lucky_distance", "text": "Seven floors together - the Seven Lucky Gods smile!", "textKo": "둘이서 일곱 층! 칠복신이 웃어 주네요!" },
-        { "trigger": "unlucky_distance", "text": "Four... no, nine floors? 'Shi', 'ku' - even the ride!", "textKo": "네 층... 아홉 층? 시(死), 쿠(苦)... 타는 것까지!" },
+        { "trigger": "unlucky_distance", "text": "Four or nine floors - 'shi' or 'ku', either way it's cursed!", "textKo": "네 층이든 아홉 층이든, 시(死) 아니면 쿠(苦)... 불길해요!" },
         { "trigger": "delivered", "text": "Arigatou! A perfect honeymoon.", "textKo": "아리가토! 완벽한 신혼여행이에요." },
         { "trigger": "impatient", "text": "Darling, are we waiting forever?", "textKo": "여보, 언제까지 기다려?" },
         { "trigger": "left", "text": "Let's take the stairs... together.", "textKo": "계단으로 가자... 같이." },
@@ -131,15 +131,15 @@
       "color": "#2E8B57",
       "accessory": "visor",
       "lines": [
-        { "trigger": "spawn", "text": "Casino, please. Seven is my number tonight.", "textKo": "카지노로요. 오늘 밤은 7이 내 숫자야." },
+        { "trigger": "spawn", "text": "Casino, please. Seven is my number tonight.", "textKo": "카지노로 부탁해요. 오늘 밤 내 숫자는 7이거든요." },
         { "trigger": "board", "text": "Lucky seven. I can feel it.", "textKo": "럭키 세븐. 느낌 온다." },
         { "trigger": "lucky_floor", "text": "Seven! Let it ride!", "textKo": "7층! 올인이다!" },
         { "trigger": "unlucky_floor", "text": "Bad omen. Doubling down anyway.", "textKo": "불길한데. 그래도 판돈 두 배." },
         { "trigger": "lucky_occupancy", "text": "Lucky seven! Jackpot!", "textKo": "럭키 세븐! 잭팟!" },
         { "trigger": "unlucky_occupancy", "text": "Wrong count. The dice hate me.", "textKo": "인원이 틀렸어. 주사위가 날 싫어해." },
-        { "trigger": "lucky_distance", "text": "Seven floors. Lucky seven - the house pays out!", "textKo": "일곱 층. 럭키 세븐, 하우스가 돈을 낸다!" },
-        { "trigger": "delivered", "text": "House always wins? Not tonight.", "textKo": "하우스가 늘 이긴다고? 오늘은 아니지." },
-        { "trigger": "impatient", "text": "Come on, seven... come on...", "textKo": "제발, 일곱... 제발..." },
+        { "trigger": "lucky_distance", "text": "Seven floors. Lucky seven - the house pays out!", "textKo": "일곱 층. 럭키 세븐, 오늘은 카지노가 돈을 토해 낸다!" },
+        { "trigger": "delivered", "text": "The house always wins? Not tonight.", "textKo": "카지노가 늘 이긴다고? 오늘 밤은 아니지." },
+        { "trigger": "impatient", "text": "Come on, seven... come on...", "textKo": "제발, 7... 제발..." },
         { "trigger": "left", "text": "Cold streak. I'm out.", "textKo": "운이 안 따르네. 접는다." },
         { "trigger": "relabelled", "text": "New number, new odds. I like it.", "textKo": "번호가 바뀌면 확률도 바뀌지. 좋아." }
       ]
@@ -165,7 +165,7 @@
         { "trigger": "unlucky_floor", "text": "This floor does not add up.", "textKo": "이 층은 계산이 안 맞네요." },
         { "trigger": "lucky_occupancy", "text": "Six aboard. The books balance.", "textKo": "여섯 명. 장부가 딱 맞네요." },
         { "trigger": "unlucky_occupancy", "text": "That headcount is a rounding error.", "textKo": "그 인원수는 반올림 오류예요." },
-        { "trigger": "lucky_distance", "text": "Six floors, to the floor. 'Liu liu da shun.'", "textKo": "정확히 여섯 층. 육육대순이죠." },
+        { "trigger": "lucky_distance", "text": "Exactly six floors. 'Liu liu da shun' - smooth!", "textKo": "정확히 여섯 층. 육육대순이죠." },
         { "trigger": "delivered", "text": "Correct floor, correct number. Thank you.", "textKo": "정확한 층, 정확한 번호. 감사합니다." },
         { "trigger": "impatient", "text": "I am billing you for this wait.", "textKo": "기다린 시간, 청구하겠습니다." },
         { "trigger": "left", "text": "Inefficient. Noted.", "textKo": "비효율적이군요. 기록해 두죠." },
@@ -187,18 +187,18 @@
       "color": "#4B2C6F",
       "accessory": "collar",
       "lines": [
-        { "trigger": "spawn", "text": "Bless you, child. Keep me far from the sixes.", "textKo": "축복을 빌어요. 6만은 멀리해 주시게." },
+        { "trigger": "spawn", "text": "Bless you, child. Keep me far from the sixes.", "textKo": "축복을 비네. 6만은 멀리해 주게." },
         { "trigger": "board", "text": "Six, six, six is the number of the Beast. Mind every six.", "textKo": "육, 육, 육은 짐승의 수라네. 6이란 6은 다 조심하게." },
-        { "trigger": "lucky_floor", "text": "Seven - the day the Lord rested. Blessed!", "textKo": "7층, 주님께서 쉬신 일곱째 날이로다. 축복이야!" },
-        { "trigger": "unlucky_floor", "text": "Six! Six, six, six - the mark of the Beast!", "textKo": "6층! 육육육, 짐승의 표다!" },
-        { "trigger": "lucky_occupancy", "text": "Seven souls aboard. A holy number.", "textKo": "일곱 영혼이 함께로다. 거룩한 숫자야." },
+        { "trigger": "lucky_floor", "text": "Seven - the day the Lord rested. Blessed!", "textKo": "7층이라, 주님께서 쉬신 일곱째 날이로군. 축복일세!" },
+        { "trigger": "unlucky_floor", "text": "Six! Six, six, six - the number of the Beast!", "textKo": "6층이라니! 육육육, 짐승의 수로다!" },
+        { "trigger": "lucky_occupancy", "text": "Seven souls aboard. A holy number.", "textKo": "일곱 영혼이 함께 탔군. 거룩한 숫자일세." },
         { "trigger": "unlucky_occupancy", "text": "Six of us? Pray it never becomes six-six-six!", "textKo": "여섯 명이라니? 육육육이 되지 않게 기도하게!" },
-        { "trigger": "lucky_distance", "text": "Seven floors - complete, like the seven days of creation.", "textKo": "일곱 층. 천지창조의 칠 일처럼 완전한 여정이로다." },
+        { "trigger": "lucky_distance", "text": "Seven floors - complete, like the seven days of creation.", "textKo": "일곱 층이라. 천지창조의 칠 일처럼 온전한 여정일세." },
         { "trigger": "unlucky_distance", "text": "Six floors?! Six, six, six - the Beast rode with us!", "textKo": "여섯 층이라니?! 육육육, 짐승이 함께 탔구나!" },
-        { "trigger": "delivered", "text": "Go in peace, my child.", "textKo": "평화가 함께하길, 젊은이." },
+        { "trigger": "delivered", "text": "Go in peace, my child.", "textKo": "평안히 가게나, 젊은이." },
         { "trigger": "impatient", "text": "Patience is a virtue... mine is being tested.", "textKo": "인내는 미덕이라지만... 시험에 들고 있네." },
         { "trigger": "left", "text": "I shall climb toward heaven by the stairs.", "textKo": "계단으로 천국을 향해 오르겠네." },
-        { "trigger": "relabelled", "text": "Painting over a number does not cast out the devil.", "textKo": "숫자를 덧칠한다고 악마가 쫓겨나진 않는다네." }
+        { "trigger": "relabelled", "text": "Covering a number does not cast out the devil.", "textKo": "숫자를 가린다고 악마가 쫓겨나진 않는다네." }
       ]
     },
     {
@@ -219,12 +219,12 @@
         { "trigger": "spawn", "text": "Ciao! Anything but 17, eh?", "textKo": "차오! 17만 아니면 돼, 응?" },
         { "trigger": "board", "text": "In Italy 13 is lucky - 'fare tredici' means hitting the jackpot!", "textKo": "이탈리아에선 13이 행운이야. '13을 맞힌다'는 건 대박이란 뜻이지!" },
         { "trigger": "lucky_floor", "text": "13! Fare tredici - jackpot!", "textKo": "13! 13을 맞혔다, 대박!" },
-        { "trigger": "unlucky_floor", "text": "17? XVII is VIXI - 'I have lived'. Mamma mia!", "textKo": "17? XVII를 섞으면 VIXI, '나는 살았었다'... 맘마미아!" },
+        { "trigger": "unlucky_floor", "text": "17? Shuffle XVII into VIXI - 'I have lived'. Mamma mia!", "textKo": "17? XVII를 섞으면 VIXI, '나는 살았었다'... 맘마미아!" },
         { "trigger": "lucky_distance", "text": "13 floors! Fare tredici - I win!", "textKo": "열세 층이나 탔어! 13을 맞혔다, 내가 이겼어!" },
         { "trigger": "unlucky_distance", "text": "17 floors?! XVII... VIXI, 'I have lived'. I'm finished!", "textKo": "열일곱 층이라니?! XVII... VIXI, '나는 살았었다'. 난 끝났어!" },
         { "trigger": "delivered", "text": "Grazie mille! Bellissimo.", "textKo": "그라치에 밀레! 벨리시모." },
         { "trigger": "impatient", "text": "Ma dai! At my age I have no time to wait!", "textKo": "에이 참! 내 나이엔 기다릴 시간이 없다고!" },
-        { "trigger": "left", "text": "Basta! The stairs, like in my village.", "textKo": "바스타! 고향에서처럼 계단으로 가지." },
+        { "trigger": "left", "text": "Basta! The stairs, like in my village.", "textKo": "바스타! 고향 마을에서처럼 계단으로 간다." },
         { "trigger": "relabelled", "text": "A new number? Back home we simply skip the seventeen.", "textKo": "번호를 바꿨어? 우리 동네에선 그냥 17을 건너뛰지." }
       ]
     },
@@ -243,18 +243,18 @@
       "color": "#E4572E",
       "accessory": "red_envelope",
       "lines": [
-        { "trigger": "spawn", "text": "We came as a pair - good things come in pairs!", "textKo": "저희는 둘이 왔어요. 좋은 일은 쌍으로 오죠!" },
-        { "trigger": "board", "text": "Two of us: 'hao shi cheng shuang' - good things come in pairs. Six or eight aboard would be even better!", "textKo": "두 명이에요. 호사성쌍(好事成雙), 좋은 일은 짝으로 와요. 여섯이나 여덟 명이면 더 좋고요!" },
+        { "trigger": "spawn", "text": "Off to a wedding - double happiness tonight!", "textKo": "결혼식 가는 길이에요. 오늘은 기쁨이 두 배!" },
+        { "trigger": "board", "text": "Two of us: 'hao shi cheng shuang' - good things come in pairs. Six or eight aboard is even better!", "textKo": "두 명이에요. 호사성쌍(好事成雙), 좋은 일은 짝으로 와요. 여섯이나 여덟 명이면 더 좋고요!" },
         { "trigger": "lucky_floor", "text": "Eight for fortune, six for smooth sailing - even numbers for a wedding!", "textKo": "8은 재물, 6은 순조로움! 결혼식엔 짝수죠!" },
         { "trigger": "unlucky_floor", "text": "Four?! 'Si' sounds like death - not on a wedding day!", "textKo": "4?! 쓰(四)는 죽을 사(死)예요. 결혼식 날에 안 돼요!" },
-        { "trigger": "lucky_occupancy", "text": "Six or eight of us - an even crowd, double happiness!", "textKo": "여섯이나 여덟! 짝수 인원이면 쌍희(喜喜)죠!" },
+        { "trigger": "lucky_occupancy", "text": "Six or eight of us - an even crowd, double happiness!", "textKo": "여섯이나 여덟! 짝수 인원이면 쌍희(雙喜)죠!" },
         { "trigger": "unlucky_occupancy", "text": "Four guests? 'Si'... bad luck for the bride!", "textKo": "넷이요? 쓰(四)... 신부한테 불길해요!" },
-        { "trigger": "lucky_distance", "text": "Eight floors - fortune, and an even number too!", "textKo": "여덟 층! 재물에, 짝수까지!" },
+        { "trigger": "lucky_distance", "text": "Six or eight floors - even and lucky, perfect for a wedding!", "textKo": "여섯 층이든 여덟 층이든, 짝수라 경사스러워요!" },
         { "trigger": "unlucky_distance", "text": "Four floors? 'Si'! The banquet is cursed!", "textKo": "네 층? 쓰(四)! 피로연이 망했어요!" },
         { "trigger": "delivered", "text": "A red envelope for you - an even amount, of course!", "textKo": "홍바오(紅包) 받으세요. 물론 짝수 금액으로!" },
         { "trigger": "impatient", "text": "The banquet will start without us!", "textKo": "피로연이 우리 없이 시작하겠어요!" },
         { "trigger": "left", "text": "We'll walk - together, as a pair.", "textKo": "걸어갈게요. 둘이 짝지어서." },
-        { "trigger": "relabelled", "text": "A new number? As long as it's even!", "textKo": "번호를 바꿨어요? 짝수면 괜찮아요!" }
+        { "trigger": "relabelled", "text": "A new number? As long as it's even - just not 4!", "textKo": "번호를 바꿨어요? 짝수면 좋아요. 4만 빼고요!" }
       ]
     },
     {
@@ -272,17 +272,17 @@
       "color": "#2A9D8F",
       "accessory": "gift_envelope",
       "lines": [
-        { "trigger": "spawn", "text": "Wedding gift money comes in odd numbers - 3, 5 or 7.", "textKo": "축의금은 홀수로 내는 거예요. 3, 5, 7." },
+        { "trigger": "spawn", "text": "Wedding gift money should be an odd number - 3, 5 or 7.", "textKo": "축의금은 홀수로 내야죠. 3, 5, 7처럼요." },
         { "trigger": "board", "text": "Odd numbers can't be split in two - so the couple won't split either.", "textKo": "홀수는 둘로 나눌 수 없죠. 그러니 부부도 갈라지지 않아요." },
         { "trigger": "lucky_floor", "text": "Three, five, seven - odd and lucky, like a proper wedding gift!", "textKo": "3, 5, 7! 축의금처럼 홀수라 길하네요!" },
         { "trigger": "unlucky_floor", "text": "Four is 'shi', nine is 'ku' - never at a wedding!", "textKo": "4는 시(死), 9는 쿠(苦)... 결혼식엔 절대 안 돼요!" },
-        { "trigger": "lucky_occupancy", "text": "Three, five, seven of us - an odd number can't be divided!", "textKo": "셋, 다섯, 일곱! 홀수 인원은 나눠지지 않아요!" },
+        { "trigger": "lucky_occupancy", "text": "Three, five or seven of us - odd numbers can't be split!", "textKo": "셋, 다섯, 일곱! 홀수 인원은 나눠지지 않아요!" },
         { "trigger": "unlucky_occupancy", "text": "Four of us? 'Shi'... how inauspicious.", "textKo": "넷이요? 시(死)... 불길하네요." },
-        { "trigger": "lucky_distance", "text": "Five floors - odd, unbreakable, perfect!", "textKo": "다섯 층! 홀수라 깨지지 않아요. 완벽해요!" },
-        { "trigger": "unlucky_distance", "text": "Four floors... no, nine? 'Shi', 'ku' - terrible!", "textKo": "네 층... 아니, 아홉 층? 시(死), 쿠(苦)... 끔찍해요!" },
+        { "trigger": "lucky_distance", "text": "Three, five or seven floors - odd, unbreakable, perfect!", "textKo": "세 층, 다섯 층, 일곱 층! 홀수라 깨지지 않아요!" },
+        { "trigger": "unlucky_distance", "text": "Four or nine floors? 'Shi', 'ku' - terrible for a wedding!", "textKo": "네 층이든 아홉 층이든... 시(死), 쿠(苦)! 결혼식 날에 끔찍해요!" },
         { "trigger": "delivered", "text": "Thank you. Thirty thousand yen in the envelope - odd, of course.", "textKo": "감사합니다. 축의금은 3만 엔, 물론 홀수로요." },
         { "trigger": "impatient", "text": "The ceremony starts soon...", "textKo": "곧 예식이 시작되는데..." },
-        { "trigger": "left", "text": "The stairs, then. One is never late to a wedding.", "textKo": "계단으로 갈게요. 결혼식엔 늦으면 안 되니까." },
+        { "trigger": "left", "text": "The stairs, then. One must never be late to a wedding.", "textKo": "계단으로 갈게요. 결혼식엔 늦으면 안 되니까." },
         { "trigger": "relabelled", "text": "A new number? I hope it's an odd one.", "textKo": "번호가 바뀌었네요? 홀수면 좋겠어요." }
       ]
     },
@@ -331,14 +331,14 @@
       "accessory": "backpack",
       "lines": [
         { "trigger": "spawn", "text": "Table for one, room for one, ride for one.", "textKo": "1인석, 1인실, 엘리베이터도 1인용으로요." },
-        { "trigger": "board", "text": "11/11 - Singles' Day! Four 1s standing alone like bare sticks. Like me.", "textKo": "11월 11일, 솔로의 날! 1 네 개가 막대기처럼 혼자 서 있죠. 저처럼요." },
+        { "trigger": "board", "text": "11/11 - Singles' Day! Four 1s standing alone like bare sticks. Like me.", "textKo": "11월 11일, 솔로의 날! 1 네 개가 막대기처럼 홀로 서 있죠. 저처럼요." },
         { "trigger": "lucky_floor", "text": "A 1! Solo and proud.", "textKo": "1이다! 혼자라서 당당해요." },
-        { "trigger": "unlucky_floor", "text": "A 2? Don't remind me.", "textKo": "2? 굳이 상기시켜 주지 마세요." },
-        { "trigger": "lucky_occupancy", "text": "Just me - a ride for 1. Perfect.", "textKo": "나 혼자 타네요. 1인용, 완벽해." },
-        { "trigger": "unlucky_occupancy", "text": "Two of us... feels like a date. Awkward.", "textKo": "둘이 타니까 데이트하는 기분... 어색해." },
+        { "trigger": "unlucky_floor", "text": "A 2? Don't remind me.", "textKo": "2? 아픈 데 찌르지 마세요." },
+        { "trigger": "lucky_occupancy", "text": "Just me - a ride for 1. Perfect.", "textKo": "저 혼자네요. 1인용, 완벽해요." },
+        { "trigger": "unlucky_occupancy", "text": "Two of us... feels like a date. Awkward.", "textKo": "둘이 타니까 꼭 데이트 같네요... 어색해." },
         { "trigger": "lucky_distance", "text": "1 floor or 11 - lonely numbers, lucky me!", "textKo": "한 층이든 열한 층이든, 외로운 1이 내 행운!" },
-        { "trigger": "unlucky_distance", "text": "2 floors. Even the ride came in a pair.", "textKo": "두 층이라니. 층 수까지 짝을 지어 오네." },
-        { "trigger": "delivered", "text": "Thanks! I'll treat myself tonight.", "textKo": "고마워요! 오늘 밤은 나한테 선물해야지." },
+        { "trigger": "unlucky_distance", "text": "2 floors. Even the ride came in a pair.", "textKo": "두 층이라니. 층수까지 짝을 지었네." },
+        { "trigger": "delivered", "text": "Thanks! I'll treat myself tonight.", "textKo": "고마워요! 오늘 밤엔 나한테 한턱 쏴야지." },
         { "trigger": "impatient", "text": "Solo doesn't mean I have all night.", "textKo": "혼자라고 시간이 남아도는 건 아니라고요." },
         { "trigger": "left", "text": "Fine, the stairs. Single file.", "textKo": "됐어요, 계단으로. 한 줄로, 혼자서." },
         { "trigger": "relabelled", "text": "A new number? As long as it isn't 2.", "textKo": "번호를 바꿨어요? 2만 아니면 돼요." }
@@ -359,14 +359,14 @@
       "color": "#C0392B",
       "accessory": "santa_hat",
       "lines": [
-        { "trigger": "spawn", "text": "Ho ho ho! The roof, please - my sleigh is parked up there.", "textKo": "호호호! 옥상으로 부탁해요. 썰매를 거기 세워 뒀거든." },
+        { "trigger": "spawn", "text": "Ho ho ho! The roof, please - my sleigh is parked up there.", "textKo": "호호호! 옥상으로 가 주겠니? 썰매를 거기 세워 뒀단다." },
         { "trigger": "board", "text": "12 days of Christmas, and the 25th of December. Those are my numbers!", "textKo": "크리스마스의 12일, 그리고 12월 25일. 그게 내 숫자란다!" },
         { "trigger": "lucky_floor", "text": "12! Someone's on the nice list.", "textKo": "12층! 누군가 착한 아이 명단에 올랐구나." },
         { "trigger": "unlucky_floor", "text": "Hm. I'll check my list twice.", "textKo": "흠. 명단을 두 번 확인해 봐야겠군." },
         { "trigger": "lucky_distance", "text": "12 floors! Like the 12 days of Christmas!", "textKo": "열두 층! 크리스마스의 12일처럼!" },
-        { "trigger": "unlucky_distance", "text": "My reindeer fly straighter than this.", "textKo": "우리 순록은 이보다 곧게 난다네." },
+        { "trigger": "unlucky_distance", "text": "My reindeer fly straighter than this.", "textKo": "우리 순록은 이보다 곧게 난단다." },
         { "trigger": "delivered", "text": "Merry Christmas! Here's a little something.", "textKo": "메리 크리스마스! 작은 선물이란다." },
-        { "trigger": "impatient", "text": "Ho... ho? The children are waiting!", "textKo": "호... 호? 아이들이 기다린단 말이다!" },
+        { "trigger": "impatient", "text": "Ho... ho? The children are waiting!", "textKo": "호... 호? 아이들이 기다린단다!" },
         { "trigger": "left", "text": "No time! Down the chimney - er, the stairs.", "textKo": "시간이 없어! 굴뚝으로... 아니, 계단으로." },
         { "trigger": "relabelled", "text": "A new number! I love a wrapped surprise.", "textKo": "번호가 바뀌었네! 포장된 깜짝 선물 같구나." }
       ]
@@ -386,18 +386,18 @@
       "color": "#2E7D32",
       "accessory": "scarf",
       "lines": [
-        { "trigger": "spawn", "text": "Fa-la-la-la-la! Three voices, one lift.", "textKo": "팔랄랄라라! 세 목소리, 엘리베이터 하나." },
+        { "trigger": "spawn", "text": "Fa-la-la-la-la! Three voices, one elevator.", "textKo": "팔랄랄라라! 목소리 셋, 엘리베이터 하나." },
         { "trigger": "board", "text": "Three voices make a chord - 3 is our lucky number. Just never 4!", "textKo": "세 목소리가 모여야 화음이죠. 3은 행운의 숫자! 4만은 안 돼요." },
         { "trigger": "lucky_floor", "text": "3 - or 12! Our lucky notes, fa-la-la!", "textKo": "3이나 12! 행운의 음이다, 팔랄라!" },
         { "trigger": "unlucky_floor", "text": "4? 'Sa' - like death. Not on Christmas Eve!", "textKo": "4(사)? 크리스마스 이브에 죽을 사(死)라니!" },
         { "trigger": "lucky_occupancy", "text": "Just the three of us - perfect harmony!", "textKo": "딱 우리 셋, 완벽한 화음!" },
         { "trigger": "unlucky_occupancy", "text": "Four of us? 'Sa'... one voice too many.", "textKo": "넷이요? 사(死)... 목소리 하나가 너무 많아요." },
-        { "trigger": "lucky_distance", "text": "3 floors - the ride kept perfect time!", "textKo": "딱 세 층! 박자가 딱 맞네!" },
+        { "trigger": "lucky_distance", "text": "3 floors - or 12! The ride kept perfect time!", "textKo": "세 층이든 열두 층이든, 박자가 딱 맞네요!" },
         { "trigger": "unlucky_distance", "text": "4 floors - 'sa'! Flat as a cracked bell.", "textKo": "네 층이라니, 사(死)! 깨진 종소리 같아요." },
         { "trigger": "delivered", "text": "We wish you a merry Christmas!", "textKo": "메리 크리스마스! 즐거운 성탄 보내세요!" },
         { "trigger": "impatient", "text": "Our voices are getting cold!", "textKo": "목소리가 얼어붙겠어요!" },
         { "trigger": "left", "text": "We'll carol up the stairs instead.", "textKo": "계단을 오르며 캐럴이나 부를게요." },
-        { "trigger": "relabelled", "text": "A new number? We'll write a new verse.", "textKo": "번호를 바꿨어요? 새 가사를 지어야겠네." }
+        { "trigger": "relabelled", "text": "A new number? We'll write a new verse.", "textKo": "번호를 바꿨어요? 새 가사를 지어야겠네요." }
       ]
     }
   ]
