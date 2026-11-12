@@ -74,7 +74,11 @@ namespace FloorF.Rendering
         {
             drawAge = 0f;
             Draws++;
+            drawsTonight++;
         }
+
+        /// <summary>Draws since the lottery dressing last appeared (the tray starts empty every lottery night).</summary>
+        int drawsTonight;
 
         public void Tick(float dt, float time, ISeasonQuery season)
         {
@@ -86,6 +90,11 @@ namespace FloorF.Rendering
             if (!Shown)
             {
                 drawAge = float.MaxValue;
+                // lottery night over (next day, new run): no highlight survives into the next lottery night
+                foreach (var h in highlights)
+                    if (h != null && h.Root.activeSelf) h.Root.SetActive(false);
+                if (drop != null && drop.gameObject.activeSelf) drop.gameObject.SetActive(false);
+                drawsTonight = 0;
                 return;
             }
             Animate(dt);
@@ -159,7 +168,7 @@ namespace FloorF.Rendering
                 balls.localRotation = Quaternion.Euler(0f, 0f, balls.localEulerAngles.z - speed * 1.6f * dt);
                 float u = Mathf.InverseLerp(WinterSchedule.DropAt, WinterSchedule.DrawSeconds, drawAge);
                 bool falling = drawAge >= WinterSchedule.DropAt;
-                drop.gameObject.SetActive(falling || Draws > 1);
+                drop.gameObject.SetActive(falling || drawsTonight > 1);
                 if (falling)
                 {
                     // roll down the chute with a little gravity ease, a hop at the tray
@@ -167,13 +176,18 @@ namespace FloorF.Rendering
                     p.y += Mathf.Sin(Mathf.Clamp01((u - 0.8f) / 0.2f) * Mathf.PI) * 0.06f;
                     drop.localPosition = p;
                 }
-                else if (Draws > 1) drop.localPosition = dropTo;
+                else if (drawsTonight > 1) drop.localPosition = dropTo;
             }
         }
 
+        int numberTextOf = -1;
+        string numberText;
+
         void UpdateHighlights(float time)
         {
-            string text = Number > 0 ? Number.ToString() : null;
+            // the number's text is cached (no per-frame string on WebGL)
+            if (numberTextOf != Number) { numberTextOf = Number; numberText = Number > 0 ? Number.ToString() : null; }
+            string text = numberText;
             RenderAssets.SetColor(glow, Gold * (0.85f * WinterSchedule.HighlightLevel(time)));
             for (int i = 0; i < highlights.Length && i < building.FloorCount; i++)
             {

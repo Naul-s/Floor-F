@@ -19,6 +19,7 @@ namespace FloorF.Rendering
         {
             public GameObject Sign;
             public Material SignMaterial;
+            public Color SignTint = Color.white;
             public Texture2D SignTexture;
             public string SignText;
             public bool SignSticker;
@@ -31,6 +32,7 @@ namespace FloorF.Rendering
             public float StickAge = float.MaxValue;
             /// <summary>Ending: plate showing the original number behind the (falling) sticker.</summary>
             public GameObject Reveal;
+            public Texture2D RevealTexture;
             public string RevealText;
             public bool Falling, Fallen;
             public Vector3 FallVelocity;
@@ -313,6 +315,28 @@ namespace FloorF.Rendering
             // right edge 0.35 left of the shaft post, vertically centred in the open part of the floor
             var corner = grid.SnapCorner(new Vector3(sx - ShaftHalfWidth - 0.35f - sw, i * h + (h - SlabThickness) * 0.58f - sh * 0.5f, -d * 0.5f - 0.06f));
             e.Sign.transform.localPosition = corner + new Vector3(sw * 0.5f, sh * 0.5f, 0f);
+            LayoutReveal(e, sw);
+        }
+
+        /// <summary>
+        /// The ending's original-number plate follows the frame's pixel grid like the sign (the scenic zoom changes
+        /// whole ppu under it): whole texels, right-aligned with the sign plate of width <paramref name="sw"/>.
+        /// </summary>
+        void LayoutReveal(Floor e, float sw)
+        {
+            if (e.Reveal == null || e.RevealTexture == null) return;
+            float rw = e.RevealTexture.width * signTexel, rh = e.RevealTexture.height * signTexel;
+            var t = e.Reveal.transform;
+            t.localScale = new Vector3(rw, rh, 1f);
+            t.localPosition = new Vector3((sw - rw) * 0.5f, 0f, 0.015f);
+        }
+
+        /// <summary>World size of floor <paramref name="floor"/>'s reveal plate (zero without one) - tests.</summary>
+        public Vector2 GetRevealSize(FloorIndex floor)
+        {
+            if (floor.Value < 0 || floor.Value >= floors.Count || floors[floor.Value].Reveal == null) return Vector2.zero;
+            var s = floors[floor.Value].Reveal.transform.localScale;
+            return new Vector2(s.x, s.y);
         }
 
         /// <summary>
@@ -336,7 +360,19 @@ namespace FloorF.Rendering
             if (hotelSign != null) RenderAssets.SetColor(hotelSign, tint);
         }
 
-        public Color HotelSignTint => hotelSign != null && hotelSign.HasProperty("_BaseColor") ? hotelSign.GetColor("_BaseColor") : Color.white;
+        /// <summary>Floor sign tint (white = normal; the 4th-floor ending dims the other signs with the power).</summary>
+        public void SetSignTint(FloorIndex floor, Color tint)
+        {
+            if (floor.Value < 0 || floor.Value >= floors.Count) return;
+            var e = floors[floor.Value];
+            if (e.SignMaterial == null || e.SignTint == tint) return;
+            e.SignTint = tint;
+            RenderAssets.SetColor(e.SignMaterial, tint);
+        }
+
+        public Color GetSignTint(FloorIndex floor) => floor.Value >= 0 && floor.Value < floors.Count ? floors[floor.Value].SignTint : Color.white;
+
+        public Color HotelSignTint =>hotelSign != null && hotelSign.HasProperty("_BaseColor") ? hotelSign.GetColor("_BaseColor") : Color.white;
 
         /// <summary>Sticker "slap": the sign overshoots big, slams down small, settles (scale on the sign root).</summary>
         public void PlayStick(FloorIndex floor)
@@ -370,6 +406,7 @@ namespace FloorF.Rendering
             // right-aligned with the sign plate (a marked sticker sign is wider on its left)
             float rw = tex.width * signTexel, sw = e.Sign.transform.childCount > 0 ? e.Sign.transform.GetChild(0).localScale.x : rw;
             e.Reveal = assets.Plate(e.Sign.transform, "Reveal", new Vector3((sw - rw) * 0.5f, 0f, 0.015f), new Vector2(rw, tex.height * signTexel), mat);
+            e.RevealTexture = tex;
             e.RevealText = original;
             if (e.SignText == original) { e.Fallen = true; return; }
             e.Falling = true;
@@ -394,10 +431,18 @@ namespace FloorF.Rendering
             for (int i = 0; i < floors.Count; i++)
             {
                 var e = floors[i];
-                if (e.Reveal != null) Object.Destroy(e.Reveal);
+                if (e.Reveal != null)
+                {
+                    // its own material + texture (one reveal per ending: never leak them across runs)
+                    if (e.Reveal.TryGetComponent<MeshRenderer>(out var rr) && rr.sharedMaterial != null) Object.Destroy(rr.sharedMaterial);
+                    Object.Destroy(e.Reveal);
+                }
+                if (e.RevealTexture != null) Object.Destroy(e.RevealTexture);
                 e.Reveal = null;
+                e.RevealTexture = null;
                 e.RevealText = null;
                 e.Falling = e.Fallen = false;
+                SetSignTint(new FloorIndex(i), Color.white);
                 var plate = e.Sign.transform.childCount > 0 ? e.Sign.transform.GetChild(0) : null;
                 if (plate != null)
                 {

@@ -103,6 +103,20 @@ namespace FloorF.Tests.EditMode.Rendering
         }
 
         [Test]
+        public void SilentNight_WholeLightsOutReadsWithinTheEndingBeat()
+        {
+            // the UI shows the scene alone for 5 s (FlowScreensView.EndingBeat) before the card covers it
+            const int n = 9;
+            const float beat = 5f;
+            Assert.AreEqual(n - 1, WinterSchedule.LightsOutCount(beat - 1f, n), "every floor told before the last second");
+            float lastStart = WinterSchedule.LightsOutStart + (n - 2) * WinterSchedule.LightsOutStep;
+            float fade = (1f - WinterSchedule.LightsOutLevel) / WinterSchedule.LightsOutSpeed;
+            Assert.LessOrEqual(lastStart + fade, beat, "the last floor is dark when the card arrives");
+            Assert.GreaterOrEqual(fade, 0.5f, "a dim, not a cut");
+            Assert.LessOrEqual(WinterSchedule.SilentSignSeconds, beat);
+        }
+
+        [Test]
         public void Sleigh_CrossesTheMoon_ThenRests()
         {
             var moon = new Vector2Int(Mathf.RoundToInt(SkyView.MoonViewport.x * StarField.Width), Mathf.RoundToInt(SkyView.MoonViewport.y * StarField.Height));

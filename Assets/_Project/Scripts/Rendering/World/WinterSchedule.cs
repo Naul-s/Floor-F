@@ -105,11 +105,17 @@ namespace FloorF.Rendering
 
         // ------------------------------------------------------------------ endings
 
-        /// <summary>Silent Night: seconds between two floors going dark, top floor first.</summary>
-        public const float LightsOutStep = 1.4f;
-        public const float LightsOutStart = 1.0f;
-        /// <summary>Fading floors drop by this much level per second (a slow dim, never a cut).</summary>
-        public const float LightsOutSpeed = 0.7f;
+        /// <summary>
+        /// Silent Night: seconds between two floors going dark, top floor first. The UI shows the ending scene alone for
+        /// 5 s (FlowScreensView.EndingBeat) before its card: the whole lights-out (8 floors) has to read in that beat -
+        /// the last floor starts at 0.5 + 7 x 0.5 = 4 s and is down by ~4.9 s.
+        /// </summary>
+        public const float LightsOutStep = 0.5f;
+        public const float LightsOutStart = 0.5f;
+        /// <summary>Fading floors drop by this much level per second (a ~1 s dim, never a cut or a flash).</summary>
+        public const float LightsOutSpeed = 1.0f;
+        /// <summary>Silent Night: the HOTEL sign dims over this many seconds (with the floors).</summary>
+        public const float SilentSignSeconds = 5f;
         public const float LightsOutLevel = 0.1f;
 
         /// <summary>Order index -> floor index, top floor first, the lobby last (it keeps its tree lit).</summary>

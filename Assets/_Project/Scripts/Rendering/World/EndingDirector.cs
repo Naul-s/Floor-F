@@ -5,8 +5,8 @@ namespace FloorF.Rendering
 {
     /// <summary>
     /// GDD 7 ending lighting, driven by EndingReached (juice clock, so it holds while paused):
-    ///   FourthFloor - every floor goes dark, then only the PHYSICAL 4th floor comes back cold and flickering, and its
-    ///                 sticker drops off the sign to reveal the original "4".
+    ///   FourthFloor - every floor goes dark (their number signs dim with them), then only the PHYSICAL 4th floor comes
+    ///                 back cold and flickering, and its sticker drops off the sign to reveal the original "4".
     ///   Haunted     - all floors red and flickering (slow sags, single drop-outs, one shared wiring), HOTEL sign with them.
     ///   Prosperous  - warm gold wave lights every floor bottom-up brighter than normal, HOTEL sign blinks.
     ///   Modest      - unchanged.
@@ -29,11 +29,13 @@ namespace FloorF.Rendering
         public static readonly Color MiracleSign = new Color(1.00f, 0.90f, 0.72f);
         /// <summary>Winter Miracle: seconds between two floors warming up (bottom-up).</summary>
         public const float MiracleStep = 0.3f;
-        public const float SilentSignSeconds = 9f;
+        public const float SilentSignSeconds = WinterSchedule.SilentSignSeconds;
 
         /// <summary>Snow, sleigh (endings); null in tests that build the director alone.</summary>
         public WinterView Winter { get; set; }
         public ChristmasDecor Christmas { get; set; }
+        /// <summary>4th-floor ending: tint of the other floors' signs once the power is out (dim, still legible).</summary>
+        public static readonly Color SignOff = new Color(0.30f, 0.30f, 0.34f);
         static readonly Color RevealInk = new Color(0.75f, 0.95f, 1.00f);
         static readonly Color RevealPlate = new Color(0.03f, 0.04f, 0.06f);
 
@@ -157,8 +159,14 @@ namespace FloorF.Rendering
                 case EndingKind.FourthFloor:
                 {
                     elevator.SetLightLevel(Mathf.Clamp01(1f - t / DarkSeconds));
-                    building.SetHotelSignTint(Color.Lerp(Color.white, new Color(0.18f, 0.18f, 0.2f), Mathf.Clamp01(t / DarkSeconds)));
+                    float dark = Mathf.Clamp01(t / DarkSeconds);
+                    building.SetHotelSignTint(Color.Lerp(Color.white, new Color(0.18f, 0.18f, 0.2f), dark));
                     var f4 = RealFourth;
+                    // the power is out: the other floor numbers dim with their floors, so in the whole-city view the
+                    // only bright number left is the 4th floor's (its sign stays lit, then reveals the "4")
+                    var dimSign = Color.Lerp(Color.white, SignOff, dark);
+                    for (int i = 0; i < n; i++)
+                        if (i != f4.Value) building.SetSignTint(new FloorIndex(i), dimSign);
                     if (!floor4On && t >= Floor4OnAt)
                     {
                         floor4On = true;
