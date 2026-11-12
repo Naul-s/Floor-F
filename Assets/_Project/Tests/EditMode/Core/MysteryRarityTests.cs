@@ -91,6 +91,40 @@ namespace FloorF.Tests.EditMode.Core
             Assert.AreEqual(0, sim.S.MysteryMisses);
         }
 
+        /// <summary>
+        /// Bug (polish pass, found auditing the run history): the pity counter was reset at the mystery night's BeginDay,
+        /// so a guaranteed night lost before the guest's spawn time (Haunted early, a quit to the title) used up the pity
+        /// although the player never saw it. Now it resets only when the guest really appears.
+        /// </summary>
+        [Test]
+        public void MysteryNight_EndsBeforeItArrives_KeepsThePity()
+        {
+            var sim = New(MysteryData(0f, 2), 1, 2);
+            sim.S.StartNewGame();
+            Assert.IsTrue(sim.S.MysteryTonight, "2 misses: guaranteed");
+            Assert.IsTrue(sim.S.BeginDay());
+            sim.Run(0.5f); // its spawn time is 1 s
+            Assert.IsTrue(sim.S.DebugForceEnding(EndingKind.Haunted));
+            Assert.AreEqual(0, MysterySpawns(sim));
+            Assert.AreEqual(2, sim.S.MysteryMisses, "never appeared: the pity is kept");
+            Assert.IsFalse(sim.Events<RunHistoryChanged>().Any(e => e.MysteryMisses != 2));
+
+            sim.S.ReturnToTitle(); // and a quit to the title in the middle of the night keeps it too
+            Assert.IsTrue(sim.S.StartGameFromTitle());
+            Assert.IsTrue(sim.S.MysteryTonight, "still guaranteed on the next run");
+            Assert.IsTrue(sim.S.BeginDay());
+            sim.Run(0.5f);
+            sim.S.ReturnToTitle();
+            Assert.AreEqual(2, sim.S.MysteryMisses);
+
+            Assert.IsTrue(sim.S.StartGameFromTitle());
+            Assert.IsTrue(sim.S.MysteryTonight);
+            BeginAndRun(sim);
+            Assert.AreEqual(1, MysterySpawns(sim), "this time it comes");
+            Assert.AreEqual(0, sim.S.MysteryMisses);
+            Assert.AreEqual(0, sim.Events<RunHistoryChanged>().Last().MysteryMisses);
+        }
+
         [Test]
         public void PityZero_ChanceZero_Never()
         {

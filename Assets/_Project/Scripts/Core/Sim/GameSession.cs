@@ -445,6 +445,7 @@ namespace FloorF.Core
         /// <summary>Spawns <c>def.partySize</c> guests waiting at <paramref name="floor"/>. Returns the first id. (Tests call this directly.)</summary>
         internal GuestId SpawnParty(GuestDef def, FloorIndex floor, DestinationId dest, FloorIndex destFloor)
         {
+            if (def.HasTrait(GuestTraits.Mystery)) OnMysteryArrives(); // the pity counter resets when it really comes
             int size = Math.Max(1, def.partySize);
             var party = size > 1 ? new PartyId(nextPartyId++) : PartyId.None;
             GuestId first = GuestId.None;
