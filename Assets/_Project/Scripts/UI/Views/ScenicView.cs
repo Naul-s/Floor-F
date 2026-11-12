@@ -161,6 +161,24 @@ namespace FloorF.UI
         /// </summary>
         bool endingView;
 
+        /// <summary>The ending's whole-city framing is on (see <see cref="SetEndingWide"/>).</summary>
+        bool endingWide;
+        public bool EndingWide => endingWide;
+
+        /// <summary>
+        /// The ending scene: the same wide camera the V scenic view uses (ScenicViewChanged, not an establishing shot), for
+        /// the whole Ending - no pause, no hint; the flow card fades the HUD / shows the card itself. Off (leaving Ending)
+        /// zooms back in exactly like leaving the scenic view. The player's own view (eye / V) on top keeps the camera
+        /// wide when it closes.
+        /// </summary>
+        public void SetEndingWide(bool on)
+        {
+            if (on == endingWide) return;
+            endingWide = on;
+            if (mode == Mode.Scenic) return; // the player's view is up: its exit sends the Off (or keeps it wide)
+            GameServices.Events.Publish(new ScenicViewChanged(on, false));
+        }
+
         bool OnTitle => ctx.Phase == DayPhase.Title || (ctx.Menu != null && ctx.Menu.IsOnTitle);
 
         public bool ScenicAllowed
@@ -210,7 +228,7 @@ namespace FloorF.UI
             exitPending = false;
             hint.gameObject.SetActive(false);
             hintAge = -1f;
-            GameServices.Events.Publish(new ScenicViewChanged(false, false));
+            if (!endingWide) GameServices.Events.Publish(new ScenicViewChanged(false, false)); // the ending stays wide
             if (!fromPause && ctx.Menu != null && ctx.Menu.IsPaused) ctx.Menu.SetPaused(false);
         }
 

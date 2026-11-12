@@ -174,9 +174,13 @@ namespace FloorF.Tests.PlayMode.UI
         /// <summary>Steps <paramref name="seconds"/> of 0.1 s frames (UIClock follows captureDeltaTime).</summary>
         static IEnumerator Step(float seconds)
         {
+            // the camera eases on the unscaled clock: step it with the frames too (else batch frames barely move it)
+            var render = FloorF.Tests.PlayMode.Rendering.RenderingTestDriver.Rendering();
+            if (render != null) render.CameraStepOverride = 0.1f;
             Time.captureDeltaTime = 0.1f;
             for (int i = 0; i < Mathf.RoundToInt(seconds / 0.1f); i++) yield return null;
             Time.captureDeltaTime = 0f;
+            if (render != null) render.CameraStepOverride = null;
         }
 
         [UnityTest]
@@ -197,13 +201,16 @@ namespace FloorF.Tests.PlayMode.UI
             yield return null;
 
             Assert.IsTrue(ui.EndingBeatActive, "the ending scene plays alone first");
+            Assert.IsTrue(ui.EndingWide, "camera out to the whole city, like V");
+            Assert.AreEqual(ScenicView.Mode.None, ui.ScenicMode, "not the player's scenic view: no pause, no hint");
+            Assert.IsFalse(GameServices.Get<IMenuFlow>().IsPaused);
             Assert.IsFalse(ui.FlowCardUp);
             Assert.AreEqual(false, ui.FlowEnterEnabled, "Gameplay's Enter waits too");
             yield return Step(0.5f);
             Assert.IsTrue(ui.EndingBeatActive, "t = 0.5 s: still the scene");
             Assert.IsFalse(ui.FlowCardUp, "t = 0.5 s: no card");
             Assert.Less(ui.HudAlpha, 0.05f, "no HUD over the scene");
-            yield return Step(3.0f); // the sleigh's first flight (1.5 s in, 7 s long) is crossing the moon now
+            yield return Step(3.0f); // the sleigh's first flight (1.5 s in, 7 s long) is crossing the moon now, camera wide
             Assert.IsTrue(ui.EndingBeatActive, "the miracle waits " + FlowScreensView.MiracleBeat + " s");
             yield return Day0Driver.Shot("ui_ending_beat_miracle_sleigh", true);
             yield return Step(FlowScreensView.MiracleBeat - 3.5f - 0.3f);
@@ -211,16 +218,19 @@ namespace FloorF.Tests.PlayMode.UI
             yield return Step(0.3f + FlowScreensView.CardFadeIn + 0.2f);
             Assert.IsFalse(ui.EndingBeatActive);
             Assert.IsTrue(ui.FlowCardUp, "after the beat the card is up");
+            Assert.IsTrue(ui.EndingWide, "the camera stays wide behind the card");
             StringAssert.Contains("A CHRISTMAS MIRACLE", ui.FlowTitle);
             Assert.AreEqual(0, flowFake.Extends);
 
             // the next ending: a key during the beat only brings the card (no button, no restart)
             day.ForcedPhase = DayPhase.Summary;
             yield return null;
+            Assert.IsFalse(ui.EndingWide, "leaving the Ending zooms back in (as leaving V does)");
             day.ForcedPhase = null;
             day.ForcedEnding = EndingKind.SilentNight;
             yield return null;
             Assert.IsTrue(ui.EndingBeatActive, "a new ending: a new beat");
+            Assert.IsTrue(ui.EndingWide);
             Assert.AreEqual(FlowScreensView.EndingBeat, FlowScreensView.BeatFor(EndingKind.SilentNight));
             yield return Step(0.3f);
             ui.InjectPress(enter: true);
@@ -233,6 +243,37 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(ui.FlowCardUp);
             Assert.AreEqual(0, flowFake.Extends, "a click during the fade-in hits no button either");
             Assert.IsTrue(ui.FlowOwnsEnter, "now the offer takes Enter (after its arm delay)");
+        }
+
+        [UnityTest]
+        public IEnumerator Capture_EndingBeat_HauntedWide()
+        {
+            yield return Boot(false);
+            UIFeatures.EndingBeat = true;
+            var ui = UITestDriver.UI();
+            yield return UITestDriver.ClickStart();
+            UITestDriver.RunToEnding(UITestDriver.Session());
+            var real = GameServices.Get<IDayQuery>();
+            var day = new WinterDay(real, real.CurrentDay.Number, real.DisplayDay) { Playable = real.PlayableDayCount, ForcedEnding = EndingKind.Haunted };
+            ui.OverrideServicesForTests(day: day);
+            ui.OverrideSeasonForTests(new FakeSeason(), new FakeSeasonFlow());
+            GameServices.Events.Publish(new EndingReached(EndingKind.Haunted, day.CurrentDay, 0, 120));
+            yield return null;
+            Assert.IsTrue(ui.EndingBeatActive);
+            Assert.IsTrue(ui.EndingWide, "the haunted hotel, seen whole");
+            Assert.AreEqual(FlowScreensView.EndingBeat, FlowScreensView.BeatFor(EndingKind.Haunted));
+            yield return Step(2.5f);
+            Assert.IsTrue(ui.EndingBeatActive);
+            yield return Day0Driver.Shot("ui_ending_beat_haunted_wide", true);
+            yield return Step(FlowScreensView.EndingBeat - 2.5f + FlowScreensView.CardFadeIn + 0.3f);
+            Assert.IsTrue(ui.FlowCardUp);
+            StringAssert.Contains("HAUNTED", ui.FlowTitle);
+            Assert.IsTrue(ui.EndingWide, "wide behind the card");
+            yield return Day0Driver.Shot("ui_ending_card_haunted_wide", true);
+            // TITLE: the title camera takes over, the ending view is dropped
+            ui.ClickEndingTitle();
+            yield return UITestDriver.Frames(2);
+            Assert.IsFalse(ui.EndingWide);
         }
 
         // ------------------------------------------------------------------ winter / Christmas intro cards, HUD
