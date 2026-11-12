@@ -93,6 +93,34 @@ namespace FloorF.Tests.PlayMode.UI
             return null;
         }
 
+        /// <summary>
+        /// The WebGL stage is always 16:9 (TemplateData/style.css): the 1280x720 canvas IS the world image there, while
+        /// batch runs show a 4:3 canvas with the world letterboxed. Re-anchors a top-right-anchored HUD rect onto the
+        /// 16:9 canvas (same offsets from the top-right corner) and checks it against the HOTEL sign's viewport rect.
+        /// </summary>
+        static void AssertClearOfHotelSign16x9(Rect canvasRect, Vector2 canvasSize)
+        {
+            var render = FloorF.Tests.PlayMode.Rendering.RenderingTestDriver.Rendering();
+            if (render == null || render.Building == null || render.Building.HotelSignRoot == null) { Assert.Inconclusive("no rendering"); return; }
+            var cam = render.Pipeline.WorldCamera;
+            float minX = 1f, minY = 1f, maxX = 0f, maxY = 0f;
+            foreach (var r in render.Building.HotelSignRoot.GetComponentsInChildren<Renderer>())
+            {
+                var b = r.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    var c = b.center + Vector3.Scale(b.extents, new Vector3((i & 1) == 0 ? -1f : 1f, (i & 2) == 0 ? -1f : 1f, (i & 4) == 0 ? -1f : 1f));
+                    var v = cam.WorldToViewportPoint(c);
+                    minX = Mathf.Min(minX, v.x); maxX = Mathf.Max(maxX, v.x);
+                    minY = Mathf.Min(minY, v.y); maxY = Mathf.Max(maxY, v.y);
+                }
+            }
+            var ref16 = new Vector2(UIStyle.RefWidth, UIStyle.RefHeight);
+            var sign = Rect.MinMaxRect(minX * ref16.x, minY * ref16.y, maxX * ref16.x, maxY * ref16.y);
+            var at16 = new Rect(canvasRect.xMin - (canvasSize.x - ref16.x), canvasRect.yMin - (canvasSize.y - ref16.y), canvasRect.width, canvasRect.height);
+            Assert.IsFalse(at16.Overlaps(sign), "16:9 stage: " + at16 + " covers the HOTEL sign " + sign);
+        }
+
         static void AssertCardFits(UIRoot ui, string what)
         {
             var card = ui.FlowCardRect;
@@ -102,6 +130,7 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(card.xMin >= 0f && card.yMin >= 0f && card.xMax <= size.x && card.yMax <= size.y, what + ": " + card);
             Assert.IsNull(ui.FlowTextOverflow(), what);
             Assert.IsNull(ui.FirstOffGridOrForeignText(), what);
+            Assert.IsNull(ui.FlowRuleProblem(), what + ": the ornament under the title stays between the lines");
         }
 
         // ------------------------------------------------------------------ ending card: keep the hotel open
@@ -407,7 +436,7 @@ namespace FloorF.Tests.PlayMode.UI
             ui.OverrideServicesForTests(day: day);
             ui.OverrideSeasonForTests(season);
             yield return UITestDriver.Frames(2);
-            StringAssert.Contains(ko ? "당첨 번호를 2번 뽑아요" : "a winning number is drawn 2x", Plain(ui.FlowToday));
+            StringAssert.Contains(ko ? "당첨 번호를 2번 뽑아요" : "2 winning numbers are drawn tonight", Plain(ui.FlowToday));
             Assert.IsTrue(ui.FlowWinterLook);
             AssertCardFits(ui, "lottery intro");
             yield return UITestDriver.ClickStart();
@@ -431,9 +460,22 @@ namespace FloorF.Tests.PlayMode.UI
             var plate = ui.LotteryRect;
             Assert.IsFalse(plate.Overlaps(ui.PanelRect), "clear of the panel");
             Assert.IsFalse(plate.Overlaps(ui.LuckBoxRect), "clear of the luck meter");
-            Assert.IsTrue(plate.yMax <= ui.CanvasSize.y && Mathf.Abs(plate.center.x - ui.CanvasSize.x * 0.5f) < 1f, "top centre: " + plate);
-            Assert.LessOrEqual(plate.height, 64f, "a slim strip");
-            Assert.GreaterOrEqual(plate.yMin, ui.CanvasSize.y - 80f, "stays in the sky above the building (not over the top floors / HOTEL sign): " + plate);
+            // the draw lies on the HUD's lottery badge in the right column: on the real 16:9 stage the world fills the
+            // canvas and the HOTEL sign touches its top edge - a top-centre strip covered it
+            var badge = ui.SeasonBadgeRect;
+            Assert.AreEqual(badge.center.x, plate.center.x, 1f, "over the badge: " + plate + " vs " + badge);
+            Assert.AreEqual(badge.center.y, plate.center.y, 1f, "over the badge: " + plate + " vs " + badge);
+            Assert.AreEqual(badge.width, plate.width, 1f);
+            Assert.GreaterOrEqual(plate.xMin, ui.CanvasSize.x - 24f - HudView.ColumnWidth - 1f, "in the HUD's right column, off the hotel");
+            AssertClearOfHotelSign16x9(plate, ui.CanvasSize);
+            Assert.IsNull(ui.LotteryTextProblem(), "caption / result fit beside the ball");
+            // H folds the rule box: the badge moves up and the plate goes with it
+            ui.ClickRulesHide();
+            yield return null;
+            Assert.AreEqual(ui.SeasonBadgeRect.center.y, ui.LotteryRect.center.y, 1f, "follows the badge up");
+            ui.ClickRulesTab();
+            yield return null;
+            Assert.AreEqual(badge.center.y, ui.LotteryRect.center.y, 1f, "...and back down");
             yield return null;
             Assert.IsFalse(ui.IsJackpotButton(floor), "no spoiler while the ball rolls");
             ui.SetLotteryAge(0.8f);

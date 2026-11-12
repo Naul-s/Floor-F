@@ -13,6 +13,7 @@ namespace FloorF.UI
     sealed class DebugReadoutView
     {
         static readonly Color TagColor = new Color(1f, 0.38f, 0.32f, 0.95f);
+        public const float TagMaxW = 600f;
 
         readonly RectTransform tagPlate, box;
         readonly TextMeshProUGUI tag, body;
@@ -20,7 +21,7 @@ namespace FloorF.UI
         public DebugReadoutView(RectTransform fx)
         {
             var tagImg = UIBuild.Box("DebugTag", fx, new Color(0f, 0f, 0f, 0.7f));
-            tagPlate = UIBuild.Place(tagImg.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(600f, 30f));
+            tagPlate = UIBuild.Place(tagImg.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -4f), new Vector2(TagMaxW, 30f));
             tag = UIBuild.Text("Text", tagPlate, "", 18f, TagColor, TextAlignmentOptions.Center);
             UIBuild.Stretch(tag.rectTransform, 4f);
             tag.textWrappingMode = TextWrappingModes.NoWrap;
@@ -49,6 +50,9 @@ namespace FloorF.UI
             if (showTag)
             {
                 tag.text = e.Tag;
+                // only as wide as its text: a fixed 600-wide plate hid most of the HOTEL sign under it
+                float w = tag.GetPreferredValues(e.Tag, float.PositiveInfinity, float.PositiveInfinity).x;
+                tagPlate.sizeDelta = new Vector2(Mathf.Clamp(Mathf.Ceil(w) + 16f, 80f, TagMaxW), tagPlate.sizeDelta.y);
                 tagPlate.SetAsLastSibling();
             }
             bool showBody = !string.IsNullOrEmpty(e.Body);

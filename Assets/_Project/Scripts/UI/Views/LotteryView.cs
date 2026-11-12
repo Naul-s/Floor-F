@@ -8,18 +8,22 @@ using UnityEngine.UI;
 namespace FloorF.UI
 {
     /// <summary>
-    /// Lottery night draw (LotteryDrawn): a slim strip at the top centre, in the sky ABOVE the building (never over the
-    /// top floors or the HOTEL sign), where a lottery ball rolls in, its number ticking
-    /// through the numbers on the floor buttons (slowing down), stops on the winning number with a little bounce, then
-    /// "WINNING NUMBER 7" pulses gently (1.5 Hz scale, no flashing) and the plate fades. The HUD badge keeps the number
-    /// afterwards; the panel rings the matching button in gold. Never a raycast target, frozen while paused.
+    /// Lottery night draw (LotteryDrawn): a plate laid right over the HUD's lottery badge in the right column (the
+    /// WebGL stage is always 16:9, where the world fills the canvas and the HOTEL sign touches its top edge: a strip at
+    /// the top centre covered the sign). A lottery ball rolls in, its number ticking through the numbers on the floor
+    /// buttons (slowing down), stops on the winning number with a little bounce, then "WINNING NUMBER 7" pulses gently
+    /// (1.5 Hz scale, no flashing) and the plate fades - uncovering the badge, which keeps the number afterwards; the
+    /// panel rings the matching button in gold. Follows the badge when the rule box folds (H). Never a raycast target,
+    /// frozen while paused.
     /// </summary>
     sealed class LotteryView
     {
         public const float RollTime = 1.2f, RevealTime = 2.0f, FadeTime = 0.4f, Life = RollTime + RevealTime + FadeTime;
-        public const float PlateW = 320f, PlateH = 60f, Top = 12f;
-        const float Ball = 52f, RollIn = 24f, TextX = 10f + Ball + 10f;
-        public static readonly Color Plate = new Color(0.07f, 0.05f, 0.01f, 0.94f), BallInk = UIStyle.Hex("#1B1508");
+        /// <summary>Default slot (the HUD event badge's, under the open rule box) until <see cref="Dock"/> says otherwise.</summary>
+        public const float PlateW = HudView.ColumnWidth, PlateH = HudView.StarBadgeH;
+        const float Ball = 52f, RollIn = 24f, TextX = 10f + Ball + 10f, TextRight = 10f;
+        /// <summary>Opaque: the badge underneath must not ghost through the draw.</summary>
+        public static readonly Color Plate = new Color(0.07f, 0.05f, 0.01f, 1f), BallInk = UIStyle.Hex("#1B1508");
 
         readonly UIContext ctx;
         readonly RectTransform root, ball;
@@ -28,17 +32,19 @@ namespace FloorF.UI
         readonly List<int> pool = new List<int>();
         float age = -1f, nextTick;
         int winning, shownIndex;
+        /// <summary>Set by UIRoot: the HUD's lottery badge - the plate takes its rect every frame while it is shown.</summary>
+        public System.Func<RectTransform> Dock;
 
         public LotteryView(UIContext ctx, RectTransform canvas)
         {
             this.ctx = ctx;
             root = UIBuild.Framed("LotteryDraw", canvas, Plate, UIStyle.Lucky, 3f).rectTransform;
-            UIBuild.Place(root, new Vector2(0.5f, 1f), new Vector2(0f, -Top), new Vector2(PlateW, PlateH));
+            UIBuild.Place(root, new Vector2(1f, 1f), new Vector2(-24f, -(HudView.RulesBottom + HudView.Friday13LineH + HudView.BadgeGap)), new Vector2(PlateW, PlateH));
             group = root.gameObject.AddComponent<CanvasGroup>();
             group.blocksRaycasts = false;
             group.interactable = false;
             caption = UIBuild.Text("Caption", root, "", 24f, UIStyle.CardEdge, TextAlignmentOptions.Center);
-            UIBuild.Place(caption.rectTransform, new Vector2(0f, 0.5f), new Vector2(TextX, 0f), new Vector2(PlateW - TextX - 10f, 30f));
+            TextBand(caption.rectTransform);
             caption.textWrappingMode = TextWrappingModes.NoWrap;
 
             // the ball: gold ring, white face, dark number (a point-filtered disc: chunky pixel edge like the game)
@@ -61,11 +67,31 @@ namespace FloorF.UI
             number.textWrappingMode = TextWrappingModes.NoWrap;
 
             result = UIBuild.Text("Result", root, "", 24f, UIStyle.Lucky, TextAlignmentOptions.Center, bold: true);
-            UIBuild.Place(result.rectTransform, new Vector2(0f, 0.5f), new Vector2(TextX, 0f), new Vector2(PlateW - TextX - 10f, 30f));
-            result.rectTransform.pivot = new Vector2(0.5f, 0.5f);
-            result.rectTransform.anchoredPosition = new Vector2(TextX + (PlateW - TextX - 10f) * 0.5f, 0f);
+            TextBand(result.rectTransform); // centre pivot: the pulse scales around the text's middle
             result.textWrappingMode = TextWrappingModes.NoWrap;
             root.gameObject.SetActive(false);
+        }
+
+        /// <summary>A 30-high band from right of the ball to the plate's right edge, vertically centred (any plate width).</summary>
+        static void TextBand(RectTransform rt)
+        {
+            rt.anchorMin = new Vector2(0f, 0.5f);
+            rt.anchorMax = new Vector2(1f, 0.5f);
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.offsetMin = new Vector2(TextX, -15f);
+            rt.offsetMax = new Vector2(-TextRight, 15f);
+        }
+
+        /// <summary>Lies exactly over the HUD badge (same parent canvas) whenever that is shown; else keeps its last slot.</summary>
+        void FollowDock()
+        {
+            var d = Dock != null ? Dock() : null;
+            if (d == null || !d.gameObject.activeInHierarchy || d.parent != root.parent) return;
+            if (root.anchorMin != d.anchorMin) root.anchorMin = d.anchorMin;
+            if (root.anchorMax != d.anchorMax) root.anchorMax = d.anchorMax;
+            if (root.pivot != d.pivot) root.pivot = d.pivot;
+            if (root.sizeDelta != d.sizeDelta) root.sizeDelta = d.sizeDelta;
+            if (root.anchoredPosition != d.anchoredPosition) root.anchoredPosition = d.anchoredPosition;
         }
 
         static Sprite disc;
@@ -140,6 +166,7 @@ namespace FloorF.UI
 
         void Animate()
         {
+            FollowDock();
             bool rolling = age < RollTime;
             if (!rolling) UIBuild.Set(number, N(winning));
             else UIBuild.Set(number, N(pool[shownIndex]));
@@ -171,6 +198,17 @@ namespace FloorF.UI
         public string ResultText => Revealed ? result.text : null;
         public string CaptionText => Visible ? caption.text : null;
         public RectTransform Rect => root;
+        /// <summary>First of caption / result wider than its band on one line, or null.</summary>
+        public string TextProblem()
+        {
+            foreach (var t in new[] { caption, result })
+            {
+                if (string.IsNullOrEmpty(t.text)) continue;
+                float w = t.GetPreferredValues(t.text, float.PositiveInfinity, float.PositiveInfinity).x;
+                if (w > t.rectTransform.rect.width + 1f) return t.name + " " + w.ToString("0") + " > " + t.rectTransform.rect.width.ToString("0") + ": " + t.text;
+            }
+            return null;
+        }
         public void SetAge(float t) { if (age >= 0f) { age = t; Animate(); } }
     }
 }

@@ -165,6 +165,7 @@ namespace FloorF.UI
             banner = new DayBannerView(ctx, rt);
             lottery = new LotteryView(ctx, rt);
             hud.LotteryRolling = () => lottery.Rolling;
+            lottery.Dock = () => hud.SeasonBadge; // the draw happens on the badge that keeps the number
             panel.LotteryRolling = () => lottery.Rolling;
             shop = new ShopView(ctx, rt, panel);
             curse = new CurseView(ctx, rt); // above the HUD / popups, under the flow cards, coach marks and menu
@@ -534,6 +535,10 @@ namespace FloorF.UI
         internal string LotteryBallText => lottery.NumberText;
         internal string LotteryResultText => lottery.ResultText;
         internal string LotteryCaptionText => lottery.CaptionText;
+        internal string LotteryTextProblem() => lottery.TextProblem();
+        internal string FlowRuleProblem() => flow.RuleProblem(ctx.CanvasRect);
+        internal GameObject PauseButtonObject => menu.PauseButtonObject;
+        internal float PauseLabelY => menu.PauseLabelY;
         internal Rect LotteryRect => lottery.Visible ? UIBuild.CanvasRect(ctx.CanvasRect, lottery.Rect) : default;
         internal void SetLotteryAge(float t) => lottery.SetAge(t);
         internal bool IsJackpotButton(int floor) => panel.IsJackpot(floor);
