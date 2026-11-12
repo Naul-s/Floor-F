@@ -311,6 +311,9 @@ namespace FloorF.UI
             flow.Tick();
             tutorial.Tick(dt, Time.unscaledTime);
             menu.Tick();
+            // the ending: whole-city camera (as V) - set before the scenic view ticks, so leaving the Ending zooms back in
+            // before a new day's establishing shot may cut wide again
+            scenic.SetEndingWide(flow.EndingWide && !OnTitle);
             HandlePresses(UIInput.Poll());
             clickFx.Tick(UIClock.UnscaledDt);
             FadeHud(UIClock.UnscaledDt);
@@ -513,6 +516,7 @@ namespace FloorF.UI
         internal void ClickPlayAgain() => flow.ClickAgain();
         internal bool FlowOwnsEnter => flow.OwnsEnter;
         internal bool EndingBeatActive => flow.InEndingBeat;
+        internal bool EndingWide => scenic.EndingWide;
         internal float EndingBeatAge => flow.EndingBeatAge;
         /// <summary>The flow card is fully shown and clickable (false during the ending beat and its fade-in).</summary>
         internal bool FlowCardUp => flow.CardUp;

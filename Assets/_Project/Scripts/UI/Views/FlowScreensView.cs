@@ -22,13 +22,18 @@ namespace FloorF.UI
 
         // ------------------------------------------------------------------ ending: scene first, card later
         /// <summary>
-        /// Seconds the ending scene plays alone before the card fades in (any key / click skips). The Christmas miracle
-        /// waits longer: Santa's sleigh (first flight 1.5 s in, 7 s long, past the moon top-left) should be mostly seen.
+        /// Seconds the ending scene plays alone - camera eased out to the whole city like the V scenic view - before the
+        /// card fades in (any key / click skips). The Christmas miracle waits for Santa's whole first sleigh flight
+        /// (1.5 s in, 7 s long, past the moon top-left).
         /// </summary>
-        public const float EndingBeat = 3.5f, MiracleBeat = 6f, CardFadeIn = 0.4f;
+        public const float EndingBeat = 5f, MiracleBeat = 8.5f, CardFadeIn = 0.4f;
         public static float BeatFor(EndingKind k) => k == EndingKind.WinterMiracle ? MiracleBeat : EndingBeat;
         float beatAge = -1f, fadeAge = -1f;
         int enterHeldUntilFrame = -1;
+        /// <summary>This ending began with a beat: the camera stays on the whole city until the Ending is left.</summary>
+        bool endingWide;
+        /// <summary>The ending wants the wide (scenic) camera framing - UIRoot hands it to ScenicView.</summary>
+        public bool EndingWide => endingWide && shown == DayPhase.Ending && dim.gameObject.activeSelf;
         readonly Image cardEdge, cardFill;
         /// <summary>Friday the 13th intro: red edge on near-black, red title, a red-black dim.</summary>
         public static readonly Color FridayFill = new Color(0.04f, 0.01f, 0.012f, 0.97f), FridayDim = new Color(0.08f, 0f, 0f, 0.78f);
@@ -625,8 +630,8 @@ namespace FloorF.UI
         void Show(DayPhase phase)
         {
             bool enteringEnding = phase == DayPhase.Ending && shown != DayPhase.Ending;
-            if (phase != DayPhase.Ending) StopBeat();
-            else if (enteringEnding && UIFeatures.EndingBeat) StartBeat();
+            if (phase != DayPhase.Ending) { StopBeat(); endingWide = false; }
+            else if (enteringEnding && UIFeatures.EndingBeat) { StartBeat(); endingWide = true; }
             shown = phase;
             shownDay = ctx.HasGame ? ctx.Day.CurrentDay.Number : -1;
             if (beatAge < 0f && fadeAge < 0f) card.anchoredPosition = Vector2.zero; // a stamp jolt never carries over
