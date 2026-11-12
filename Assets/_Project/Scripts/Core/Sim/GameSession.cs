@@ -1024,6 +1024,8 @@ namespace FloorF.Core
                     g.Floor = floor;
                     Elevator.AddRider(g);
                     bus.Publish(new GuestBoarded(g.Id, floor, Elevator.Occupancy));
+                    // picked up at last: an impatient guest stops stomping (patience does not run in the car)
+                    if (g.Mood == GuestMood.Impatient) SetMood(g, GuestMood.Neutral);
                     Speak(g, GuestLineTriggers.Board);
                 }
             }
