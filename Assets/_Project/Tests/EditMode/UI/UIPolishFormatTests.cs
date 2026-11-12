@@ -70,7 +70,7 @@ namespace FloorF.Tests.EditMode.UI
 
             var lottery = First(d => d.lottery);
             string l = Plain(DayTwist.Line(lottery, data, false));
-            StringAssert.Contains("drawn " + lottery.lotteryDraws + "x", l);
+            StringAssert.Contains(lottery.lotteryDraws + " winning numbers are drawn tonight", l);
             StringAssert.Contains("tips x" + UIFormat.Factor(data.Rules.lotteryTipMultiplier), l);
             StringAssert.Contains("Luck +" + data.Rules.lotteryLuckBonus, l);
             Assert.AreEqual("2", UIFormat.Factor(2f));

@@ -206,7 +206,7 @@ namespace FloorF.Tests.EditMode.UI
             Assert.AreEqual("어떤 밤엔 누군가 없는 층을 찾습니다…", UIFormat.EndingHint(EndingKind.FourthFloor, true, 6, 65));
             // the winter endings: Christmas Eve, the miracle with the prosperous Luck
             Assert.AreEqual("Keep the hotel open through Christmas Eve with Luck 65+.", UIFormat.EndingHint(EndingKind.WinterMiracle, false, 6, 65));
-            Assert.AreEqual("영업을 이어가 크리스마스 이브를 운 65 이상으로 마치기.", UIFormat.EndingHint(EndingKind.WinterMiracle, true, 6, 65));
+            Assert.AreEqual("영업을 이어 가 크리스마스 이브를 운 65 이상으로 마치기.", UIFormat.EndingHint(EndingKind.WinterMiracle, true, 6, 65));
             Assert.AreEqual("Keep the hotel open through Christmas Eve.", UIFormat.EndingHint(EndingKind.SilentNight, false, 6, 65));
             Assert.AreEqual("MIRACLE", UIFormat.EndingName(EndingKind.WinterMiracle, false));
             Assert.AreEqual("고요한 밤", UIFormat.EndingName(EndingKind.SilentNight, true));
