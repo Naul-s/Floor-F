@@ -232,7 +232,12 @@ namespace FloorF.Tests.PlayMode.UI
             Assert.IsTrue(ui.EndingBeatActive, "a new ending: a new beat");
             Assert.IsTrue(ui.EndingWide);
             Assert.AreEqual(FlowScreensView.EndingBeat, FlowScreensView.BeatFor(EndingKind.SilentNight));
-            yield return Step(0.3f);
+            // the Enter / click that closed the summary lands as the beat starts: it must not skip the scene
+            ui.InjectPress(enter: true);
+            yield return null;
+            Assert.IsTrue(ui.EndingBeatActive, "a press in the first " + FlowScreensView.BeatSkipGrace + " s does not skip");
+            Assert.AreEqual(0, flowFake.Extends);
+            yield return Step(FlowScreensView.BeatSkipGrace + 0.1f);
             ui.InjectPress(enter: true);
             yield return null;
             Assert.IsFalse(ui.EndingBeatActive, "the key skipped the beat");
